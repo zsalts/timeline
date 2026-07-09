@@ -83,16 +83,23 @@
         .pos-seg-n { background: var(--accent); }
         .pos-seg-r { background: var(--panel-3); }
 
-        .metricas-num {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+        .fila-top {
+            display: flex;
+            flex-wrap: wrap;
             gap: 12px;
+            margin-bottom: 12px;
         }
+        .fila-top .metrica-pos { flex: 1 1 260px; }
+        .fila-top .metrica { flex: 0 1 220px; }
+
         .metrica {
             background: var(--panel);
             border: 1px solid var(--line);
             border-radius: var(--radius);
             padding: 16px 18px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
         }
         .metrica-valor {
             font-family: var(--font-mono);
@@ -101,16 +108,47 @@
             line-height: 1;
             color: var(--text);
         }
-        .zonas { margin-top: 14px; }
-        .zona-row {
-            display: grid;
-            grid-template-columns: 60px 1fr auto;
-            align-items: center;
-            gap: 10px;
-            padding: 3px 0;
+
+        /* Mapas de cancha por zona (bloque estrella) */
+        .mapas { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+        .card-mapa {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+            padding: 16px 18px;
         }
-        .zona-nombre { font-family: var(--font-mono); font-size: 0.78rem; color: var(--muted); }
-        .zona-valor { font-family: var(--font-mono); font-size: 0.82rem; color: var(--text); }
+        .mapa-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 12px; }
+        .mapa-tot { font-family: var(--font-mono); font-weight: 800; font-size: 1.5rem; line-height: 1; }
+        .mapa-tot.recu { color: var(--live); }
+        .mapa-tot.perd { color: var(--danger); }
+
+        .pitch {
+            position: relative;
+            background: linear-gradient(180deg, #0f3b34, #0b2b27);
+            border: 1.5px solid var(--line-2);
+            border-radius: 10px;
+            padding: 8px;
+            display: grid;
+            grid-template-rows: repeat(4, 1fr);
+            gap: 6px;
+            aspect-ratio: 4 / 5;
+        }
+        /* arco de tiro (la "D") en el borde de ataque */
+        .pitch::before {
+            content: ""; position: absolute; top: -1px; left: 50%; transform: translateX(-50%);
+            width: 48%; height: 15%;
+            border: 1.5px solid var(--line-2); border-top: none;
+            border-radius: 0 0 999px 999px; pointer-events: none;
+        }
+        .pzona {
+            position: relative;
+            border-radius: 7px; border: 1px solid rgba(255, 255, 255, 0.06);
+            display: flex; align-items: center; justify-content: center;
+        }
+        .pz-lbl { position: absolute; top: 6px; left: 9px; font-family: var(--font-mono); font-size: 0.6rem; letter-spacing: 0.08em; color: rgba(237, 245, 249, 0.5); }
+        .pz-val { font-family: var(--font-mono); font-weight: 700; font-size: 1.35rem; color: #EDF5F9; }
+        .pzona.zero .pz-val { color: rgba(237, 245, 249, 0.35); font-weight: 500; }
+        .mapa-cap { margin-top: 10px; font-family: var(--font-mono); font-size: 0.62rem; letter-spacing: 0.06em; color: var(--faint); text-transform: uppercase; }
 
         .aviso-config {
             background: var(--accent-dim);
@@ -197,7 +235,6 @@
 
         <div id="resumen" class="kpi-row"></div>
 
-        <div id="aviso-config" class="aviso-config" style="display:none;"></div>
         <div id="metricas" class="metricas" style="display:none;"></div>
 
         <div class="seccion-titulo">
@@ -277,32 +314,52 @@
             const cat = (mapeo && mapeo.categorias) || {};
             let cortesNuestros = 0, cortesRival = 0;
             let recuperaciones = 0, perdidas = 0, cortos = 0;
-            const zonas = { C1: 0, C2: 0, C3: 0, C4: 0, sin: 0 };
+            const zonasRecu = { C1: 0, C2: 0, C3: 0, C4: 0, sin: 0 };
+            const zonasPerd = { C1: 0, C2: 0, C3: 0, C4: 0, sin: 0 };
 
             for (const [nombre, cortes] of Object.entries(est)) {
                 const m = cat[nombre] || { lado: 'nuestro', rol: '' };
-                const n = (cortes || []).length;
+                const lista = cortes || [];
+                const n = lista.length;
                 if (m.lado === 'rival') cortesRival += n; else cortesNuestros += n;
 
-                if (m.rol === 'recuperacion') recuperaciones += n;
-                else if (m.rol === 'corto') cortos += n;
-                else if (m.rol === 'perdida') {
+                if (m.rol === 'recuperacion') {
+                    recuperaciones += n;
+                    lista.forEach(c => { const z = detectarZona(c.d); if (z) zonasRecu[z]++; else zonasRecu.sin++; });
+                } else if (m.rol === 'corto') {
+                    cortos += n;
+                } else if (m.rol === 'perdida') {
                     perdidas += n;
-                    (cortes || []).forEach(c => {
-                        const z = detectarZona(c.d);
-                        if (z) zonas[z]++; else zonas.sin++;
-                    });
+                    lista.forEach(c => { const z = detectarZona(c.d); if (z) zonasPerd[z]++; else zonasPerd.sin++; });
                 }
             }
             const totalAcc = cortesNuestros + cortesRival;
             const posNuestra = totalAcc ? Math.round((cortesNuestros / totalAcc) * 100) : 0;
-            return { cortesNuestros, cortesRival, posNuestra, posRival: 100 - posNuestra, recuperaciones, perdidas, cortos, zonas };
+            return { cortesNuestros, cortesRival, posNuestra, posRival: 100 - posNuestra, recuperaciones, perdidas, cortos, zonasRecu, zonasPerd };
         }
 
         // ¿El mapeo aporta algo? (al menos una métrica asignada o un lado rival)
         function mapeoUtil(mapeo) {
             const cat = (mapeo && mapeo.categorias) || {};
             return Object.values(cat).some(m => m.rol || m.lado === 'rival');
+        }
+
+        // Infiere el mapeo por el nombre de las categorías, para que las
+        // estadísticas funcionen solas, sin configuración previa. El mapeo
+        // manual del club (si existe) siempre tiene prioridad sobre esto.
+        function inferirMapeo(est) {
+            const norm = s => (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+            const categorias = {};
+            for (const nombre of Object.keys(est)) {
+                const s = norm(nombre);
+                let rol = '';
+                if (s.includes('recuper')) rol = 'recuperacion';
+                else if (s.includes('perd')) rol = 'perdida';
+                else if (s.includes('corto') || /\bcc\b/.test(s)) rol = 'corto';
+                const lado = /(en contra|contra|rival|recib)/.test(s) ? 'rival' : 'nuestro';
+                categorias[nombre] = { lado, rol };
+            }
+            return { categorias };
         }
 
         function tileKPI(valor, label) {
@@ -352,21 +409,38 @@
                 </details>`;
         }
 
+        // Dibuja la cancha de 4 zonas (C4 ataque arriba → C1 fondo propio abajo),
+        // pintando cada zona según su intensidad (heatmap).
+        function pitchZonas(zonas, rgb) {
+            const orden = ['C4', 'C3', 'C2', 'C1'];
+            const max = Math.max(...orden.map(z => zonas[z]), 1);
+            return orden.map(z => {
+                const v = zonas[z];
+                const a = v === 0 ? 0 : (0.14 + 0.6 * (v / max)).toFixed(2);
+                const bg = v === 0 ? 'transparent' : `rgba(${rgb},${a})`;
+                return `<div class="pzona ${v === 0 ? 'zero' : ''}" style="background:${bg}">
+                            <span class="pz-lbl">${z}</span><span class="pz-val">${v}</span>
+                        </div>`;
+            }).join('');
+        }
+
+        function mapaCancha(titulo, total, zonas, rgb, claseTot) {
+            const cap = `C1 fondo propio → C4 ataque` + (zonas.sin ? ` · ${zonas.sin} sin zona` : '');
+            return `
+                <div class="card-mapa">
+                    <div class="mapa-head">
+                        <span class="metrica-label">${titulo}</span>
+                        <span class="mapa-tot ${claseTot}">${total}</span>
+                    </div>
+                    <div class="pitch">${pitchZonas(zonas, rgb)}</div>
+                    <div class="mapa-cap">${cap}</div>
+                </div>`;
+        }
+
         function renderMetricas(mx, eq1, eq2) {
             const cont = document.getElementById('metricas');
-            const zonasHtml = ['C1', 'C2', 'C3', 'C4', 'sin'].map(z => {
-                const val = mx.zonas[z];
-                const pct = mx.perdidas > 0 ? Math.round((val / mx.perdidas) * 100) : 0;
-                const nombre = z === 'sin' ? 'Sin zona' : `Campo ${z[1]}`;
-                return `
-                    <div class="zona-row">
-                        <span class="zona-nombre">${nombre}</span>
-                        <div class="barra"><div class="barra-fill" style="width:${pct}%;background:var(--danger);opacity:0.8"></div></div>
-                        <span class="zona-valor">${val}</span>
-                    </div>`;
-            }).join('');
 
-            cont.innerHTML = `
+            const posHtml = `
                 <div class="metrica-pos">
                     <div class="metrica-label">Posesión (acciones a favor vs del rival)</div>
                     <div class="pos-cifras">
@@ -377,22 +451,27 @@
                         <div class="pos-seg-n" style="width:${mx.posNuestra}%"></div>
                         <div class="pos-seg-r" style="width:${mx.posRival}%"></div>
                     </div>
-                </div>
-                <div class="metricas-num">
-                    <div class="metrica">
-                        <div class="metrica-label">Recuperaciones</div>
-                        <div class="metrica-valor">${mx.recuperaciones}</div>
-                    </div>
-                    <div class="metrica">
-                        <div class="metrica-label">Córners cortos</div>
-                        <div class="metrica-valor">${mx.cortos}</div>
-                    </div>
-                    <div class="metrica">
-                        <div class="metrica-label">Pérdidas</div>
-                        <div class="metrica-valor">${mx.perdidas}</div>
-                        <div class="zonas">${zonasHtml}</div>
-                    </div>
                 </div>`;
+            const cortosHtml = `
+                <div class="metrica">
+                    <div class="metrica-label">Córners cortos</div>
+                    <div class="metrica-valor">${mx.cortos}</div>
+                </div>`;
+
+            // Cada bloque aparece solo si tiene datos
+            const top = [];
+            if (mx.cortesRival > 0) top.push(posHtml);
+            if (mx.cortos > 0) top.push(cortosHtml);
+
+            const mapas = [];
+            if (mx.recuperaciones > 0) mapas.push(mapaCancha('Recuperaciones · por zona', mx.recuperaciones, mx.zonasRecu, '69,214,160', 'recu'));
+            if (mx.perdidas > 0) mapas.push(mapaCancha('Pérdidas · por zona', mx.perdidas, mx.zonasPerd, '255,92,99', 'perd'));
+
+            if (!top.length && !mapas.length) { cont.style.display = 'none'; return; }
+
+            cont.innerHTML =
+                (top.length ? `<div class="fila-top">${top.join('')}</div>` : '') +
+                (mapas.length ? `<div class="mapas">${mapas.join('')}</div>` : '');
             cont.style.display = 'block';
         }
 
@@ -438,7 +517,8 @@
                 document.getElementById('hint-orden').textContent = 'Ordenado por cantidad';
                 distribucion.innerHTML = cats.map(c => bloqueCategoria(c, total)).join('');
 
-                // Métricas según mapeo del club
+                // Métricas: si el club configuró el mapeo, se usa; si no, se
+                // infiere por el nombre de las categorías para que funcione solo.
                 let mapeo = null;
                 try {
                     if (clubId) {
@@ -448,14 +528,8 @@
                 } catch (e) {
                     console.warn("No se pudo leer el mapeo del club:", e);
                 }
-
-                if (mapeoUtil(mapeo)) {
-                    renderMetricas(calcularMetricas(est, mapeo), eq1, eq2);
-                } else {
-                    const aviso = document.getElementById('aviso-config');
-                    aviso.innerHTML = 'Para ver <strong>posesión, recuperaciones, pérdidas y cortos</strong>, configurá una vez qué categoría de tu plantilla es cada métrica en <a href="gestion-usuarios.html">Gestión de usuarios → Estadísticas del club</a>.';
-                    aviso.style.display = 'block';
-                }
+                const efectivo = mapeoUtil(mapeo) ? mapeo : inferirMapeo(est);
+                renderMetricas(calcularMetricas(est, efectivo), eq1, eq2);
 
             } catch (error) {
                 console.error("Error al cargar estadísticas:", error);
