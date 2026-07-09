@@ -6,207 +6,408 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Timeline — Videoanálisis de hockey para clubes</title>
     <meta name="description"
-        content="Cada jugada del partido, a un clic. El analista corta, el entrenador revisa: cortes por categoría, comparador de partidos y estadísticas automáticas, en la nube.">
+        content="Cada jugada del partido, a un clic. El analista corta, el entrenador revisa: cortes por categoría sobre la cancha y el tiempo, comparador de partidos y estadísticas automáticas.">
 
     <link rel="manifest" href="/manifest.json">
     <link rel="icon" type="image/png" href="assets/image/logo-web.png">
     <link rel="apple-touch-icon" href="assets/image/logo-web.png">
-    <meta name="theme-color" content="#0B0E13">
+    <meta name="theme-color" content="#061621">
 
-    <link rel="stylesheet" href="assets/css/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Archivo:ital,wdth,wght@0,62..125,100..900&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
+        rel="stylesheet">
+
     <style>
         /* =====================================================
-           LANDING — portada pública de venta
+           TIMELINE — landing "cancha de noche"
+           Azul petróleo (césped sintético bajo luz artificial),
+           líneas blancas de la cancha como divisores, ámbar de
+           marca. Firma: demo interactivo cancha + timeline.
            ===================================================== */
-        html { scroll-behavior: smooth; }
-        body { background: var(--ink); }
+        :root {
+            --campo-0: #061621;
+            /* fondo: cancha de noche */
+            --campo-1: #0A2230;
+            /* panel */
+            --campo-2: #0F2D3E;
+            /* panel elevado */
+            --campo-3: #15394E;
+            /* hover */
+            --linea: rgba(214, 235, 244, 0.10);
+            /* línea de cancha, tenue */
+            --linea-2: rgba(214, 235, 244, 0.24);
+            --tiza: #EDF5F9;
+            /* texto: blanco tiza */
+            --neblina: #93AEBD;
+            /* texto secundario */
+            --bruma: #5E7C8C;
+            /* texto terciario */
+            --ambar: #F7C948;
+            --ambar-ink: #171204;
+            --ambar-dim: rgba(247, 201, 72, 0.13);
 
-        .land-wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+            /* categorías (idénticas a la app) */
+            --cat-corner: #FFB454;
+            --cat-ingreso: #56C2E6;
+            --cat-tiro: #F58BB4;
+            --cat-recu: #5FD3A6;
+            --cat-perdida: #A78BFA;
+
+            --sans: 'Archivo', -apple-system, "Segoe UI", Roboto, sans-serif;
+            --mono: 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+        }
+
+        * { box-sizing: border-box; }
+
+        html { scroll-behavior: smooth; }
+
+        body {
+            margin: 0;
+            background: var(--campo-0);
+            color: var(--tiza);
+            font-family: var(--sans);
+            line-height: 1.55;
+            -webkit-font-smoothing: antialiased;
+            text-rendering: optimizeLegibility;
+        }
+
+        ::selection { background: var(--ambar); color: var(--ambar-ink); }
+
+        a:focus-visible, button:focus-visible {
+            outline: 2px solid var(--ambar);
+            outline-offset: 3px;
+            border-radius: 4px;
+        }
+
+        .wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+
+        /* Tipografía de gráfica deportiva: Archivo con eje de ancho */
+        .display {
+            font-stretch: 118%;
+            font-weight: 800;
+            letter-spacing: -0.025em;
+            line-height: 1.02;
+        }
+
+        .eyebrow {
+            font-family: var(--mono);
+            font-size: 0.68rem;
+            font-weight: 500;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: var(--neblina);
+        }
 
         /* --- Barra superior --- */
-        .land-nav {
+        .nav {
             position: sticky;
             top: 0;
             z-index: 50;
-            background: rgba(11, 14, 19, 0.82);
-            backdrop-filter: blur(10px);
-            border-bottom: 1px solid var(--line);
+            background: rgba(6, 22, 33, 0.82);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--linea);
         }
-        .land-nav-inner {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 14px 0;
-        }
-        .land-brand { display: flex; align-items: center; gap: 11px; text-decoration: none; }
-        .land-brand img { width: 36px; height: 36px; object-fit: contain; border-radius: 9px; background: #fff; padding: 3px; }
-        .land-brand span { color: var(--text); font-weight: 800; font-size: 1.05rem; letter-spacing: -0.01em; }
+        .nav-inner { display: flex; justify-content: space-between; align-items: center; padding: 14px 0; }
+        .brand { display: flex; align-items: center; gap: 11px; text-decoration: none; }
+        .brand img { width: 36px; height: 36px; object-fit: contain; border-radius: 9px; background: #fff; padding: 3px; }
+        .brand span { color: var(--tiza); font-weight: 800; font-stretch: 112%; font-size: 1.06rem; letter-spacing: -0.01em; }
+        .nav-links { display: flex; align-items: center; gap: 24px; }
+        .nav-links a.sec { color: var(--neblina); text-decoration: none; font-size: 0.9rem; font-weight: 500; }
+        .nav-links a.sec:hover { color: var(--tiza); }
 
-        .land-nav-links { display: flex; align-items: center; gap: 22px; }
-        .land-nav-links a.sec { color: var(--muted); text-decoration: none; font-size: 0.9rem; font-weight: 500; }
-        .land-nav-links a.sec:hover { color: var(--text); }
         .btn-cta {
             display: inline-block;
-            background: var(--accent);
-            color: var(--accent-ink);
+            background: var(--ambar);
+            color: var(--ambar-ink);
             font-weight: 700;
             font-size: 0.92rem;
             padding: 10px 20px;
-            border-radius: var(--radius-sm);
+            border-radius: 10px;
             text-decoration: none;
             transition: filter 0.15s, box-shadow 0.15s, transform 0.1s;
         }
-        .btn-cta:hover { filter: brightness(1.08); box-shadow: 0 8px 20px rgba(247, 201, 72, 0.22); }
+        .btn-cta:hover { filter: brightness(1.08); box-shadow: 0 8px 22px rgba(247, 201, 72, 0.25); }
         .btn-cta:active { transform: scale(0.98); }
         .btn-cta.grande { padding: 14px 28px; font-size: 1rem; }
+
         .btn-sec {
             display: inline-block;
-            background: var(--panel-2);
-            color: var(--text);
-            border: 1px solid var(--line-2);
+            background: transparent;
+            color: var(--tiza);
+            border: 1px solid var(--linea-2);
             font-weight: 600;
             font-size: 1rem;
-            padding: 14px 28px;
-            border-radius: var(--radius-sm);
+            padding: 13px 27px;
+            border-radius: 10px;
             text-decoration: none;
             transition: background 0.15s, border-color 0.15s;
         }
-        .btn-sec:hover { background: var(--panel-3); border-color: var(--faint); }
+        .btn-sec:hover { background: var(--campo-2); border-color: var(--bruma); }
 
         /* --- Hero --- */
-        .hero {
-            position: relative;
-            padding: 90px 0 70px;
-            background:
-                radial-gradient(900px 480px at 80% -10%, rgba(247, 201, 72, 0.07), transparent 60%),
-                transparent;
-            border-bottom: 1px solid var(--line);
-        }
-        .hero .eyebrow { color: var(--accent); margin-bottom: 20px; }
+        .hero { padding: 84px 0 40px; }
+        .hero .eyebrow { color: var(--ambar); margin-bottom: 22px; }
         .hero h1 {
-            font-size: clamp(2.4rem, 6vw, 4rem);
-            font-weight: 800;
-            letter-spacing: -0.035em;
-            line-height: 1.04;
-            margin: 0 0 22px;
-            color: var(--text);
-            max-width: 17ch;
+            font-size: clamp(2.7rem, 7.2vw, 5rem);
+            margin: 0 0 24px;
+            max-width: 16ch;
         }
-        .hero p.bajada {
-            color: var(--muted);
-            font-size: 1.12rem;
+        .hero .bajada {
+            color: var(--neblina);
+            font-size: 1.14rem;
             line-height: 1.65;
-            max-width: 560px;
-            margin: 0 0 34px;
+            max-width: 580px;
+            margin: 0 0 36px;
         }
-        .hero-ctas { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 64px; }
+        .hero-ctas { display: flex; gap: 14px; flex-wrap: wrap; }
 
-        /* Firma: la tira de timeline, viva */
-        .strip-demo { max-width: 720px; }
-        .strip-demo .lbl {
-            font-family: var(--font-mono);
-            font-size: 0.66rem;
+        /* =====================================================
+           FIRMA — demo: la cancha y el tiempo, conectados
+           ===================================================== */
+        .demo-sec { padding: 46px 0 84px; }
+        .demo-marco {
+            background: var(--campo-1);
+            border: 1px solid var(--linea);
+            border-radius: 18px;
+            overflow: hidden;
+        }
+        .demo-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            padding: 13px 20px;
+            border-bottom: 1px solid var(--linea);
+            font-family: var(--mono);
+            font-size: 0.68rem;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            color: var(--bruma);
+        }
+        .demo-head b { color: var(--neblina); font-weight: 500; }
+
+        .demo-cuerpo { padding: 22px 20px 24px; }
+
+        .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+        .chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--campo-2);
+            border: 1px solid var(--linea);
+            color: var(--neblina);
+            font-family: var(--sans);
+            font-size: 0.85rem;
+            font-weight: 600;
+            padding: 8px 14px;
+            border-radius: 999px;
+            cursor: pointer;
+            transition: border-color 0.15s, color 0.15s, background 0.15s;
+        }
+        .chip .punto { width: 9px; height: 9px; border-radius: 50%; background: var(--dot); flex-shrink: 0; }
+        .chip .n { font-family: var(--mono); font-size: 0.72rem; color: var(--bruma); }
+        .chip:hover { color: var(--tiza); border-color: var(--linea-2); }
+        .chip[aria-pressed="true"] {
+            color: var(--tiza);
+            border-color: var(--dot);
+            background: var(--campo-3);
+        }
+        .chip[aria-pressed="true"] .n { color: var(--dot); }
+
+        .cancha-wrap { position: relative; }
+        .cancha { display: block; width: 100%; height: auto; }
+
+        .demo-dot { transition: opacity 0.35s, r 0.35s; }
+        .demo-dot.apagado { opacity: 0.16; }
+        .demo-dot.encendido { opacity: 1; }
+        /* En pantallas chicas el SVG se achica: los puntos se agrandan
+           para seguir siendo visibles (r es propiedad CSS en SVG2) */
+        @media (max-width: 560px) {
+            .demo-core { r: 12px; }
+            .demo-halo { r: 24px; }
+        }
+
+        /* Tira de tiempo bajo la cancha */
+        .demo-tl { margin-top: 18px; }
+        .demo-tl .lbl {
+            font-family: var(--mono);
+            font-size: 0.64rem;
             letter-spacing: 0.16em;
             text-transform: uppercase;
-            color: var(--faint);
+            color: var(--bruma);
             display: flex;
             justify-content: space-between;
             margin-bottom: 8px;
         }
-        .strip-track {
+        .tl-track {
             position: relative;
-            height: 44px;
-            border-radius: 10px;
-            background: var(--panel);
-            border: 1px solid var(--line);
+            height: 40px;
+            border-radius: 9px;
+            background: var(--campo-2);
+            border: 1px solid var(--linea);
             overflow: hidden;
         }
-        .strip-track::after { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: var(--line-2); }
-        .strip-track i {
+        .tl-track::after { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: var(--linea-2); }
+        .tl-tick {
             position: absolute;
-            top: 8px;
-            bottom: 8px;
+            top: 7px;
+            bottom: 7px;
             width: 3px;
             border-radius: 2px;
-            opacity: 0;
-            animation: tickIn 0.4s ease forwards;
+            transition: opacity 0.35s;
         }
-        @keyframes tickIn { from { opacity: 0; transform: scaleY(0.2); } to { opacity: 0.95; transform: scaleY(1); } }
-        @media (prefers-reduced-motion: reduce) { .strip-track i { animation: none; opacity: 0.95; } }
+        .tl-tick.apagado { opacity: 0.14; }
+
+        .demo-caption {
+            margin-top: 14px;
+            font-family: var(--mono);
+            font-size: 0.75rem;
+            letter-spacing: 0.04em;
+            color: var(--neblina);
+            min-height: 1.4em;
+        }
+        .demo-caption b { color: var(--tiza); font-weight: 600; }
 
         /* --- Secciones --- */
-        section.land-sec { padding: 76px 0; border-bottom: 1px solid var(--line); }
-        .sec-head { margin-bottom: 44px; }
-        .sec-head .eyebrow { margin-bottom: 12px; }
-        .sec-head h2 { font-size: 1.9rem; font-weight: 800; letter-spacing: -0.025em; margin: 0; }
-        .sec-head p { color: var(--muted); margin: 10px 0 0; max-width: 560px; }
+        section.sec { padding: 78px 0; border-top: 1px solid var(--linea); }
+        .sec-head { margin-bottom: 46px; }
+        .sec-head .eyebrow { margin-bottom: 14px; }
+        .sec-head h2 { font-size: clamp(1.7rem, 3.6vw, 2.3rem); margin: 0; max-width: 24ch; }
+        .sec-head p { color: var(--neblina); margin: 12px 0 0; max-width: 560px; }
 
-        /* Cómo funciona: 3 pasos (secuencia real) */
-        .pasos { display: grid; grid-template-columns: 1fr; gap: 18px; }
-        .paso {
-            background: var(--panel);
-            border: 1px solid var(--line);
-            border-radius: var(--radius);
-            padding: 26px;
-            position: relative;
+        /* Cómo funciona: 3 puntos sobre una línea de tiempo real */
+        .pasos { position: relative; display: grid; grid-template-columns: 1fr; gap: 34px; }
+        .paso { position: relative; padding-left: 30px; }
+        .paso::before {
+            content: "";
+            position: absolute;
+            left: 0;
+            top: 5px;
+            width: 11px;
+            height: 11px;
+            border-radius: 50%;
+            background: var(--ambar);
+            box-shadow: 0 0 0 5px var(--ambar-dim);
         }
+        .paso::after {
+            content: "";
+            position: absolute;
+            left: 5px;
+            top: 26px;
+            bottom: -34px;
+            width: 1px;
+            background: var(--linea-2);
+        }
+        .paso:last-child::after { display: none; }
         .paso .num {
-            font-family: var(--font-mono);
-            font-size: 0.72rem;
-            letter-spacing: 0.14em;
-            color: var(--accent);
+            font-family: var(--mono);
+            font-size: 0.7rem;
+            letter-spacing: 0.16em;
+            color: var(--ambar);
             display: block;
-            margin-bottom: 14px;
+            margin-bottom: 10px;
         }
-        .paso h3 { margin: 0 0 8px; font-size: 1.12rem; font-weight: 700; }
-        .paso p { margin: 0; color: var(--muted); font-size: 0.95rem; line-height: 1.6; }
+        .paso h3 { margin: 0 0 8px; font-size: 1.22rem; font-weight: 800; font-stretch: 110%; letter-spacing: -0.015em; }
+        .paso p { margin: 0; color: var(--neblina); font-size: 0.97rem; line-height: 1.62; max-width: 52ch; }
 
-        /* Qué incluye */
-        .feats { display: grid; grid-template-columns: 1fr; gap: 14px; }
-        .feat { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px 22px; }
-        .feat h4 { margin: 0 0 6px; font-size: 1rem; font-weight: 700; color: var(--text); }
-        .feat p { margin: 0; color: var(--muted); font-size: 0.9rem; line-height: 1.55; }
+        @media (min-width: 820px) {
+            .pasos { grid-template-columns: repeat(3, 1fr); gap: 28px; }
+            .paso { padding-left: 0; padding-top: 34px; }
+            .paso::before { left: 1px; top: 0; }
+            .paso::after {
+                left: 22px;
+                right: -28px;
+                top: 5px;
+                bottom: auto;
+                width: auto;
+                height: 1px;
+            }
+        }
 
-        /* Precios */
-        .precio-grid { display: grid; grid-template-columns: 1fr; gap: 18px; max-width: 820px; }
+        /* Qué incluye: lista con líneas de cancha, sin tarjetas */
+        .feats { display: grid; grid-template-columns: 1fr; }
+        .feat {
+            padding: 22px 4px;
+            border-top: 1px solid var(--linea);
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 6px;
+        }
+        .feat h4 { margin: 0; font-size: 1.05rem; font-weight: 800; font-stretch: 108%; letter-spacing: -0.01em; }
+        .feat p { margin: 0; color: var(--neblina); font-size: 0.93rem; line-height: 1.6; }
+
+        @media (min-width: 760px) {
+            .feats { grid-template-columns: 1fr 1fr; column-gap: 56px; }
+        }
+
+        /* Precios: marcador */
+        .planes { display: grid; grid-template-columns: 1fr; gap: 18px; max-width: 860px; }
         .plan {
-            background: var(--panel);
-            border: 1px solid var(--line);
-            border-radius: var(--radius-lg);
+            background: var(--campo-1);
+            border: 1px solid var(--linea);
+            border-radius: 18px;
             padding: 32px;
             position: relative;
             overflow: hidden;
         }
-        .plan.destacado { border-color: var(--accent-line); }
-        .plan.destacado::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 3px; background: var(--accent); }
-        .plan .plan-nombre { font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); margin-bottom: 14px; }
-        .plan .plan-precio { font-size: 2.6rem; font-weight: 800; letter-spacing: -0.03em; color: var(--text); line-height: 1; }
-        .plan .plan-precio small { font-size: 1rem; font-weight: 600; color: var(--muted); letter-spacing: 0; }
-        .plan ul { list-style: none; padding: 0; margin: 24px 0 28px; display: flex; flex-direction: column; gap: 11px; }
-        .plan li { color: var(--muted); font-size: 0.95rem; padding-left: 22px; position: relative; }
-        .plan li::before { content: "—"; position: absolute; left: 0; color: var(--accent); font-weight: 700; }
-        .plan li b { color: var(--text); font-weight: 600; }
-        .nota-precio { color: var(--faint); font-size: 0.82rem; margin-top: 14px; max-width: 560px; }
-
-        /* CTA final + footer */
-        .cta-final { padding: 84px 0; text-align: center; }
-        .cta-final h2 { font-size: 2rem; font-weight: 800; letter-spacing: -0.03em; margin: 0 0 12px; }
-        .cta-final p { color: var(--muted); margin: 0 0 30px; }
-        .land-foot { border-top: 1px solid var(--line); padding: 26px 0 34px; }
-        .land-foot-inner { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
-        .land-foot span { color: var(--faint); font-size: 0.82rem; }
-        .land-foot a { color: var(--muted); font-size: 0.82rem; text-decoration: none; }
-        .land-foot a:hover { color: var(--text); }
+        .plan.destacado { border-color: rgba(247, 201, 72, 0.4); }
+        .plan.destacado::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 3px; background: var(--ambar); }
+        .plan .plan-nombre {
+            font-family: var(--mono);
+            font-size: 0.68rem;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: var(--neblina);
+            margin-bottom: 16px;
+        }
+        .plan .precio {
+            font-stretch: 118%;
+            font-weight: 800;
+            font-size: 2.9rem;
+            letter-spacing: -0.03em;
+            line-height: 1;
+        }
+        .plan .precio small { font-size: 1rem; font-weight: 600; font-stretch: 100%; color: var(--neblina); letter-spacing: 0; }
+        .plan ul { list-style: none; padding: 0; margin: 24px 0 26px; display: flex; flex-direction: column; gap: 11px; }
+        .plan li { color: var(--neblina); font-size: 0.95rem; padding-left: 22px; position: relative; }
+        .plan li::before { content: ""; position: absolute; left: 0; top: 0.52em; width: 10px; height: 1.5px; background: var(--ambar); }
+        .plan li b { color: var(--tiza); font-weight: 600; }
+        .nota-precio { color: var(--bruma); font-size: 0.82rem; margin-top: 16px; max-width: 560px; line-height: 1.6; }
 
         @media (min-width: 760px) {
-            .pasos { grid-template-columns: repeat(3, 1fr); }
-            .feats { grid-template-columns: repeat(3, 1fr); }
-            .precio-grid { grid-template-columns: 1.2fr 1fr; align-items: start; }
+            .planes { grid-template-columns: 1.25fr 1fr; align-items: start; }
         }
+
+        /* CTA final + footer */
+        .final { padding: 92px 0; border-top: 1px solid var(--linea); text-align: center; }
+        .final h2 { font-size: clamp(1.9rem, 4.5vw, 2.7rem); margin: 0 0 14px; }
+        .final p { color: var(--neblina); margin: 0 0 32px; }
+        .foot { border-top: 1px solid var(--linea); padding: 26px 0 36px; }
+        .foot-inner { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+        .foot span { color: var(--bruma); font-size: 0.82rem; }
+        .foot a { color: var(--neblina); font-size: 0.82rem; text-decoration: none; }
+        .foot a:hover { color: var(--tiza); }
+
+        /* Entradas suaves */
+        @media (prefers-reduced-motion: no-preference) {
+            .hero .eyebrow, .hero h1, .hero .bajada, .hero-ctas { animation: subir 0.6s ease both; }
+            .hero h1 { animation-delay: 0.06s; }
+            .hero .bajada { animation-delay: 0.12s; }
+            .hero-ctas { animation-delay: 0.18s; }
+            @keyframes subir {
+                from { opacity: 0; transform: translateY(14px); }
+                to { opacity: 1; transform: translateY(0); }
+            }
+        }
+
         @media (max-width: 560px) {
-            .hero { padding: 56px 0 50px; }
-            .land-nav-links a.sec { display: none; }
-            .hero-ctas .btn-sec, .hero-ctas .btn-cta { width: 100%; text-align: center; }
+            .hero { padding: 54px 0 28px; }
+            .nav-links a.sec { display: none; }
+            .hero-ctas .btn-cta, .hero-ctas .btn-sec { width: 100%; text-align: center; }
+            .demo-head { flex-direction: column; align-items: flex-start; gap: 4px; }
+            .plan { padding: 24px; }
         }
     </style>
 </head>
@@ -214,13 +415,13 @@
 <body>
 
     <!-- Barra superior: marca + login arriba a la derecha -->
-    <nav class="land-nav">
-        <div class="land-wrap land-nav-inner">
-            <a class="land-brand" href="index.html">
+    <nav class="nav">
+        <div class="wrap nav-inner">
+            <a class="brand" href="index.html">
                 <img src="assets/image/logo-web.png" alt="Timeline" onerror="this.style.visibility='hidden'">
                 <span>Timeline</span>
             </a>
-            <div class="land-nav-links">
+            <div class="nav-links">
                 <a class="sec" href="#como-funciona">Cómo funciona</a>
                 <a class="sec" href="#precios">Precios</a>
                 <a class="btn-cta" id="btn-nav-login" href="pages/login.html">Iniciar sesión</a>
@@ -230,32 +431,79 @@
 
     <!-- Hero -->
     <header class="hero">
-        <div class="land-wrap">
+        <div class="wrap">
             <div class="eyebrow">Videoanálisis de hockey para clubes</div>
-            <h1>Cada jugada del partido, a un clic.</h1>
+            <h1 class="display">Cada jugada del partido, a un clic.</h1>
             <p class="bajada">
                 El analista corta el partido; el entrenador lo revisa sin buscar en horas de video.
-                Cortes por categoría y descriptor, comparador de partidos en simultáneo y estadísticas
-                automáticas — todo en la nube, con acceso propio para cada club.
+                Cada corte sabe <em>dónde</em> pasó en la cancha y <em>cuándo</em> pasó en el partido —
+                y un clic lleva el video a ese segundo exacto.
             </p>
             <div class="hero-ctas">
                 <a class="btn-cta grande" href="pages/login.html">Iniciar sesión</a>
                 <a class="btn-sec" href="#precios">Ver precios</a>
             </div>
-
-            <div class="strip-demo" aria-hidden="true">
-                <div class="lbl"><span>Partido — 70 min</span><span>32 cortes · 6 categorías</span></div>
-                <div class="strip-track" id="strip-demo-track"></div>
-            </div>
         </div>
     </header>
 
+    <!-- FIRMA: demo cancha + timeline -->
+    <section class="demo-sec" aria-label="Demostración: jugadas sobre la cancha y el tiempo">
+        <div class="wrap">
+            <div class="demo-marco">
+                <div class="demo-head">
+                    <span><b>Partido demo</b> — Club vs. Rival</span>
+                    <span id="demo-total">25 cortes · 5 categorías</span>
+                </div>
+                <div class="demo-cuerpo">
+                    <div class="chips" id="demo-chips" role="group" aria-label="Categorías de cortes"></div>
+
+                    <div class="cancha-wrap">
+                        <svg class="cancha" id="demo-cancha" viewBox="0 0 1000 560" aria-hidden="true">
+                            <defs>
+                                <linearGradient id="turf" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="0" stop-color="#0E3A52" />
+                                    <stop offset="1" stop-color="#0A2C40" />
+                                </linearGradient>
+                            </defs>
+                            <!-- césped -->
+                            <rect x="14" y="14" width="972" height="532" rx="14" fill="url(#turf)" />
+                            <!-- líneas de cancha -->
+                            <g stroke="rgba(237,245,249,0.28)" stroke-width="2" fill="none">
+                                <rect x="30" y="30" width="940" height="500" rx="6" />
+                                <line x1="500" y1="30" x2="500" y2="530" />
+                                <line x1="265" y1="30" x2="265" y2="530" stroke-dasharray="7 9" />
+                                <line x1="735" y1="30" x2="735" y2="530" stroke-dasharray="7 9" />
+                                <!-- áreas ("D") -->
+                                <path d="M 30 122 A 158 158 0 0 1 30 438" />
+                                <path d="M 970 122 A 158 158 0 0 0 970 438" />
+                                <!-- arcos -->
+                                <rect x="18" y="242" width="12" height="76" fill="rgba(237,245,249,0.28)" stroke="none" />
+                                <rect x="970" y="242" width="12" height="76" fill="rgba(237,245,249,0.28)" stroke="none" />
+                            </g>
+                            <!-- puntos penal -->
+                            <circle cx="118" cy="280" r="3" fill="rgba(237,245,249,0.35)" />
+                            <circle cx="882" cy="280" r="3" fill="rgba(237,245,249,0.35)" />
+                            <g id="demo-dots"></g>
+                        </svg>
+                    </div>
+
+                    <div class="demo-tl">
+                        <div class="lbl"><span>Línea de tiempo — 70 min</span><span>Q1 · Q2 · Q3 · Q4</span></div>
+                        <div class="tl-track" id="demo-track"></div>
+                    </div>
+
+                    <p class="demo-caption" id="demo-caption"></p>
+                </div>
+            </div>
+        </div>
+    </section>
+
     <!-- Cómo funciona -->
-    <section class="land-sec" id="como-funciona">
-        <div class="land-wrap">
+    <section class="sec" id="como-funciona">
+        <div class="wrap">
             <div class="sec-head">
                 <div class="eyebrow">Cómo funciona</div>
-                <h2>Del video crudo a la charla técnica, en tres pasos.</h2>
+                <h2 class="display">Del video crudo a la charla técnica, en tres pasos.</h2>
             </div>
             <div class="pasos">
                 <div class="paso">
@@ -268,7 +516,7 @@
                     <span class="num">PASO 02 · TIMELINE</span>
                     <h3>Las jugadas se ordenan solas</h3>
                     <p>Cada corte queda agrupado por categoría y descriptor: córners, ingresos al área,
-                        recuperaciones, pérdidas por zona — como lo etiquetó el analista.</p>
+                        recuperaciones y pérdidas por zona — tal como lo etiquetó el analista.</p>
                 </div>
                 <div class="paso">
                     <span class="num">PASO 03 · ENTRENADOR</span>
@@ -281,11 +529,11 @@
     </section>
 
     <!-- Qué incluye -->
-    <section class="land-sec" id="incluye">
-        <div class="land-wrap">
+    <section class="sec" id="incluye">
+        <div class="wrap">
             <div class="sec-head">
                 <div class="eyebrow">Qué incluye</div>
-                <h2>Una sola herramienta para todo el cuerpo técnico.</h2>
+                <h2 class="display">Una sola herramienta para todo el cuerpo técnico.</h2>
             </div>
             <div class="feats">
                 <div class="feat">
@@ -317,17 +565,17 @@
     </section>
 
     <!-- Precios -->
-    <section class="land-sec" id="precios">
-        <div class="land-wrap">
+    <section class="sec" id="precios">
+        <div class="wrap">
             <div class="sec-head">
                 <div class="eyebrow">Precios</div>
-                <h2>Un plan por club, simple.</h2>
+                <h2 class="display">Un plan por club, simple.</h2>
                 <p>Sin instalación, sin servidores propios, sin permanencia.</p>
             </div>
-            <div class="precio-grid">
+            <div class="planes">
                 <div class="plan destacado">
                     <div class="plan-nombre">Plan Club</div>
-                    <div class="plan-precio">USD 150 <small>/ mes</small></div>
+                    <div class="precio">USD 150 <small>/ mes</small></div>
                     <ul>
                         <li><b>2 usuarios incluidos</b>: entrenador + analista</li>
                         <li><b>Partidos y cortes ilimitados</b></li>
@@ -336,11 +584,13 @@
                         <li>Logo y espacio propio de tu club</li>
                         <li>Soporte directo</li>
                     </ul>
-                    <a class="btn-cta grande" href="mailto:mateotesta2016@gmail.com?subject=Quiero%20Timeline%20para%20mi%20club">Quiero Timeline para mi club</a>
+                    <a class="btn-cta grande"
+                        href="mailto:mateotesta2016@gmail.com?subject=Quiero%20Timeline%20para%20mi%20club">Quiero Timeline
+                        para mi club</a>
                 </div>
                 <div class="plan">
                     <div class="plan-nombre">Usuario adicional</div>
-                    <div class="plan-precio">USD 50 <small>/ mes</small></div>
+                    <div class="precio">USD 50 <small>/ mes</small></div>
                     <ul>
                         <li>Sumá más entrenadores o analistas cuando quieras</li>
                         <li>Lo gestiona el propio administrador del club</li>
@@ -348,39 +598,150 @@
                     </ul>
                 </div>
             </div>
-            <p class="nota-precio">Los precios están expresados en dólares (USD) por mes. Escribinos para coordinar la
-                puesta en marcha de tu club: creamos el espacio, los usuarios iniciales y te acompañamos en la primera carga.</p>
+            <p class="nota-precio">Precios en dólares (USD) por mes. Escribinos para poner en marcha tu club:
+                creamos el espacio, los usuarios iniciales y te acompañamos en la primera carga.</p>
         </div>
     </section>
 
     <!-- CTA final -->
-    <section class="cta-final">
-        <div class="land-wrap">
-            <h2>Tu próximo rival ya está en video.</h2>
+    <section class="final">
+        <div class="wrap">
+            <h2 class="display">Tu próximo rival ya está en video.</h2>
             <p>Empezá a preparar los partidos con lo que el video ya sabe.</p>
-            <a class="btn-cta grande" href="mailto:mateotesta2016@gmail.com?subject=Quiero%20Timeline%20para%20mi%20club">Escribinos</a>
+            <a class="btn-cta grande"
+                href="mailto:mateotesta2016@gmail.com?subject=Quiero%20Timeline%20para%20mi%20club">Escribinos</a>
         </div>
     </section>
 
-    <footer class="land-foot">
-        <div class="land-wrap land-foot-inner">
+    <footer class="foot">
+        <div class="wrap foot-inner">
             <span>Timeline — Videoanálisis de hockey para clubes</span>
             <a href="pages/login.html">Iniciar sesión</a>
         </div>
     </footer>
 
     <script>
-        // Tira de timeline del hero: se dibuja tick a tick (la firma del producto)
+        // =====================================================
+        // Demo: las jugadas viven en la cancha (dónde) y en la
+        // línea de tiempo (cuándo). Elegir una categoría enciende
+        // sus puntos en ambas.
+        // =====================================================
         (function () {
-            const track = document.getElementById('strip-demo-track');
-            const colores = ['#56C2E6', '#7C9CFF', '#A78BFA', '#F58BB4', '#5FD3A6', '#FFB454'];
-            const posiciones = [4, 7, 11, 16, 19, 24, 28, 31, 36, 40, 43, 47, 52, 55, 58, 62, 66, 69, 73, 76, 80, 83, 87, 90, 93, 96];
-            posiciones.forEach((left, idx) => {
-                const tick = document.createElement('i');
-                tick.style.left = left + '%';
-                tick.style.background = colores[(idx * 7 + 3) % colores.length];
-                tick.style.animationDelay = (0.15 + idx * 0.05) + 's';
-                track.appendChild(tick);
+            const CATS = [
+                {
+                    id: 'corner', nombre: 'Córner corto', color: 'var(--cat-corner)', hex: '#FFB454',
+                    jugadas: [{ t: 8, x: 905, y: 140 }, { t: 24, x: 918, y: 418 }, { t: 47, x: 878, y: 190 }, { t: 63, x: 888, y: 372 }, { t: 86, x: 932, y: 288 }]
+                },
+                {
+                    id: 'ingreso', nombre: 'Ingreso al área', color: 'var(--cat-ingreso)', hex: '#56C2E6',
+                    jugadas: [{ t: 5, x: 802, y: 224 }, { t: 18, x: 782, y: 330 }, { t: 33, x: 822, y: 274 }, { t: 51, x: 792, y: 182 }, { t: 70, x: 812, y: 362 }, { t: 92, x: 772, y: 284 }]
+                },
+                {
+                    id: 'tiro', nombre: 'Tiro al arco', color: 'var(--cat-tiro)', hex: '#F58BB4',
+                    jugadas: [{ t: 9, x: 884, y: 254 }, { t: 35, x: 872, y: 306 }, { t: 66, x: 892, y: 276 }, { t: 88, x: 862, y: 238 }]
+                },
+                {
+                    id: 'recu', nombre: 'Recuperación', color: 'var(--cat-recu)', hex: '#5FD3A6',
+                    jugadas: [{ t: 3, x: 432, y: 132 }, { t: 21, x: 522, y: 392 }, { t: 44, x: 392, y: 274 }, { t: 58, x: 562, y: 182 }, { t: 76, x: 472, y: 448 }, { t: 95, x: 352, y: 322 }]
+                },
+                {
+                    id: 'perdida', nombre: 'Pérdida', color: 'var(--cat-perdida)', hex: '#A78BFA',
+                    jugadas: [{ t: 14, x: 302, y: 226 }, { t: 40, x: 252, y: 368 }, { t: 73, x: 332, y: 162 }, { t: 82, x: 212, y: 302 }]
+                }
+            ];
+
+            const chipsBox = document.getElementById('demo-chips');
+            const dotsBox = document.getElementById('demo-dots');
+            const track = document.getElementById('demo-track');
+            const caption = document.getElementById('demo-caption');
+            const total = CATS.reduce((acc, c) => acc + c.jugadas.length, 0);
+            document.getElementById('demo-total').textContent = `${total} cortes · ${CATS.length} categorías`;
+
+            const SVGNS = 'http://www.w3.org/2000/svg';
+
+            // Construir chips, puntos en cancha y ticks en el tiempo
+            CATS.forEach(cat => {
+                const chip = document.createElement('button');
+                chip.className = 'chip';
+                chip.type = 'button';
+                chip.style.setProperty('--dot', cat.color);
+                chip.setAttribute('aria-pressed', 'false');
+                chip.dataset.cat = cat.id;
+                chip.innerHTML = `<span class="punto"></span>${cat.nombre} <span class="n">${cat.jugadas.length}</span>`;
+                chipsBox.appendChild(chip);
+
+                cat.jugadas.forEach(j => {
+                    const halo = document.createElementNS(SVGNS, 'circle');
+                    halo.setAttribute('cx', j.x); halo.setAttribute('cy', j.y); halo.setAttribute('r', 13);
+                    halo.setAttribute('fill', cat.hex); halo.setAttribute('opacity', '0.18');
+                    halo.classList.add('demo-dot', 'demo-halo'); halo.dataset.cat = cat.id;
+                    dotsBox.appendChild(halo);
+
+                    const dot = document.createElementNS(SVGNS, 'circle');
+                    dot.setAttribute('cx', j.x); dot.setAttribute('cy', j.y); dot.setAttribute('r', 6);
+                    dot.setAttribute('fill', cat.hex);
+                    dot.classList.add('demo-dot', 'demo-core'); dot.dataset.cat = cat.id;
+                    dotsBox.appendChild(dot);
+
+                    const tick = document.createElement('span');
+                    tick.className = 'tl-tick';
+                    tick.style.left = j.t + '%';
+                    tick.style.background = cat.hex;
+                    tick.dataset.cat = cat.id;
+                    track.appendChild(tick);
+                });
+            });
+
+            const chips = [...chipsBox.querySelectorAll('.chip')];
+            const dots = [...dotsBox.querySelectorAll('.demo-dot')];
+            const ticks = [...track.querySelectorAll('.tl-tick')];
+
+            function seleccionar(catId) {
+                chips.forEach(ch => ch.setAttribute('aria-pressed', String(ch.dataset.cat === catId)));
+                dots.forEach(d => {
+                    d.classList.toggle('apagado', d.dataset.cat !== catId);
+                    d.classList.toggle('encendido', d.dataset.cat === catId);
+                });
+                ticks.forEach(tk => tk.classList.toggle('apagado', tk.dataset.cat !== catId));
+                const cat = CATS.find(c => c.id === catId);
+                caption.innerHTML = `<b>${cat.nombre}</b> — ${cat.jugadas.length} cortes marcados. Un clic y el video salta a cada uno.`;
+            }
+
+            let idx = 0;
+            let auto = null;
+            let usuarioToco = false;
+            const reducida = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+            seleccionar(CATS[0].id);
+
+            function arrancar() {
+                if (auto || reducida || usuarioToco) return;
+                auto = setInterval(() => {
+                    idx = (idx + 1) % CATS.length;
+                    seleccionar(CATS[idx].id);
+                }, 3000);
+            }
+            function frenar() {
+                if (auto) { clearInterval(auto); auto = null; }
+            }
+
+            // La rotación solo corre mientras el demo está a la vista
+            const marco = document.querySelector('.demo-marco');
+            if ('IntersectionObserver' in window) {
+                new IntersectionObserver((entries) => {
+                    entries.forEach(e => e.isIntersecting ? arrancar() : frenar());
+                }, { threshold: 0.25 }).observe(marco);
+            } else {
+                arrancar();
+            }
+
+            chips.forEach(ch => {
+                ch.addEventListener('click', () => {
+                    usuarioToco = true;
+                    frenar();
+                    idx = CATS.findIndex(c => c.id === ch.dataset.cat);
+                    seleccionar(ch.dataset.cat);
+                });
             });
         })();
 
