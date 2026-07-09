@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Análisis - Timeline</title>
+    <link rel="manifest" href="/manifest.json">
+    <link rel="apple-touch-icon" href="../assets/image/logo.jpg">
+    <link rel="stylesheet" href="../assets/css/style.css">
+    <script src="../assets/js/utils/tema.js"></script>
+    <style>
+        body.app-shell .container-dashboard { max-width: 1500px; }
+
+        #titulo-partido {
+            color: var(--text);
+            margin: 0 0 4px;
+            font-size: 1.7rem;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+        }
+
+        /* Firma: tira de timeline del partido en el encabezado */
+        #tl-header { margin: 14px 0 22px; }
+        #tl-header .tl-strip { height: 32px; }
+        #tl-header .tl-caption {
+            display: flex; justify-content: space-between;
+            font-family: var(--font-mono); font-size: 0.66rem;
+            letter-spacing: 0.14em; text-transform: uppercase;
+            color: var(--faint); margin-bottom: 7px;
+        }
+
+        .layout-principal { display: flex; flex-direction: row; gap: 22px; align-items: stretch; width: 100%; }
+        .columna-izquierda { width: 60%; display: flex; flex-direction: column; gap: 15px; }
+
+        .video-wrapper {
+            width: 100%;
+            aspect-ratio: 16 / 9;
+            background: #000;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid var(--line);
+        }
+        .video-wrapper iframe { width: 100% !important; height: 100% !important; border: none; }
+
+        #seccion-observaciones {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-left: 3px solid var(--accent);
+            padding: 16px;
+            border-radius: var(--radius);
+        }
+        .obs-title {
+            margin: 0 0 10px; font-family: var(--font-mono); font-size: 0.7rem;
+            text-transform: uppercase; letter-spacing: 0.14em; color: var(--muted); font-weight: 500;
+        }
+        #texto-observaciones {
+            width: 100%; min-height: 84px;
+            border: 1px solid var(--line-2); background: var(--panel-2);
+            font-family: inherit; font-size: 0.95rem; color: var(--text);
+            resize: vertical; padding: 11px; line-height: 1.5; margin-bottom: 10px;
+            border-radius: var(--radius-sm); box-sizing: border-box;
+        }
+        #texto-observaciones:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 3px var(--accent-dim); }
+
+        .btn-guardar {
+            background: var(--accent); color: var(--accent-ink);
+            border: none; padding: 9px 16px; border-radius: var(--radius-sm);
+            font-weight: 700; cursor: pointer; font-size: 0.85rem; width: auto;
+            transition: filter 0.15s;
+        }
+        .btn-guardar:hover { filter: brightness(1.08); }
+
+        .columna-derecha-wrapper { width: 40%; position: relative; }
+        .columna-cortes-scroll {
+            position: absolute; inset: 0; overflow-y: auto;
+            background: var(--panel); border-radius: var(--radius);
+            padding: 16px; border: 1px solid var(--line); box-sizing: border-box;
+        }
+        .cortes-title {
+            margin: 0 0 14px; font-family: var(--font-mono); font-size: 0.7rem;
+            text-transform: uppercase; letter-spacing: 0.14em; color: var(--muted); font-weight: 500;
+        }
+        .columna-cortes-scroll::-webkit-scrollbar { width: 8px; }
+        .columna-cortes-scroll::-webkit-scrollbar-track { background: transparent; }
+        .columna-cortes-scroll::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 4px; }
+        .columna-cortes-scroll::-webkit-scrollbar-thumb:hover { background: var(--faint); }
+
+        .cat-details { background: var(--panel-2); border-radius: 10px; margin-bottom: 10px; border: 1px solid var(--line); }
+        .cat-details > summary {
+            background: var(--panel-3); color: var(--text);
+            padding: 11px 14px; font-weight: 700; cursor: pointer; list-style: none;
+            border-radius: 9px; font-size: 0.92rem;
+        }
+        .cat-details > summary::-webkit-details-marker { display: none; }
+        .desc-details {
+            margin: 8px; background: var(--panel); border-left: 3px solid var(--accent);
+            border-radius: 6px; padding: 6px 12px;
+        }
+        .desc-details > summary { list-style: none; cursor: pointer; color: var(--muted); font-size: 0.82rem; padding: 4px 0; }
+        .desc-details > summary::-webkit-details-marker { display: none; }
+
+        .botones-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; padding: 10px 0; }
+        .timestamp-btn {
+            background: var(--panel-2); border: 1px solid var(--line-2); color: var(--text);
+            padding: 8px; border-radius: 8px; font-family: var(--font-mono); font-weight: 500;
+            font-size: 0.78rem; cursor: pointer; text-align: center;
+            transition: background 0.15s, color 0.15s, border-color 0.15s;
+        }
+        .timestamp-btn:hover { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+
+        @media (max-width: 800px) {
+            .layout-principal { flex-direction: column; }
+            .columna-izquierda, .columna-derecha-wrapper { width: 100%; }
+            .columna-derecha-wrapper { height: 500px; }
+        }
+
+        @media (max-width: 520px) {
+            .tl-caption { flex-direction: column; gap: 2px; }
+            #titulo-partido { font-size: 1.35rem; }
+            .botones-container { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="sidebar-root" data-active="video"></div>
+    <script src="../assets/js/components/ui.js"></script>
+
+    <div class="container-dashboard">
+        <div class="eyebrow">Análisis de partido</div>
+        <h2 id="titulo-partido">Cargando…</h2>
+
+        <div id="tl-header">
+            <div class="tl-caption"><span>Línea de tiempo del partido</span><span id="tl-count"></span></div>
+            <div id="tl-slot"></div>
+        </div>
+
+        <div class="layout-principal">
+
+            <div class="columna-izquierda">
+                <div class="video-wrapper">
+                    <div id="player"></div>
+                </div>
+
+                <div id="seccion-observaciones">
+                    <h4 class="obs-title">Notas y observaciones</h4>
+                    <textarea id="texto-observaciones"
+                        placeholder="Notas tácticas, correcciones para la semana…"></textarea>
+                    <div style="text-align: right;">
+                        <span id="msg-ok" style="color: var(--live); font-size: 0.85rem; font-weight: 600; margin-right: 10px; display: none;">Guardado</span>
+                        <button id="btn-guardar-obs" class="btn-guardar">Guardar cambios</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="columna-derecha-wrapper">
+                <div class="columna-cortes-scroll">
+                    <h3 class="cortes-title">Cortes de análisis</h3>
+                    <div id="cortes-container">
+                        <p style="color: var(--muted);">Cargando cortes…</p>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Módulos compartidos -->
+    <script src="../assets/js/utils/youtube.js"></script>
+    <script src="../assets/js/components/cortesRenderer.js"></script>
+    <script src="../assets/js/components/timeline.js"></script>
+
+    <script type="module">
+        import { db, doc, getDoc, updateDoc } from '../assets/js/firebase.js';
+
+        const uid = sessionStorage.getItem('usuarioUID');
+        const clubId = sessionStorage.getItem('clubID');
+        if (!uid || !clubId) {
+            // Si no está logueado (o no tiene club), lo mandamos al login
+            window.location.href = "login.html";
+        }
+
+        let player;
+        let videoIdLimpio = '';
+        const partidoId = sessionStorage.getItem('partidoSeleccionadoId');
+
+        // El origen se toma del dominio real donde corre la web (localhost en dev,
+        // el dominio de Firebase Hosting en producción).
+        window.onYouTubeIframeAPIReady = () => {
+            if (videoIdLimpio) {
+                player = new YT.Player('player', {
+                    height: '360',
+                    width: '100%',
+                    videoId: videoIdLimpio,
+                    playerVars: {
+                        'playsinline': 1,
+                        'origin': window.location.origin
+                    }
+                });
+            }
+        };
+
+        async function guardarNotas() {
+            const nota = document.getElementById('texto-observaciones').value;
+            const msg = document.getElementById('msg-ok');
+            try {
+                await updateDoc(doc(db, "partidos", partidoId), { observaciones: nota });
+                msg.textContent = 'Guardado';
+                msg.style.color = 'var(--live)';
+                msg.style.display = 'inline';
+                setTimeout(() => msg.style.display = 'none', 2500);
+            } catch (e) {
+                console.error("Error al guardar:", e);
+                msg.textContent = 'No se pudo guardar. Reintentá.';
+                msg.style.color = 'var(--danger)';
+                msg.style.display = 'inline';
+            }
+        }
+
+        async function cargarAnalisis() {
+            if (!partidoId) {
+                window.location.href = "../index.html";
+                return;
+            }
+
+            try {
+                const snap = await getDoc(doc(db, "partidos", partidoId));
+
+                if (snap.exists()) {
+                    const partido = snap.data();
+
+                    document.getElementById('texto-observaciones').value = partido.observaciones || "";
+                    document.getElementById('btn-guardar-obs').onclick = guardarNotas;
+
+                    const eq1 = partido.mi_equipo || 'Nuestro equipo';
+                    const eq2 = partido.rival || 'Rival';
+                    document.getElementById('titulo-partido').textContent = `${eq1} vs ${eq2}`;
+
+                    // Firma: tira de timeline del partido + conteo
+                    const res = TL.timeline.resumen(partido.estadisticas);
+                    document.getElementById('tl-count').textContent =
+                        `${res.total} cortes · ${res.categorias} categorías · ${partido.fecha || 's/f'}`;
+                    document.getElementById('tl-slot').appendChild(TL.timeline.crear(partido.estadisticas));
+
+                    videoIdLimpio = TL.youtube.extraerId(partido.youtube_id || partido.video_url || '');
+
+                    // Cargar script de YT
+                    const tag = document.createElement('script');
+                    tag.src = "https://www.youtube.com/iframe_api";
+                    document.body.appendChild(tag);
+
+                    // Dibujar botones de cortes (componente compartido)
+                    const container = document.getElementById('cortes-container');
+                    TL.cortes.render(
+                        container,
+                        partido.estadisticas,
+                        (t) => { if (player) player.seekTo(t, true); },
+                        { label: (num) => `▶ ${num}` }
+                    );
+                } else {
+                    document.getElementById('titulo-partido').textContent = "No se encontró el partido.";
+                }
+            } catch (error) {
+                console.error("Error al cargar:", error);
+                document.getElementById('titulo-partido').textContent = "Error al conectar con la base de datos.";
+            }
+        }
+
+        cargarAnalisis();
+    </script>
+</body>
+
+</html>

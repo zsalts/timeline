@@ -1,0 +1,29 @@
+mutation SeedData @transaction {
+  user_insertMany(data: [
+    {
+      id: "550e8400-e29b-41d4-a716-446655440000",
+      email: "demouser1@example.com",
+      displayName: "Demo User 1"
+    },
+    {
+      id: "550e8400-e29b-41d4-a716-446655440001",
+      email: "demouser2@example.com",
+      displayName: "Demo User 2"
+    }
+  ])
+  project_insertMany(data: [
+    {
+      id: "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
+      title: "Firebase Project",
+      owner: { id: "550e8400-e29b-41d4-a716-446655440000" }
+    }
+  ])
+  task_insertMany(data: [
+    {
+      id: "b1f0dc11-1a2c-3df9-cc7e-7cc0ce491b22",
+      title: "Complete the FDC docs",
+      status: "in-progress",
+      project: { id: "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11" }
+    }
+  ])
+}

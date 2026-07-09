@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cargar partido - Timeline</title>
+    <link rel="manifest" href="/manifest.json">
+    <link rel="icon" type="image/png" href="../assets/image/logo-web.png">
+    <link rel="apple-touch-icon" href="../assets/image/logo-web.png">
+    <link rel="stylesheet" href="../assets/css/style.css">
+    <script src="../assets/js/utils/tema.js"></script>
+</head>
+
+<body>
+
+    <div id="sidebar-root" data-active="carga"></div>
+    <script src="../assets/js/components/ui.js"></script>
+
+    <div class="container-dashboard" style="max-width: 760px;">
+        <div class="header-stats" style="border: none; margin-bottom: 24px;">
+            <div>
+                <div class="eyebrow">Nuevo registro</div>
+                <h2>Cargar partido</h2>
+                <p class="subtitle">Completá los datos y subí el archivo de LongoMatch o Timeline (opcional).</p>
+            </div>
+        </div>
+
+        <div class="card-stat" style="display: block; cursor: default;">
+            <form id="form-carga" style="display: flex; flex-direction: column; gap: 18px;">
+
+                <div class="form-group-row">
+                    <div style="flex: 1;">
+                        <label>Equipo 1 (nuestra columna)</label>
+                        <select id="input-mi-equipo" required style="margin-top: 6px;">
+                            <option value="" disabled selected>Seleccioná un equipo</option>
+                        </select>
+                    </div>
+                    <div style="flex: 1;">
+                        <label>Equipo 2 (columna rival)</label>
+                        <select id="input-rival" required style="margin-top: 6px;">
+                            <option value="" disabled selected>Seleccioná un equipo</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group-row">
+                    <div style="flex: 1;">
+                        <label>Torneo o categoría</label>
+                        <input type="text" id="input-torneo" placeholder="Ej: Torneo oficial" required style="margin-top: 6px;">
+                    </div>
+                    <div style="flex: 1;">
+                        <label>Fecha</label>
+                        <input type="date" id="input-fecha" required style="margin-top: 6px;">
+                    </div>
+                </div>
+
+                <div>
+                    <label>ID de YouTube</label>
+                    <input type="text" id="input-youtube" placeholder="Ej: M7lc1UVf-VE" required style="margin-top: 6px;">
+                </div>
+
+                <label class="upload-box" for="input-xml">
+                    <span class="upload-title">Archivo de análisis (.lgm o .xml)</span>
+                    <span class="upload-sub" id="upload-filename">Opcional — hacé clic para elegir un archivo</span>
+                    <input type="file" id="input-xml" accept=".lgm, .xml" style="display: none;">
+                </label>
+
+                <button type="submit" id="btn-submit" class="btn-primary" style="margin-top: 6px; padding: 14px;">
+                    Guardar partido
+                </button>
+
+                <p id="mensaje-estado" style="text-align: center; font-weight: 600; margin-top: 4px;"></p>
+            </form>
+        </div>
+    </div>
+
+
+    <!-- Módulo compartido de parseo de archivos (.lgm / .xml) -->
+    <script src="../assets/js/utils/parsers.js"></script>
+
+    <!-- Guardado en Firestore (nube, multi-tenant por club_id) -->
+    <script type="module">
+        import { db, collection, addDoc, doc, getDoc } from '../assets/js/firebase.js';
+
+        const uid = sessionStorage.getItem('usuarioUID');
+        const clubId = sessionStorage.getItem('clubID');
+        if (!uid || !clubId) {
+            // Si no está logueado (o no tiene club), lo mandamos al login
+            window.location.href = "login.html";
+        }
+
+        const form = document.getElementById('form-carga');
+        const mensaje = document.getElementById('mensaje-estado');
+        const btn = document.getElementById('btn-submit');
+
+        // Muestra el nombre del archivo elegido dentro de la caja de subida
+        document.getElementById('input-xml').addEventListener('change', (e) => {
+            const nombreSpan = document.getElementById('upload-filename');
+            nombreSpan.textContent = e.target.files[0]
+                ? e.target.files[0].name
+                : 'Opcional — hacé clic para elegir un archivo';
+        });
+
+        // Llena los desplegables con los equipos que cargó el admin del club
+        (async function cargarEquipos() {
+            try {
+                const snap = await getDoc(doc(db, "clubes", clubId));
+                const equipos = (snap.exists() && snap.data().equipos) || [];
+                const selects = [document.getElementById('input-mi-equipo'), document.getElementById('input-rival')];
+                if (!equipos.length) {
+                    selects.forEach(s => s.insertAdjacentHTML('beforeend',
+                        '<option value="" disabled>— el admin del club todavía no cargó equipos —</option>'));
+                    return;
+                }
+                selects.forEach(s => {
+                    equipos.forEach(eq => {
+                        const o = document.createElement('option');
+                        o.value = eq; o.textContent = eq;
+                        s.appendChild(o);
+                    });
+                });
+            } catch (e) {
+                console.error("Error cargando equipos:", e);
+            }
+        })();
+
+        form.addEventListener('submit', async function (e) {
+            e.preventDefault();
+
+            const file = document.getElementById('input-xml').files[0];
+
+            btn.disabled = true;
+            btn.textContent = "Procesando...";
+            mensaje.style.color = "var(--muted)";
+            mensaje.textContent = file ? "Leyendo archivo y guardando en la nube..." : "Guardando partido sin cortes...";
+
+            const idYoutube = document.getElementById('input-youtube').value;
+            // club_id: sella el partido para que solo lo vea este club (multi-tenant)
+            const partidoNuevo = {
+                mi_equipo: document.getElementById('input-mi-equipo').value,
+                rival: document.getElementById('input-rival').value,
+                fecha: document.getElementById('input-fecha').value,
+                torneo: document.getElementById('input-torneo').value,
+                video_url: idYoutube,
+                youtube_id: idYoutube,
+                club_id: clubId,
+                creado_por: uid,
+                importante: false,
+                creado_el: new Date().toISOString()
+            };
+
+            const guardarEnBaseDeDatos = async (datos) => {
+                try {
+                    await addDoc(collection(db, "partidos"), datos);
+                    mensaje.style.color = "var(--live)";
+                    mensaje.textContent = "¡Éxito! Redirigiendo al historial...";
+                    setTimeout(() => {
+                        window.location.href = "../index.html";
+                    }, 1500);
+                } catch (error) {
+                    console.error("Error al guardar: ", error);
+                    mensaje.style.color = "var(--danger)";
+                    mensaje.textContent = "Error al guardar en la nube. Revisá la consola.";
+                    btn.disabled = false;
+                    btn.textContent = "Reintentar";
+                }
+            };
+
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = async function (evento) {
+                    try {
+                        const contenidoArchivo = evento.target.result;
+                        partidoNuevo.estadisticas = TL.parsers.procesarArchivo(contenidoArchivo);
+                        await guardarEnBaseDeDatos(partidoNuevo);
+
+                    } catch (error) {
+                        console.error("Error al procesar archivo: ", error);
+                        mensaje.style.color = "var(--danger)";
+                        mensaje.textContent = "Error al procesar el archivo de cortes. Revisá la consola.";
+                        btn.disabled = false;
+                        btn.textContent = "Reintentar";
+                    }
+                };
+                reader.readAsText(file);
+            } else {
+                partidoNuevo.estadisticas = {};
+                await guardarEnBaseDeDatos(partidoNuevo);
+            }
+        });
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Historial - Timeline Analytics</title>
+
+    <link rel="manifest" href="/manifest.json">
+    <link rel="icon" type="image/png" href="assets/image/logo-web.png">
+    <link rel="apple-touch-icon" href="assets/image/logo-web.png">
+    <meta name="theme-color" content="#0B0E13">
+
+    <link rel="stylesheet" href="assets/css/style.css">
+    <script src="assets/js/utils/tema.js"></script>
+    <script src="assets/js/components/timeline.js"></script>
+    <style>
+        .buscador-row { margin-top: 2px; }
+        #buscador { max-width: 460px; }
+    </style>
+</head>
+
+<body>
+
+    <div id="sidebar-root" data-active="historial"></div>
+    <script src="assets/js/components/ui.js"></script>
+
+    <div class="container-dashboard">
+        <div class="header-stats">
+            <div class="header-stats-top">
+                <div>
+                    <div class="eyebrow" id="eyebrow-club">Videoanálisis</div>
+                    <h2 id="titulo-club">Historial</h2>
+                </div>
+                <a href="pages/carga.html" class="btn-primary">+ Nuevo partido</a>
+            </div>
+
+            <div class="buscador-row">
+                <input type="text" id="buscador" placeholder="Buscar por equipo o torneo">
+            </div>
+        </div>
+
+        <div id="lista-tc" class="grid-partidos">
+            <p style="color: var(--muted);">Cargando partidos…</p>
+        </div>
+    </div>
+
+    <script type="module">
+        import { db, collection, query, where, getDocs, doc, deleteDoc, updateDoc } from './assets/js/firebase.js';
+
+        // 1. Verificación de seguridad
+        const uid = sessionStorage.getItem('usuarioUID');
+        const miClubId = sessionStorage.getItem('clubID');
+
+        if (!uid || !miClubId) {
+            window.location.href = "pages/login.html";
+        }
+
+        // 2. Personalización: el nombre del club va en el eyebrow
+        const configClubStr = sessionStorage.getItem('configClub');
+        if(configClubStr) {
+            const configClub = JSON.parse(configClubStr);
+            document.title = `Historial · ${configClub.nombre}`;
+            if (configClub.nombre) document.getElementById('eyebrow-club').textContent = configClub.nombre;
+        }
+
+        let partidosGlobal = [];
+
+        // 3. Cargar Partidos desde Firestore (Filtrado por Club)
+        async function cargarHistorial() {
+            const listaTC = document.getElementById('lista-tc');
+
+            try {
+                // Solo pedimos los partidos que tienen el sello de este club
+                const consultaPrivada = query(collection(db, "partidos"), where("club_id", "==", miClubId));
+                const querySnapshot = await getDocs(consultaPrivada);
+
+                partidosGlobal = [];
+                querySnapshot.forEach((doc) => {
+                    partidosGlobal.push({ id: doc.id, ...doc.data() });
+                });
+
+                if (partidosGlobal.length === 0) {
+                    listaTC.innerHTML = '<p style="color: var(--muted);">Todavía no hay partidos cargados. Empezá con “+ Nuevo partido”.</p>';
+                    return;
+                }
+
+                renderizarPartidos(partidosGlobal);
+            } catch (error) {
+                console.error("Error al conectar con Firestore: ", error);
+                listaTC.innerHTML = '<p style="color: var(--danger);">Error al sincronizar con la base de datos.</p>';
+            }
+        }
+
+        function renderizarPartidos(partidos) {
+            const listaTC = document.getElementById('lista-tc');
+            listaTC.innerHTML = '';
+
+            if (partidos.length === 0) {
+                listaTC.innerHTML = '<p style="color: var(--muted);">Sin resultados para la búsqueda.</p>';
+                return;
+            }
+
+            const partidosOrdenados = partidos.sort((a, b) => {
+                const esImpA = !!a.importante;
+                const esImpB = !!b.importante;
+                if (esImpA !== esImpB) return esImpA ? -1 : 1;
+                const tiempoA = new Date(a.fecha || 0).getTime();
+                const tiempoB = new Date(b.fecha || 0).getTime();
+                return tiempoB - tiempoA;
+            });
+
+            partidosOrdenados.forEach((partido) => {
+                const card = crearCard(partido);
+                // Si quieres puedes seguir dividiendo por texto o lo metemos todo a principales
+                listaTC.appendChild(card); 
+            });
+        }
+
+        function crearCard(partido) {
+            const card = document.createElement('div');
+            card.className = 'card-stat';
+
+            const equipo1 = partido.mi_equipo || 'Nuestro equipo';
+            const equipo2 = partido.rival || 'Rival';
+            const esImportante = !!partido.importante;
+
+            const res = TL.timeline.resumen(partido.estadisticas);
+            const badge = esImportante ? '<span class="badge-proximo">PRÓXIMO</span>' : '';
+            const estrella = esImportante ? '★' : '☆';
+
+            card.innerHTML = `
+                <div class="match-top">
+                    <div class="match-torneo">${partido.torneo || 'Amistoso'} ${badge}</div>
+                    <div class="match-acciones">
+                        <button class="icon-btn btn-importante ${esImportante ? 'on' : ''}" title="Marcar como prioritario">${estrella}</button>
+                        <button class="icon-btn btn-editar" title="Editar">✎</button>
+                        <button class="icon-btn btn-borrar" title="Borrar">✕</button>
+                    </div>
+                </div>
+                <div class="match-teams">
+                    <div class="match-eq1">${equipo1}</div>
+                    <div class="match-vs">vs</div>
+                    <div class="match-eq2">${equipo2}</div>
+                </div>
+                <div class="match-meta">
+                    <span class="match-fecha">${partido.fecha || 'Sin fecha'}</span>
+                    <span class="match-count"><b>${res.total}</b> cortes · ${res.categorias} cat</span>
+                </div>
+                <div class="tl-slot"></div>
+            `;
+
+            // Firma: tira de timeline del partido
+            card.querySelector('.tl-slot').appendChild(TL.timeline.crear(partido.estadisticas));
+
+            card.onclick = () => {
+                sessionStorage.setItem('partidoSeleccionadoId', partido.id);
+                window.location.href = 'pages/video.html';
+            };
+
+            // Marcar / desmarcar prioritario
+            card.querySelector('.btn-importante').onclick = async (e) => {
+                e.stopPropagation();
+                try {
+                    await updateDoc(doc(db, "partidos", partido.id), { importante: !esImportante });
+                    cargarHistorial();
+                } catch (error) {
+                    console.error(error);
+                    alert("No se pudo actualizar el partido.");
+                }
+            };
+
+            // Borrar en la nube
+            card.querySelector('.btn-borrar').onclick = async (e) => {
+                e.stopPropagation();
+                if (confirm(`¿Borrar partido contra ${equipo2}?`)) {
+                    try {
+                        await deleteDoc(doc(db, "partidos", partido.id));
+                        cargarHistorial();
+                    } catch (error) {
+                        console.error(error);
+                        alert("Error al borrar el partido.");
+                    }
+                }
+            };
+
+            // Editar torneo / fecha
+            card.querySelector('.btn-editar').onclick = async (e) => {
+                e.stopPropagation();
+                const nuevoTorneo = prompt("Editar torneo:", partido.torneo);
+                if (nuevoTorneo === null) return;
+                const nuevaFecha = prompt("Editar fecha (YYYY-MM-DD):", partido.fecha);
+                if (nuevaFecha === null) return;
+                try {
+                    await updateDoc(doc(db, "partidos", partido.id), { torneo: nuevoTorneo, fecha: nuevaFecha });
+                    cargarHistorial();
+                } catch (error) {
+                    console.error(error);
+                    alert("Error al editar.");
+                }
+            };
+
+            return card;
+        }
+
+        // Buscador dinámico
+        document.getElementById('buscador').addEventListener('input', (e) => {
+            const textoBusqueda = e.target.value.toLowerCase();
+            const filtrados = partidosGlobal.filter(p =>
+                (p.rival && p.rival.toLowerCase().includes(textoBusqueda)) ||
+                (p.mi_equipo && p.mi_equipo.toLowerCase().includes(textoBusqueda)) ||
+                (p.torneo && p.torneo.toLowerCase().includes(textoBusqueda))
+            );
+            renderizarPartidos(filtrados);
+        });
+
+        // Iniciamos la carga
+        window.onload = cargarHistorial;
+    </script>
+</body>
+</html>

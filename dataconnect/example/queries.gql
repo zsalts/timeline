@@ -1,0 +1,24 @@
+mutation CreateTask($title: String!, $status: String!, $projectId: UUID!) @auth(level: USER) {
+  task_insert(data: { title: $title, status: $status, projectId: $projectId })
+}
+
+mutation UpdateTaskStatus($id: UUID!, $status: String!) @auth(level: USER) {
+  task_update(id: $id, data: { status: $status })
+}
+
+mutation AddComment($taskId: UUID!, $content: String!) @auth(level: USER) {
+  comment_insert(data: { taskId: $taskId, content: $content, authorId_expr: "auth.uid" })
+}
+
+query ListUserProjects @auth(level: USER) {
+  projects(where: { ownerId: { eq_expr: "auth.uid" } }) {
+    id
+    title
+    description
+    tasks_on_project {
+      id
+      title
+      status
+    }
+  }
+}

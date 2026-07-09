@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Administración - Timeline</title>
+    <link rel="icon" type="image/png" href="../assets/image/logo-web.png">
+    <link rel="stylesheet" href="../assets/css/style.css">
+    <style>
+        body {
+            padding: 36px 24px 60px;
+            min-height: 100vh;
+            background:
+                radial-gradient(1100px 520px at 100% -8%, rgba(247, 201, 72, 0.045), transparent 60%),
+                var(--ink);
+        }
+        .admin-container { max-width: 1000px; margin: 0 auto; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 28px; }
+        .header .eyebrow { margin-bottom: 6px; }
+        .header h1 { font-size: 1.65rem; font-weight: 800; letter-spacing: -0.02em; margin: 0; }
+        .btn-logout {
+            background: transparent;
+            color: #ffb3b6;
+            border: 1px solid rgba(255, 92, 99, 0.35);
+            padding: 9px 18px;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            font-weight: 600;
+            transition: background 0.15s;
+            width: auto;
+            font-family: inherit;
+        }
+        .btn-logout:hover { background: var(--danger-dim); }
+
+        .tabs {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 24px;
+            background: var(--panel);
+            border: 1px solid var(--line);
+            padding: 4px;
+            border-radius: var(--radius-sm);
+            width: fit-content;
+        }
+        .tab-btn {
+            padding: 9px 18px;
+            background: none;
+            border: none;
+            border-radius: 7px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: var(--muted);
+            transition: all 0.15s;
+            width: auto;
+            font-family: inherit;
+        }
+        .tab-btn.active { color: var(--accent-ink); background: var(--accent); }
+        .tab-btn:hover:not(.active) { color: var(--text); }
+        .tab-content { display: none; animation: fadeIn 0.3s; }
+        .tab-content.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        .card {
+            background: var(--panel);
+            padding: 26px;
+            border-radius: var(--radius);
+            border: 1px solid var(--line);
+            margin-bottom: 20px;
+        }
+        h2 { font-size: 1.15rem; font-weight: 700; letter-spacing: -0.01em; margin-bottom: 20px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 6px; font-family: var(--font-mono); font-weight: 500; color: var(--muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; }
+        input[type="color"] { width: 100%; height: 40px; border: none; border-radius: var(--radius-sm); cursor: pointer; background: var(--panel-2); }
+
+        .mensaje { padding: 12px; border-radius: var(--radius-sm); margin-top: 15px; text-align: center; font-weight: 600; display: none; }
+        .mensaje.exito { background: var(--success-weak); color: var(--live); border: 1px solid rgba(69, 214, 160, 0.3); }
+        .mensaje.error { background: var(--danger-dim); color: #ffb3b6; border: 1px solid rgba(255, 92, 99, 0.35); }
+
+        .clubs-list { margin-top: 30px; }
+        .club-item {
+            background: var(--panel-2);
+            padding: 15px;
+            border-radius: var(--radius-sm);
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 1px solid var(--line);
+            border-left: 3px solid var(--accent);
+        }
+        .club-info { flex: 1; }
+        .club-info h3 { color: var(--text); margin: 0 0 5px 0; font-weight: 700; }
+        .club-info p { margin: 0; color: var(--muted); font-size: 0.9rem; }
+
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        @media (max-width: 768px) {
+            .form-row { grid-template-columns: 1fr; }
+            .header { flex-direction: column; gap: 10px; align-items: flex-start; }
+            .tabs { flex-wrap: wrap; }
+        }
+        .unauthorized {
+            text-align: center;
+            padding: 40px;
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+            color: var(--danger);
+            max-width: 480px;
+            margin: 80px auto 0;
+        }
+        .unauthorized h2 { color: var(--danger); }
+    </style>
+</head>
+<body>
+
+    <div class="admin-container">
+        <!-- Verificación de acceso -->
+        <div id="unauthorized-screen" class="unauthorized" style="display: none;">
+            <h2>Acceso denegado</h2>
+            <p>Solo el administrador del sistema puede acceder a este panel.</p>
+            <button class="btn-logout" style="margin-top: 16px;" onclick="window.location.href='../pages/login.html'">Volver al login</button>
+        </div>
+
+        <div id="admin-screen" style="display: none;">
+            <!-- Header -->
+            <div class="header">
+                <div>
+                    <div class="eyebrow">Super-admin</div>
+                    <h1>Administración</h1>
+                </div>
+                <button class="btn-logout" id="btn-logout">Cerrar sesión</button>
+            </div>
+
+            <!-- Tabs -->
+            <div class="tabs">
+                <button class="tab-btn active" data-tab="crear-club">Crear club</button>
+                <button class="tab-btn" data-tab="gestionar-clubes">Gestionar clubes</button>
+            </div>
+
+            <!-- TAB 1: Crear Club -->
+            <div id="crear-club" class="tab-content active">
+                <div class="card">
+                    <h2>Crear nuevo club</h2>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>ID del Club (Ej: NAUTICO_01)</label>
+                            <input type="text" id="club-id" placeholder="Sin espacios, en mayúsculas" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Nombre del Equipo</label>
+                            <input type="text" id="club-nombre" placeholder="Ej: Club Náutico" required>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Email del Admin del Club</label>
+                            <input type="email" id="club-admin-email" placeholder="admin@club.com" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Contraseña Inicial (para Admin del Club)</label>
+                            <input type="text" id="club-admin-password" placeholder="Ej: Club123456" required>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Logo del Club (PNG/JPG — se redimensiona automáticamente)</label>
+                        <input type="file" id="club-logo" accept="image/png, image/jpeg">
+                        <div style="margin-top:10px;">
+                            <img id="club-logo-preview" alt="Previsualización del logo"
+                                style="display:none; max-width:120px; max-height:120px; border:1px solid #ddd; border-radius:8px; padding:4px; background:#fff;">
+                        </div>
+                    </div>
+
+                    <button class="btn-primary" id="btn-crear-club">Registrar Club</button>
+                    <div class="mensaje" id="mensaje-crear"></div>
+                </div>
+            </div>
+
+            <!-- TAB 2: Gestionar Clubes -->
+            <div id="gestionar-clubes" class="tab-content">
+                <div class="card">
+                    <h2>Clubes registrados</h2>
+                    <div id="clubs-container" class="clubs-list">
+                        <p style="color: var(--muted);">Cargando clubes…</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { auth, db, signOut, onAuthStateChanged, doc, getDoc, setDoc, updateDoc, getDocs, collection, query, where, signInWithEmailAndPassword, isMasterAdmin } from '../assets/js/firebase.js';
+
+        // API key de Firebase (usada para crear usuarios vía REST sin desloguear al admin)
+        const API_KEY = "AIzaSyAm7hCCz4pIHb9DER9AhVYZEON_3pt7ChU";
+
+        const adminScreen = document.getElementById('admin-screen');
+        const unauthorizedScreen = document.getElementById('unauthorized-screen');
+        const btnLogout = document.getElementById('btn-logout');
+
+        // Escapar texto para usarlo dentro de atributos HTML (value="...")
+        function esc(str) {
+            return String(str == null ? '' : str)
+                .replace(/&/g, '&amp;').replace(/"/g, '&quot;')
+                .replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
+        // Redimensiona una imagen a máx. 256px (lado mayor) y devuelve un
+        // data URI PNG liviano para guardarlo directo en Firestore.
+        // Devuelve '' si no hay archivo. Rechaza si el archivo es demasiado grande.
+        function procesarLogo(file, maxLado = 256) {
+            return new Promise((resolve, reject) => {
+                if (!file) return resolve('');
+                if (file.size > 4 * 1024 * 1024) {
+                    return reject(new Error('El logo es muy grande (máx. 4MB antes de redimensionar).'));
+                }
+                const reader = new FileReader();
+                reader.onload = () => {
+                    const img = new Image();
+                    img.onload = () => {
+                        let { width, height } = img;
+                        if (width > height && width > maxLado) {
+                            height = Math.round(height * maxLado / width);
+                            width = maxLado;
+                        } else if (height > maxLado) {
+                            width = Math.round(width * maxLado / height);
+                            height = maxLado;
+                        }
+                        const canvas = document.createElement('canvas');
+                        canvas.width = width;
+                        canvas.height = height;
+                        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+                        resolve(canvas.toDataURL('image/png'));
+                    };
+                    img.onerror = () => reject(new Error('No se pudo leer la imagen.'));
+                    img.src = reader.result;
+                };
+                reader.onerror = () => reject(new Error('No se pudo leer el archivo.'));
+                reader.readAsDataURL(file);
+            });
+        }
+
+        // Previsualización del logo al elegir archivo (formulario Crear Club)
+        function setupLogoPreview() {
+            const input = document.getElementById('club-logo');
+            const preview = document.getElementById('club-logo-preview');
+            if (!input || !preview) return;
+            input.addEventListener('change', async () => {
+                try {
+                    const dataUrl = await procesarLogo(input.files[0]);
+                    if (dataUrl) {
+                        preview.src = dataUrl;
+                        preview.style.display = 'inline-block';
+                    } else {
+                        preview.style.display = 'none';
+                    }
+                } catch (e) {
+                    preview.style.display = 'none';
+                    alert(e.message);
+                    input.value = '';
+                }
+            });
+        }
+
+        let adminInicializado = false;
+
+        // Validar acceso: esperamos el estado REAL de Firebase Auth.
+        // No basta con el sessionStorage: si no hay usuario autenticado en
+        // Firebase, cualquier lectura/escritura fallará con "permisos".
+        function checkAccess() {
+            onAuthStateChanged(auth, (user) => {
+                const isSuperAdmin = sessionStorage.getItem('isSuperAdmin');
+
+                // Debe existir un usuario autenticado en Firebase, ser el
+                // super-admin (por email) y tener la marca en sessionStorage.
+                if (user && isMasterAdmin(user.email) && isSuperAdmin === 'true') {
+                    adminScreen.style.display = 'block';
+                    unauthorizedScreen.style.display = 'none';
+                    if (!adminInicializado) {
+                        adminInicializado = true;
+                        initializeAdmin();
+                    }
+                } else if (!user) {
+                    // No hay sesión de Firebase: volver al login para autenticarse
+                    sessionStorage.clear();
+                    window.location.href = '../pages/login.html';
+                } else {
+                    // Autenticado pero no es el super-admin
+                    adminScreen.style.display = 'none';
+                    unauthorizedScreen.style.display = 'block';
+                }
+            });
+        }
+
+        // Inicializar panel admin
+        function initializeAdmin() {
+            setupTabs();
+            setupLogout();
+            loadClubs();
+            setupCreateClub();
+            setupLogoPreview();
+        }
+
+        // Configurar tabs
+        function setupTabs() {
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+                    btn.classList.add('active');
+                    const tabId = btn.getAttribute('data-tab');
+                    document.getElementById(tabId).classList.add('active');
+
+                    if (tabId === 'gestionar-clubes') loadClubs();
+                });
+            });
+        }
+
+        // Logout
+        function setupLogout() {
+            btnLogout.addEventListener('click', async () => {
+                try {
+                    await signOut(auth);
+                    sessionStorage.clear();
+                    window.location.href = '../pages/login.html';
+                } catch (error) {
+                    console.error("Error al logout:", error);
+                    alert("Error al cerrar sesión");
+                }
+            });
+        }
+
+        // Crear club
+        function setupCreateClub() {
+            document.getElementById('btn-crear-club').addEventListener('click', async () => {
+                const clubId = document.getElementById('club-id').value.trim().toUpperCase();
+                const clubNombre = document.getElementById('club-nombre').value.trim();
+                const adminEmail = document.getElementById('club-admin-email').value.trim();
+                const adminPassword = document.getElementById('club-admin-password').value;
+                const logoFile = document.getElementById('club-logo').files[0];
+                const mensajeDiv = document.getElementById('mensaje-crear');
+
+                if (!clubId || !clubNombre || !adminEmail || !adminPassword) {
+                    showMessage(mensajeDiv, 'Completa todos los campos', 'error');
+                    return;
+                }
+
+                const btn = document.getElementById('btn-crear-club');
+                btn.textContent = 'Creando...';
+                btn.disabled = true;
+
+                try {
+                    // Redimensionar el logo (si se subió) a un data URI liviano
+                    const logoDataUrl = await procesarLogo(logoFile);
+                    // Crear usuario admin del club en Firebase Auth
+                    const userResponse = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${API_KEY}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            email: adminEmail,
+                            password: adminPassword,
+                            returnSecureToken: true
+                        })
+                    });
+
+                    const userResult = await userResponse.json();
+                    if (!userResponse.ok) {
+                        showMessage(mensajeDiv, 'Error: ' + (userResult.error?.message || 'No se pudo crear el usuario'), 'error');
+                        btn.textContent = 'Registrar Club';
+                        btn.disabled = false;
+                        return;
+                    }
+
+                    const adminUid = userResult.localId;
+
+                    // Crear documento del club
+                    await setDoc(doc(db, "clubes", clubId), {
+                        nombre: clubNombre,
+                        logo: logoDataUrl || '',
+                        admin_uid: adminUid,
+                        usuarios_activos: 2,
+                        fecha_creacion: new Date(),
+                        estado: 'activo',
+                        authorized_uids: [adminUid]
+                    });
+
+                    // Crear documento del usuario admin
+                    await setDoc(doc(db, "usuarios", adminUid), {
+                        email: adminEmail,
+                        club_id: clubId,
+                        rol: 'club-admin',
+                        nombre: 'Admin del Club',
+                        estado: 'activo'
+                    });
+
+                    // Crear documento de facturación
+                    await setDoc(doc(db, "facturacion", clubId), {
+                        admin_uid: adminUid,
+                        usuarios_base: 2,
+                        usuarios_adicionales: [],
+                        precio_por_usuario: 50,
+                        fecha_creacion: new Date(),
+                        total_usuarios: 2,
+                        costo_total: 0
+                    });
+
+                    showMessage(mensajeDiv, 'Club creado exitosamente', 'exito');
+
+                    // Limpiar formulario
+                    document.getElementById('club-id').value = '';
+                    document.getElementById('club-nombre').value = '';
+                    document.getElementById('club-admin-email').value = '';
+                    document.getElementById('club-admin-password').value = '';
+                    document.getElementById('club-logo').value = '';
+                    document.getElementById('club-logo-preview').style.display = 'none';
+
+                    setTimeout(() => loadClubs(), 2000);
+
+                } catch (error) {
+                    console.error("Error:", error);
+                    showMessage(mensajeDiv, 'Error: ' + error.message, 'error');
+                } finally {
+                    btn.textContent = 'Registrar Club';
+                    btn.disabled = false;
+                }
+            });
+        }
+
+        // Cargar clubs con opciones de editar / dar de baja / gestionar usuarios
+        async function loadClubs() {
+            const container = document.getElementById('clubs-container');
+            container.innerHTML = '<p style="color: var(--muted);">Cargando clubes…</p>';
+            try {
+                // Traemos clubes y todos los usuarios (para agruparlos por club)
+                const [clubsSnap, usersSnap] = await Promise.all([
+                    getDocs(collection(db, 'clubes')),
+                    getDocs(collection(db, 'usuarios'))
+                ]);
+
+                if (clubsSnap.empty) {
+                    container.innerHTML = '<p style="color: var(--muted);">No hay clubes registrados</p>';
+                    return;
+                }
+
+                // Agrupar usuarios por club_id
+                const usuariosPorClub = {};
+                usersSnap.forEach(u => {
+                    const d = u.data();
+                    if (!usuariosPorClub[d.club_id]) usuariosPorClub[d.club_id] = [];
+                    usuariosPorClub[d.club_id].push({ id: u.id, ...d });
+                });
+
+                container.innerHTML = '';
+                clubsSnap.forEach(docSnap => {
+                    const club = docSnap.data();
+                    const clubId = docSnap.id;
+                    const activo = (club.estado || 'activo') === 'activo';
+                    const usuarios = usuariosPorClub[clubId] || [];
+
+                    // Lista de usuarios del club
+                    let usuariosHtml = usuarios.length
+                        ? usuarios.map(u => {
+                            const esAdmin = u.rol === 'club-admin';
+                            const uActivo = (u.estado || 'activo') === 'activo';
+                            const rolNombre = { 'club-admin': 'Admin', 'trainer': 'Entrenador', 'analyst': 'Analista' }[u.rol] || u.rol;
+                            return `
+                                <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 10px; background:var(--panel); border:1px solid var(--line); border-radius:6px; margin-bottom:6px;">
+                                    <div style="font-size:0.9rem;">
+                                        <strong>${esc(u.nombre)}</strong> — ${esc(u.email)}
+                                        <span style="color:var(--muted);"> · ${rolNombre} · ${uActivo ? 'activo' : 'inactivo'}</span>
+                                    </div>
+                                    ${esAdmin ? '<span style="font-size:0.8rem; color:var(--faint);">Admin del club</span>'
+                                        : `<button class="btn-danger" style="width:auto; padding:5px 10px; font-size:0.8rem;" onclick="toggleUsuario('${u.id}','${clubId}', ${uActivo})">${uActivo ? 'Dar de baja' : 'Reactivar'}</button>`}
+                                </div>`;
+                        }).join('')
+                        : '<p style="color:var(--faint); font-size:0.9rem;">Sin usuarios cargados.</p>';
+
+                    const bloque = document.createElement('div');
+                    bloque.className = 'club-item';
+                    bloque.style.cssText = `flex-direction:column; align-items:stretch; gap:12px; ${activo ? '' : 'opacity:0.6;'}`;
+                    bloque.innerHTML = `
+                        <div style="display:flex; justify-content:space-between; align-items:flex-start; width:100%;">
+                            <div class="club-info" style="display:flex; gap:12px; align-items:center;">
+                                ${club.logo ? `<img src="${club.logo}" alt="logo" style="width:48px; height:48px; object-fit:contain; border:1px solid var(--line); border-radius:8px; background:#fff; padding:2px;">` : ''}
+                                <div>
+                                    <h3>${esc(club.nombre)}</h3>
+                                    <p><strong>ID:</strong> ${clubId}</p>
+                                    <p><strong>Usuarios:</strong> ${club.usuarios_activos || usuarios.length || 2} · <strong>Estado:</strong> ${activo ? 'Activo' : 'De baja'}</p>
+                                </div>
+                            </div>
+                            <button class="${activo ? 'btn-danger' : 'btn-primary'}" style="width:auto; padding:8px 14px; font-size:0.9rem;" onclick="toggleEstadoClub('${clubId}', ${activo})">
+                                ${activo ? 'Dar de baja' : 'Reactivar'}
+                            </button>
+                        </div>
+
+                        <details style="width:100%;">
+                            <summary style="cursor:pointer; font-weight:600; color:var(--text); padding:8px 0;">Editar club y gestionar usuarios</summary>
+
+                            <div style="padding:12px; background:var(--panel-3); border-radius:8px; margin-top:8px;">
+                                <!-- Editar datos del club -->
+                                <h4 style="color:var(--text); margin-bottom:10px;">Datos del club</h4>
+                                <div class="form-group">
+                                    <label>Nombre del equipo</label>
+                                    <input type="text" id="edit-nombre-${clubId}" value="${esc(club.nombre)}">
+                                </div>
+                                <div class="form-group">
+                                    <label>Logo del club (dejá vacío para conservar el actual)</label>
+                                    <input type="file" id="edit-logo-${clubId}" accept="image/png, image/jpeg">
+                                    ${club.logo ? `<div style="margin-top:8px;"><img src="${club.logo}" alt="logo actual" style="max-width:80px; max-height:80px; border:1px solid var(--line); border-radius:6px; background:#fff; padding:3px;"></div>` : ''}
+                                </div>
+                                <button class="btn-primary" style="width:auto; padding:8px 14px;" onclick="guardarClub('${clubId}')">Guardar cambios</button>
+
+                                <!-- Usuarios -->
+                                <h4 style="color:var(--text); margin:20px 0 10px;">Usuarios del club</h4>
+                                ${usuariosHtml}
+
+                                <!-- Agregar usuario -->
+                                <h4 style="color:var(--text); margin:20px 0 10px;">Agregar usuario <span style="font-weight:normal; color:var(--muted); font-size:0.85rem;">(+$50 USD/mes)</span></h4>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>Nombre</label>
+                                        <input type="text" id="nu-nombre-${clubId}" placeholder="Ej: Carlos García">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Email</label>
+                                        <input type="email" id="nu-email-${clubId}" placeholder="usuario@club.com">
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>Contraseña inicial</label>
+                                        <input type="text" id="nu-pass-${clubId}" placeholder="Ej: Usuario123456">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Rol</label>
+                                        <select id="nu-rol-${clubId}">
+                                            <option value="trainer">Entrenador</option>
+                                            <option value="analyst">Analista</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <button class="btn-primary" style="width:auto; padding:8px 14px;" onclick="agregarUsuario('${clubId}')">Crear usuario y registrar cobro</button>
+                                <div class="mensaje" id="msg-${clubId}" style="margin-top:10px;"></div>
+                            </div>
+                        </details>
+                    `;
+                    container.appendChild(bloque);
+                });
+            } catch (error) {
+                console.error("Error loading clubs:", error);
+                container.innerHTML = '<p style="color: var(--danger);">Error al cargar clubes</p>';
+            }
+        }
+
+        // Guardar cambios de nombre / colores / logo del club
+        window.guardarClub = async (clubId) => {
+            const nombre = document.getElementById(`edit-nombre-${clubId}`).value.trim();
+            const logoFile = document.getElementById(`edit-logo-${clubId}`).files[0];
+            const msg = document.getElementById(`msg-${clubId}`);
+            if (!nombre) { showMessage(msg, 'El nombre no puede estar vacío', 'error'); return; }
+            try {
+                const cambios = { nombre };
+                // Solo actualizamos el logo si se subió uno nuevo
+                if (logoFile) {
+                    cambios.logo = await procesarLogo(logoFile);
+                }
+                await updateDoc(doc(db, 'clubes', clubId), cambios);
+                showMessage(msg, 'Cambios guardados', 'exito');
+                setTimeout(loadClubs, 1200);
+            } catch (error) {
+                console.error(error);
+                showMessage(msg, 'Error al guardar: ' + error.message, 'error');
+            }
+        };
+
+        // Dar de baja / reactivar un club
+        window.toggleEstadoClub = async (clubId, estabaActivo) => {
+            const accion = estabaActivo ? 'dar de baja' : 'reactivar';
+            if (!confirm(`¿Seguro que querés ${accion} este club?`)) return;
+            try {
+                await updateDoc(doc(db, 'clubes', clubId), { estado: estabaActivo ? 'inactivo' : 'activo' });
+                loadClubs();
+            } catch (error) {
+                console.error(error);
+                alert('Error al cambiar el estado: ' + error.message);
+            }
+        };
+
+        // Dar de baja / reactivar un usuario
+        window.toggleUsuario = async (userId, clubId, estabaActivo) => {
+            const accion = estabaActivo ? 'dar de baja' : 'reactivar';
+            if (!confirm(`¿${accion.charAt(0).toUpperCase() + accion.slice(1)} este usuario?`)) return;
+            try {
+                await updateDoc(doc(db, 'usuarios', userId), { estado: estabaActivo ? 'inactivo' : 'activo' });
+                loadClubs();
+            } catch (error) {
+                console.error(error);
+                alert('Error al cambiar el usuario: ' + error.message);
+            }
+        };
+
+        // Agregar un usuario a un club (crea Auth + doc + registra cobro)
+        window.agregarUsuario = async (clubId) => {
+            const nombre = document.getElementById(`nu-nombre-${clubId}`).value.trim();
+            const email = document.getElementById(`nu-email-${clubId}`).value.trim();
+            const password = document.getElementById(`nu-pass-${clubId}`).value;
+            const rol = document.getElementById(`nu-rol-${clubId}`).value;
+            const msg = document.getElementById(`msg-${clubId}`);
+
+            if (!nombre || !email || !password) {
+                showMessage(msg, 'Completá nombre, email y contraseña', 'error');
+                return;
+            }
+            if (password.length < 6) {
+                showMessage(msg, 'La contraseña debe tener al menos 6 caracteres', 'error');
+                return;
+            }
+
+            try {
+                // 1. Crear el usuario en Firebase Auth (REST, no desloguea al admin)
+                const resp = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${API_KEY}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password, returnSecureToken: true })
+                });
+                const result = await resp.json();
+                if (!resp.ok) {
+                    showMessage(msg, 'Error: ' + (result.error?.message || 'No se pudo crear el usuario'), 'error');
+                    return;
+                }
+                const newUid = result.localId;
+
+                // 2. Documento del usuario
+                await setDoc(doc(db, 'usuarios', newUid), {
+                    email, club_id: clubId, rol, nombre, estado: 'activo'
+                });
+
+                // 3. Registrar cobro en facturación
+                const facRef = doc(db, 'facturacion', clubId);
+                const facSnap = await getDoc(facRef);
+                if (facSnap.exists()) {
+                    const fac = facSnap.data();
+                    const adicionales = fac.usuarios_adicionales || [];
+                    adicionales.push({ uid: newUid, email, nombre, rol, fecha_cobro: new Date() });
+                    await updateDoc(facRef, {
+                        usuarios_adicionales: adicionales,
+                        total_usuarios: (fac.total_usuarios || 2) + 1
+                    });
+                }
+
+                // 4. Incrementar contador en el club
+                const clubSnap = await getDoc(doc(db, 'clubes', clubId));
+                if (clubSnap.exists()) {
+                    await updateDoc(doc(db, 'clubes', clubId), {
+                        usuarios_activos: (clubSnap.data().usuarios_activos || 2) + 1
+                    });
+                }
+
+                showMessage(msg, 'Usuario creado y cobro registrado (+$50 USD)', 'exito');
+                setTimeout(loadClubs, 1500);
+            } catch (error) {
+                console.error(error);
+                showMessage(msg, 'Error: ' + error.message, 'error');
+            }
+        };
+
+        function showMessage(element, text, type) {
+            element.textContent = text;
+            element.className = `mensaje ${type}`;
+            element.style.display = 'block';
+        }
+
+        // Ejecutar validación al cargar
+        checkAccess();
+    </script>
+</body>
+</html>

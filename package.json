@@ -1,0 +1,10 @@
+{
+  "name": "timeline-web",
+  "version": "1.0.0",
+  "description": "Timeline Hockey - Plataforma web multi-tenant de videoanálisis",
+  "scripts": {
+    "start": "npx -y serve app -l 5050 --no-clipboard",
+    "test": "node app/assets/js/utils/parsers.test.js && node app/assets/js/utils/youtube.test.js",
+    "deploy": "firebase deploy --only hosting"
+  }
+}

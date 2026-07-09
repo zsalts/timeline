@@ -1,0 +1,119 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ============================================
+    // FUNCIONES AUXILIARES
+    // ============================================
+
+    // UID del Super-Admin (Mateo)
+    function isSuper() {
+      return request.auth != null &&
+             request.auth.uid == "O8unkbKHhPXg1ZvRexlKUzccOym1";
+    }
+
+    // ¿El usuario autenticado tiene documento en 'usuarios'?
+    function userExists() {
+      return request.auth != null &&
+             exists(/databases/$(database)/documents/usuarios/$(request.auth.uid));
+    }
+
+    // Datos del usuario autenticado
+    function userDoc() {
+      return get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data;
+    }
+
+    // Datos de un club
+    function clubDoc(clubId) {
+      return get(/databases/$(database)/documents/clubes/$(clubId)).data;
+    }
+
+    // ============================================
+    // COLECCIÓN: clubes
+    // ============================================
+    match /clubes/{clubId} {
+      // Leer: super-admin, admin del club, o cualquier usuario del club
+      allow read: if isSuper() ||
+        (request.auth != null && request.auth.uid == resource.data.admin_uid) ||
+        (userExists() && userDoc().club_id == clubId);
+
+      // Escribir: super-admin (crear/editar) o admin del club
+      allow write: if isSuper() ||
+        (request.auth != null && request.auth.uid == resource.data.admin_uid);
+    }
+
+    // ============================================
+    // COLECCIÓN: usuarios
+    // ============================================
+    match /usuarios/{userId} {
+      // Leer: super-admin, propietario, o compañero del mismo club
+      allow read: if isSuper() ||
+        (request.auth != null && request.auth.uid == userId) ||
+        (userExists() && userDoc().club_id == resource.data.club_id);
+
+      // Crear: super-admin, o club-admin creando en su club
+      allow create: if isSuper() ||
+        (userExists() &&
+         userDoc().rol == 'club-admin' &&
+         request.resource.data.club_id == userDoc().club_id);
+
+      // Actualizar: super-admin, propietario, o club-admin del mismo club
+      allow update: if isSuper() ||
+        (request.auth != null && request.auth.uid == userId) ||
+        (userExists() &&
+         userDoc().rol == 'club-admin' &&
+         resource.data.club_id == userDoc().club_id);
+
+      // Eliminar: no permitido (solo desactivar)
+      allow delete: if false;
+    }
+
+    // ============================================
+    // COLECCIÓN: partidos (Video clips y análisis)
+    // ============================================
+    match /partidos/{partidoId} {
+      // Leer: usuario del mismo club
+      allow read: if isSuper() ||
+        (userExists() && userDoc().club_id == resource.data.club_id);
+
+      // Crear: usuario del club (club_id del nuevo doc == su club)
+      allow create: if userExists() &&
+        request.resource.data.club_id == userDoc().club_id;
+
+      // Actualizar: cualquier miembro del mismo club (notas, cortes, datos).
+      // No se permite mover el partido a otro club.
+      allow update: if userExists() &&
+        resource.data.club_id == userDoc().club_id &&
+        request.resource.data.club_id == userDoc().club_id;
+
+      // Eliminar: club-admin del mismo club
+      allow delete: if userExists() &&
+        userDoc().club_id == resource.data.club_id &&
+        userDoc().rol == 'club-admin';
+    }
+
+    // ============================================
+    // COLECCIÓN: facturacion
+    // ============================================
+    match /facturacion/{clubId} {
+      // Leer: super-admin o admin del club
+      allow read: if isSuper() ||
+        (request.auth != null && request.auth.uid == clubDoc(clubId).admin_uid);
+
+      // Escribir: super-admin o admin del club
+      allow write: if isSuper() ||
+        (request.auth != null && request.auth.uid == clubDoc(clubId).admin_uid);
+    }
+
+    // ============================================
+    // COLECCIÓN: estadisticas (Analytics)
+    // ============================================
+    match /estadisticas/{clubId} {
+      allow read: if isSuper() ||
+        (userExists() && userDoc().club_id == clubId);
+
+      allow write: if isSuper() ||
+        (userExists() && userDoc().club_id == clubId);
+    }
+  }
+}

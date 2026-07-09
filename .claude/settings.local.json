@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node --check app/assets/js/components/ui.js)",
+      "Bash(cat firebase.json)",
+      "Bash(cat .firebaserc)",
+      "Bash(cat package.json)"
+    ]
+  }
+}

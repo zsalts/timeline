@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestión de Usuarios - Timeline</title>
+    <link rel="stylesheet" href="../assets/css/style.css">
+    <script src="../assets/js/utils/tema.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { min-height: 100vh; }
+        .container {
+            max-width: 900px;
+            flex: 1;
+            min-width: 0;
+            width: 100%;
+            margin: 0 auto;
+            padding: 30px 36px 48px;
+        }
+        .header {
+            margin-bottom: 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .header h1 { font-size: 1.6rem; font-weight: 800; letter-spacing: -0.02em; }
+        .btn-back {
+            background: var(--panel-2);
+            color: var(--text);
+            border: 1px solid var(--line-2);
+            padding: 10px 15px;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            text-decoration: none;
+        }
+        .btn-back:hover { background: var(--panel-3); }
+        .card {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            padding: 22px;
+            border-radius: var(--radius);
+            margin-bottom: 18px;
+        }
+        h2 {
+            color: var(--text);
+            margin-bottom: 18px;
+            font-size: 1.12rem;
+            font-weight: 700;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--line);
+        }
+        .form-row {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 6px;
+            font-family: var(--font-mono);
+            font-weight: 500;
+            color: var(--muted);
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+        input[type="text"],
+        input[type="email"],
+        select { width: 100%; }
+        .btn-primary {
+            background: var(--accent);
+            color: var(--accent-ink);
+            border: none;
+            padding: 12px 20px;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            font-weight: 700;
+            transition: filter 0.15s;
+        }
+        .btn-primary:hover {
+            filter: brightness(1.08);
+        }
+        .btn-primary:disabled {
+            background: var(--panel-3);
+            color: var(--faint);
+            cursor: not-allowed;
+        }
+        .btn-danger {
+            background: var(--danger-dim);
+            color: #ffb3b6;
+            border: 1px solid rgba(255, 92, 99, 0.35);
+            padding: 8px 12px;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            font-size: 0.9rem;
+            width: auto;
+        }
+        .btn-danger:hover {
+            background: var(--danger);
+            color: #fff;
+        }
+        .mensaje {
+            padding: 12px;
+            border-radius: 6px;
+            margin: 15px 0;
+            text-align: center;
+            font-weight: bold;
+            display: none;
+        }
+        .mensaje.exito {
+            background: var(--success-weak);
+            color: var(--live);
+            border: 1px solid rgba(69, 214, 160, 0.3);
+        }
+        .mensaje.error {
+            background: var(--danger-dim);
+            color: #ffb3b6;
+            border: 1px solid rgba(255, 92, 99, 0.35);
+        }
+        .users-list {
+            margin-top: 20px;
+        }
+        .user-item {
+            background: var(--panel-2);
+            padding: 14px 16px;
+            border-radius: var(--radius-sm);
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 1px solid var(--line);
+            border-left: 3px solid var(--accent);
+        }
+        .user-info {
+            flex: 1;
+        }
+        .user-info h4 {
+            color: var(--text);
+            margin: 0 0 6px 0;
+        }
+        .user-info p {
+            margin: 3px 0;
+            color: var(--muted);
+            font-size: 0.85rem;
+        }
+        .user-actions {
+            display: flex;
+            gap: 10px;
+        }
+        .team-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--panel-2);
+            border: 1px solid var(--line-2);
+            color: var(--text);
+            padding: 6px 8px 6px 13px;
+            border-radius: 999px;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+        .team-chip button {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            border: none;
+            background: var(--panel-3);
+            color: var(--muted);
+            cursor: pointer;
+            font-size: 0.95rem;
+            line-height: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+        }
+        .team-chip button:hover { background: var(--danger); color: #fff; }
+        .role-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+        .role-admin {
+            background: var(--accent-dim);
+            color: var(--accent);
+        }
+        .role-trainer {
+            background: rgba(167, 139, 250, 0.14);
+            color: #A78BFA;
+        }
+        .role-analyst {
+            background: var(--success-weak);
+            color: var(--live);
+        }
+        .unauthorized {
+            text-align: center;
+            padding: 40px;
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+            color: var(--danger);
+        }
+        .tab-info {
+            background: var(--panel-2);
+            padding: 14px 16px;
+            border-radius: var(--radius-sm);
+            margin-bottom: 20px;
+            border: 1px solid var(--line);
+            border-left: 3px solid var(--accent);
+        }
+        .tab-info p {
+            margin: 0;
+            color: var(--muted);
+        }
+        .tab-info strong { color: var(--text); }
+        @media (max-width: 768px) {
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+            .header {
+                flex-direction: column;
+                gap: 10px;
+                align-items: flex-start;
+            }
+            .user-item {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+            }
+            .user-actions {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="sidebar-root" data-active="usuarios"></div>
+    <script src="../assets/js/components/ui.js"></script>
+
+    <div class="container">
+        <div class="header">
+            <h1>Gestión de usuarios</h1>
+        </div>
+
+        <!-- Mensaje de acceso denegado -->
+        <div id="unauthorized-screen" class="card unauthorized" style="display: none;">
+            <h2>Acceso denegado</h2>
+            <p>Solo administradores del club pueden acceder a esta sección.</p>
+            <a href="../index.html" class="btn-back" style="display: inline-block; margin-top: 10px;">Volver al inicio</a>
+        </div>
+
+        <!-- Contenido principal -->
+        <div id="main-content" style="display: none;">
+            <!-- Información del club -->
+            <div class="tab-info">
+                <p><strong>Club:</strong> <span id="club-name"></span> · <strong>Usuarios activos:</strong> <span id="user-count">2</span></p>
+            </div>
+
+            <!-- Equipos del club -->
+            <div class="card">
+                <h2>Equipos</h2>
+                <p style="color: var(--muted); margin-bottom: 15px; font-size: 0.9rem;">Cargá los equipos con los que juega tu club. Aparecen en los desplegables al cargar un partido.</p>
+                <div class="form-row" style="grid-template-columns: 1fr auto; align-items: end;">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label>Nombre del equipo</label>
+                        <input type="text" id="new-team" placeholder="Ej: Náutico">
+                    </div>
+                    <button class="btn-primary" id="btn-add-team" style="width: auto;">Agregar</button>
+                </div>
+                <div class="mensaje" id="mensaje-team"></div>
+                <div id="teams-container" style="margin-top: 16px; display: flex; flex-wrap: wrap; gap: 8px;">
+                    <p style="color: var(--muted);">Cargando equipos…</p>
+                </div>
+            </div>
+
+            <!-- Agregar nuevo usuario -->
+            <div class="card">
+                <h2>Agregar usuario</h2>
+                <p style="color: var(--muted); margin-bottom: 15px;">Cada usuario adicional genera un costo de <strong>$50 USD/mes</strong></p>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Nombre del Usuario</label>
+                        <input type="text" id="new-name" placeholder="Ej: Carlos García" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Email</label>
+                        <input type="email" id="new-email" placeholder="usuario@club.com" required>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Contraseña Inicial</label>
+                        <input type="text" id="new-password" placeholder="Ej: Usuario123456" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Rol</label>
+                        <select id="new-role" required>
+                            <option value="trainer">Entrenador</option>
+                            <option value="analyst">Analista</option>
+                        </select>
+                    </div>
+                </div>
+
+                <button class="btn-primary" id="btn-add-user">Crear Usuario y Registrar Cobro</button>
+                <div class="mensaje" id="mensaje-add"></div>
+            </div>
+
+            <!-- Lista de usuarios -->
+            <div class="card">
+                <h2>Usuarios del club</h2>
+                <div id="users-container" class="users-list">
+                    <p style="color: var(--muted);">Cargando usuarios…</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { auth, db, getDocs, collection, doc, getDoc, setDoc, updateDoc, query, where, signInWithEmailAndPassword } from '../assets/js/firebase.js';
+
+        const mainContent = document.getElementById('main-content');
+        const unauthorizedScreen = document.getElementById('unauthorized-screen');
+        let equiposActuales = [];
+
+        // Validar acceso
+        async function checkAccess() {
+            const clubID = sessionStorage.getItem('clubID');
+            const isClubAdmin = sessionStorage.getItem('isClubAdmin');
+            const userRole = sessionStorage.getItem('userRole');
+
+            if (!clubID || !isClubAdmin || userRole !== 'club-admin') {
+                mainContent.style.display = 'none';
+                unauthorizedScreen.style.display = 'block';
+                return false;
+            }
+
+            mainContent.style.display = 'block';
+            unauthorizedScreen.style.display = 'none';
+            return true;
+        }
+
+        // Inicializar
+        async function initialize() {
+            const hasAccess = await checkAccess();
+            if (!hasAccess) return;
+
+            loadClubInfo();
+            loadEquipos();
+            loadUsers();
+            setupAddUser();
+            setupAddTeam();
+        }
+
+        // ---- Equipos del club ----
+        async function loadEquipos() {
+            const clubID = sessionStorage.getItem('clubID');
+            try {
+                const clubDoc = await getDoc(doc(db, 'clubes', clubID));
+                equiposActuales = (clubDoc.exists() && clubDoc.data().equipos) || [];
+            } catch (e) {
+                console.error("Error cargando equipos:", e);
+                equiposActuales = [];
+            }
+            renderTeams();
+        }
+
+        function renderTeams() {
+            const cont = document.getElementById('teams-container');
+            if (!equiposActuales.length) {
+                cont.innerHTML = '<p style="color: var(--muted);">Todavía no cargaste equipos.</p>';
+                return;
+            }
+            cont.innerHTML = equiposActuales.map(t =>
+                `<span class="team-chip">${t}<button data-team="${t.replace(/"/g, '&quot;')}" title="Quitar">×</button></span>`
+            ).join('');
+            cont.querySelectorAll('button[data-team]').forEach(b => {
+                b.addEventListener('click', () => removeTeam(b.getAttribute('data-team')));
+            });
+        }
+
+        function setupAddTeam() {
+            const btn = document.getElementById('btn-add-team');
+            const input = document.getElementById('new-team');
+            const msg = document.getElementById('mensaje-team');
+
+            const add = async () => {
+                const nombre = input.value.trim();
+                if (!nombre) return;
+                if (equiposActuales.some(t => t.toLowerCase() === nombre.toLowerCase())) {
+                    showMessage(msg, 'Ese equipo ya está cargado', 'error');
+                    return;
+                }
+                const clubID = sessionStorage.getItem('clubID');
+                try {
+                    const nuevos = [...equiposActuales, nombre].sort((a, b) => a.localeCompare(b, 'es'));
+                    await updateDoc(doc(db, 'clubes', clubID), { equipos: nuevos });
+                    equiposActuales = nuevos;
+                    input.value = '';
+                    msg.style.display = 'none';
+                    renderTeams();
+                } catch (e) {
+                    console.error(e);
+                    showMessage(msg, 'Error al guardar: ' + e.message, 'error');
+                }
+            };
+
+            btn.addEventListener('click', add);
+            input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); add(); } });
+        }
+
+        async function removeTeam(nombre) {
+            const clubID = sessionStorage.getItem('clubID');
+            try {
+                const nuevos = equiposActuales.filter(t => t !== nombre);
+                await updateDoc(doc(db, 'clubes', clubID), { equipos: nuevos });
+                equiposActuales = nuevos;
+                renderTeams();
+            } catch (e) {
+                console.error(e);
+                alert('No se pudo quitar el equipo.');
+            }
+        }
+
+        // Cargar información del club
+        async function loadClubInfo() {
+            const clubID = sessionStorage.getItem('clubID');
+            try {
+                const clubDoc = await getDoc(doc(db, 'clubes', clubID));
+                if (clubDoc.exists()) {
+                    const club = clubDoc.data();
+                    document.getElementById('club-name').textContent = club.nombre;
+                    document.getElementById('user-count').textContent = club.usuarios_activos || 2;
+                }
+            } catch (error) {
+                console.error("Error loading club info:", error);
+                document.getElementById('club-name').textContent = '(sin datos)';
+            }
+        }
+
+        // Cargar usuarios del club
+        async function loadUsers() {
+            const clubID = sessionStorage.getItem('clubID');
+            const container = document.getElementById('users-container');
+
+            try {
+                const q = query(collection(db, 'usuarios'), where('club_id', '==', clubID));
+                const usersSnap = await getDocs(q);
+
+                if (usersSnap.empty) {
+                    container.innerHTML = '<p style="color: #999;">No hay usuarios registrados</p>';
+                    return;
+                }
+
+                container.innerHTML = '';
+                usersSnap.forEach(doc => {
+                    const user = doc.data();
+                    const roleClass = `role-${user.rol}`;
+                    const roleName = {
+                        'club-admin': 'Administrador del Club',
+                        'trainer': 'Entrenador',
+                        'analyst': 'Analista'
+                    }[user.rol] || user.rol;
+
+                    container.innerHTML += `
+                        <div class="user-item">
+                            <div class="user-info">
+                                <h4>${user.nombre}</h4>
+                                <p><strong>Email:</strong> ${user.email}</p>
+                                <p><strong>Rol:</strong> <span class="role-badge ${roleClass}">${roleName}</span></p>
+                                <p><strong>Estado:</strong> ${user.estado === 'activo' ? 'Activo' : 'Inactivo'}</p>
+                            </div>
+                            <div class="user-actions">
+                                ${user.rol !== 'club-admin' ? `
+                                    <button class="btn-danger" onclick="deactivateUser('${doc.id}')">Desactivar</button>
+                                ` : '<span style="color: var(--faint); font-size: 0.9rem;">Admin del club</span>'}
+                            </div>
+                        </div>
+                    `;
+                });
+            } catch (error) {
+                console.error("Error loading users:", error);
+                container.innerHTML = '<p style="color: var(--danger);">Error al cargar usuarios</p>';
+            }
+        }
+
+        // Agregar usuario
+        function setupAddUser() {
+            document.getElementById('btn-add-user').addEventListener('click', async () => {
+                const name = document.getElementById('new-name').value.trim();
+                const email = document.getElementById('new-email').value.trim();
+                const password = document.getElementById('new-password').value;
+                const role = document.getElementById('new-role').value;
+                const clubID = sessionStorage.getItem('clubID');
+                const mensajeDiv = document.getElementById('mensaje-add');
+
+                if (!name || !email || !password) {
+                    showMessage(mensajeDiv, 'Completa todos los campos', 'error');
+                    return;
+                }
+
+                const btn = document.getElementById('btn-add-user');
+                btn.textContent = 'Creando usuario...';
+                btn.disabled = true;
+
+                try {
+                    // Crear usuario en Firebase Auth
+                    const userResponse = await fetch('https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=AIzaSyAm7hCCz4pIHb9DER9AhVYZEON_3pt7ChU', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            email: email,
+                            password: password,
+                            returnSecureToken: true
+                        })
+                    });
+
+                    const userResult = await userResponse.json();
+                    if (!userResponse.ok) {
+                        showMessage(mensajeDiv, 'Error: ' + (userResult.error?.message || 'No se pudo crear el usuario'), 'error');
+                        btn.textContent = 'Crear Usuario y Registrar Cobro';
+                        btn.disabled = false;
+                        return;
+                    }
+
+                    const newUserUid = userResult.localId;
+
+                    // Crear documento del usuario en Firestore
+                    await setDoc(doc(db, 'usuarios', newUserUid), {
+                        email: email,
+                        club_id: clubID,
+                        rol: role,
+                        nombre: name,
+                        estado: 'activo'
+                    });
+
+                    // Registrar cobro en facturación
+                    const billingDoc = await getDoc(doc(db, 'facturacion', clubID));
+                    if (billingDoc.exists()) {
+                        const billing = billingDoc.data();
+                        const additionalUsers = billing.usuarios_adicionales || [];
+                        additionalUsers.push({
+                            uid: newUserUid,
+                            email: email,
+                            nombre: name,
+                            rol: role,
+                            fecha_cobro: new Date()
+                        });
+
+                        await setDoc(doc(db, 'facturacion', clubID), {
+                            ...billing,
+                            usuarios_adicionales: additionalUsers,
+                            total_usuarios: (billing.total_usuarios || 2) + 1
+                        });
+                    }
+
+                    // Actualizar contador de usuarios en club
+                    const clubDoc = await getDoc(doc(db, 'clubes', clubID));
+                    if (clubDoc.exists()) {
+                        const club = clubDoc.data();
+                        await setDoc(doc(db, 'clubes', clubID), {
+                            ...club,
+                            usuarios_activos: (club.usuarios_activos || 2) + 1
+                        });
+                    }
+
+                    showMessage(mensajeDiv, 'Usuario creado y cobro registrado ($50 USD)', 'exito');
+
+                    // Limpiar formulario
+                    document.getElementById('new-name').value = '';
+                    document.getElementById('new-email').value = '';
+                    document.getElementById('new-password').value = '';
+                    document.getElementById('new-role').value = 'trainer';
+
+                    // Recargar lista de usuarios
+                    setTimeout(() => {
+                        loadClubInfo();
+                        loadUsers();
+                    }, 1500);
+
+                } catch (error) {
+                    console.error("Error:", error);
+                    showMessage(mensajeDiv, 'Error: ' + error.message, 'error');
+                } finally {
+                    btn.textContent = 'Crear Usuario y Registrar Cobro';
+                    btn.disabled = false;
+                }
+            });
+        }
+
+        // Desactivar usuario
+        window.deactivateUser = async (userId) => {
+            if (!confirm('¿Desactivar este usuario?')) return;
+
+            try {
+                const userDoc = await getDoc(doc(db, 'usuarios', userId));
+                const user = userDoc.data();
+
+                await setDoc(doc(db, 'usuarios', userId), {
+                    ...user,
+                    estado: 'inactivo'
+                });
+
+                loadUsers();
+                alert('Usuario desactivado');
+            } catch (error) {
+                console.error("Error:", error);
+                alert('Error al desactivar usuario');
+            }
+        };
+
+        function showMessage(element, text, type) {
+            element.textContent = text;
+            element.className = `mensaje ${type}`;
+            element.style.display = 'block';
+        }
+
+        // Ejecutar al cargar
+        initialize();
+    </script>
+</body>
+</html>

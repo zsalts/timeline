@@ -1,0 +1,25 @@
+{
+    "name": "TC Hockey - Analizador",
+    "short_name": "TCHockey",
+    "description": "Aplicación para el registro de partidos, estadísticas y video análisis de hockey.",
+    "start_url": "/index.html",
+    "display": "standalone",
+    "background_color": "#f4f6f9",
+    "theme_color": "#1e3a8a",
+    "orientation": "any",
+    "scope": "/",
+    "icons": [
+        {
+            "src": "assets/image/logo.jpg",
+            "sizes": "192x192",
+            "type": "image/jpeg",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "assets/image/logo.jpg",
+            "sizes": "512x512",
+            "type": "image/jpeg",
+            "purpose": "any"
+        }
+    ]
+}

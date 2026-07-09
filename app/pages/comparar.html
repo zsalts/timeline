@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Comparar - Timeline</title>
+
+    <link rel="manifest" href="/manifest.json">
+    <link rel="icon" type="image/png" href="../assets/image/logo-web.png">
+    <link rel="apple-touch-icon" href="../assets/image/logo-web.png">
+    <meta name="theme-color" content="#0B0E13">
+
+    <link rel="stylesheet" href="../assets/css/style.css">
+    <script src="../assets/js/utils/tema.js"></script>
+    <style>
+        /* Ocupa exactamente la altura de la ventana en desktop */
+        body.app-shell { overflow: hidden; }
+        body.app-shell .container-dashboard {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            padding: 28px 32px;
+            box-sizing: border-box;
+            overflow: hidden;
+        }
+
+        @media (max-width: 900px) {
+            body.app-shell { overflow: visible; }
+            body.app-shell .container-dashboard { height: auto; overflow: visible; }
+        }
+
+        .header-stats { flex-shrink: 0; margin-bottom: 18px; }
+
+        .header-acciones {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 15px;
+            width: 100%;
+        }
+
+        .comparativa-grid {
+            flex: 1;
+            display: flex;
+            flex-direction: row;
+            gap: 18px;
+            overflow-x: auto;
+            overflow-y: hidden;
+            min-height: 0;
+            padding-bottom: 10px;
+        }
+
+        @media (max-width: 900px) {
+            .comparativa-grid { flex-direction: column; overflow-x: visible; min-height: auto; }
+        }
+
+        .video-columna {
+            flex: 1;
+            min-width: 340px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            background: var(--panel);
+            padding: 14px;
+            border-radius: var(--radius);
+            border: 1px solid var(--line);
+            min-height: 0;
+        }
+
+        @media (max-width: 900px) {
+            .video-columna { min-width: 100%; min-height: 460px; }
+        }
+
+        .btn-elegir {
+            padding: 9px 12px;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--line-2);
+            background: var(--panel-2);
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--text);
+            cursor: pointer;
+            flex: 1;
+            text-align: left;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            transition: border-color 0.15s, background 0.15s;
+            font-family: inherit;
+        }
+        .btn-elegir:hover { border-color: var(--accent-line); background: var(--panel-3); }
+
+        .btn-eliminar-col {
+            background: var(--panel-2);
+            color: var(--muted);
+            border: 1px solid var(--line-2);
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            width: 38px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: 600;
+            transition: border-color 0.15s, color 0.15s;
+            flex-shrink: 0;
+        }
+        .btn-eliminar-col:hover { border-color: var(--danger); color: var(--danger); }
+
+        .video-wrapper {
+            width: 100%;
+            aspect-ratio: 16 / 9;
+            background: #000;
+            border-radius: 10px;
+            overflow: hidden;
+            flex-shrink: 0;
+            border: 1px solid var(--line);
+        }
+        .video-wrapper iframe { width: 100% !important; height: 100% !important; border: none; }
+
+        .cortes-wrapper {
+            flex: 1;
+            overflow-y: auto;
+            background: var(--panel-2);
+            padding: 10px;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--line);
+        }
+        .cortes-wrapper::-webkit-scrollbar { width: 6px; }
+        .cortes-wrapper::-webkit-scrollbar-track { background: transparent; }
+        .cortes-wrapper::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 4px; }
+        .cortes-wrapper::-webkit-scrollbar-thumb:hover { background: var(--faint); }
+
+        .comparativa-grid::-webkit-scrollbar { height: 8px; }
+        .comparativa-grid::-webkit-scrollbar-track { background: transparent; }
+        .comparativa-grid::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 4px; }
+
+        .cat-details > summary { font-size: 0.85rem; }
+        .botones-container { grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 5px; padding: 8px 0; }
+        .timestamp-btn { padding: 5px; font-size: 0.72rem; }
+
+        /* --- MODAL DE SELECCIÓN --- */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(4, 6, 10, 0.72);
+            z-index: 1000;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .modal-content {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            width: 100%;
+            max-width: 900px;
+            max-height: 85vh;
+            border-radius: var(--radius);
+            padding: 22px;
+            overflow-y: auto;
+            box-shadow: var(--shadow);
+        }
+        .modal-content input { max-width: 100%; }
+        .grid-partidos { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; margin-top: 15px; }
+    </style>
+</head>
+
+<body>
+
+    <div id="sidebar-root" data-active="comparar"></div>
+    <script src="../assets/js/components/ui.js"></script>
+
+    <div class="container-dashboard">
+        <div class="header-stats">
+            <div class="header-acciones">
+                <div>
+                    <div class="eyebrow">Análisis comparado</div>
+                    <h2 style="margin:0;">Comparar</h2>
+                    <p class="subtitle" style="margin-top: 5px;">Agregá varios partidos y compará sus cortes en simultáneo.</p>
+                </div>
+                <button id="btn-sumar-video" class="btn-primary" style="width: auto; padding: 10px 18px;">
+                    + Sumar video
+                </button>
+            </div>
+        </div>
+
+        <div id="grid-comparativa" class="comparativa-grid"></div>
+    </div>
+
+    <!-- VENTANA MODAL PARA ELEGIR PARTIDO -->
+    <div id="modal-seleccion" class="modal-overlay">
+        <div class="modal-content">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h2 style="margin: 0;">Elegir partido</h2>
+                <button onclick="cerrarModal()" class="btn-ghost" style="width: auto; padding: 8px 16px;">Cerrar</button>
+            </div>
+
+            <input type="text" id="buscador-modal" placeholder="Buscar por equipo o torneo">
+
+            <div id="modal-grid-partidos" class="grid-partidos">
+                <p style="color: var(--muted);">Cargando partidos…</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Módulos compartidos -->
+    <script src="../assets/js/utils/youtube.js"></script>
+    <script src="../assets/js/components/cortesRenderer.js"></script>
+    <script src="../assets/js/components/timeline.js"></script>
+
+    <script type="module">
+        const uid = sessionStorage.getItem('usuarioUID');
+        const clubId = sessionStorage.getItem('clubID');
+        if (!uid || !clubId) {
+            // Si no está logueado (o no tiene club), lo mandamos al login
+            window.location.href = "login.html";
+        }
+        import { db, collection, getDocs, query, where } from '../assets/js/firebase.js';
+
+        let reproductoresYT = {};
+        let partidosData = {};
+        let partidosArreglo = [];
+        let contadorColumnas = 0;
+        let apiLista = false;
+        let columnaActivaParaModal = null;
+        let errorCargaHistorial = false;
+
+        window.onYouTubeIframeAPIReady = () => { apiLista = true; };
+        const tag = document.createElement('script');
+        tag.src = "https://www.youtube.com/iframe_api";
+        document.body.appendChild(tag);
+
+        async function inicializar() {
+            try {
+                // Solo los partidos de este club (multi-tenant)
+                const consultaPrivada = query(collection(db, "partidos"), where("club_id", "==", clubId));
+                const querySnapshot = await getDocs(consultaPrivada);
+                partidosArreglo = [];
+
+                querySnapshot.forEach(doc => {
+                    const p = doc.data();
+                    partidosData[doc.id] = p;
+                    partidosArreglo.push({ id: doc.id, ...p });
+                });
+
+                partidosArreglo.sort((a, b) => {
+                    const esImpA = !!a.importante;
+                    const esImpB = !!b.importante;
+                    if (esImpA !== esImpB) return esImpA ? -1 : 1;
+                    return new Date(b.fecha || 0) - new Date(a.fecha || 0);
+                });
+
+                crearColumna();
+                crearColumna();
+
+            } catch (error) {
+                console.error("Error al cargar partidos", error);
+                errorCargaHistorial = true;
+                // Aun si falló la carga del historial, dejamos crear columnas
+                // vacías para que la página no quede en blanco sin explicación.
+                document.getElementById('grid-comparativa').innerHTML =
+                    '<p style="color: var(--danger); padding: 20px;">No se pudo conectar con la nube para traer tus partidos. Recargá la página o revisá tu conexión.</p>';
+            }
+        }
+
+        window.crearColumna = function () {
+            contadorColumnas++;
+            const colId = `col-${contadorColumnas}`;
+            const colDiv = document.createElement('div');
+            colDiv.className = 'video-columna';
+            colDiv.id = colId;
+
+            colDiv.innerHTML = `
+                <div style="display: flex; gap: 8px;">
+                    <button id="btn-elegir-${colId}" class="btn-elegir" onclick="abrirModal('${colId}')">
+                        Elegir partido…
+                    </button>
+                    <button class="btn-eliminar-col" onclick="eliminarColumna('${colId}')" title="Quitar video">✕</button>
+                </div>
+                <div class="video-wrapper">
+                    <div id="player-${colId}"></div>
+                </div>
+                <div class="cortes-wrapper" id="cortes-${colId}">
+                    <p style="text-align: center; color: var(--muted); margin-top: 20px;">Esperando selección de video.</p>
+                </div>
+            `;
+            document.getElementById('grid-comparativa').appendChild(colDiv);
+        };
+
+        window.eliminarColumna = function (colId) {
+            const colDiv = document.getElementById(colId);
+            if (colDiv) colDiv.remove();
+            if (reproductoresYT[colId]) delete reproductoresYT[colId];
+        };
+
+        window.abrirModal = function (colId) {
+            columnaActivaParaModal = colId;
+            document.getElementById('modal-seleccion').style.display = 'flex';
+            renderizarPartidosModal(partidosArreglo);
+        };
+
+        window.cerrarModal = function () {
+            document.getElementById('modal-seleccion').style.display = 'none';
+            columnaActivaParaModal = null;
+        };
+
+        function renderizarPartidosModal(lista) {
+            const contenedor = document.getElementById('modal-grid-partidos');
+            contenedor.innerHTML = '';
+
+            if (lista.length === 0) {
+                contenedor.innerHTML = errorCargaHistorial
+                    ? '<p style="color: var(--danger);">No se pudo conectar con la nube. Cerrá esta ventana y recargá la página.</p>'
+                    : '<p style="color: var(--muted);">No se encontraron partidos.</p>';
+                return;
+            }
+
+            lista.forEach(partido => {
+                const card = document.createElement('div');
+                card.className = 'card-stat';
+
+                const esImportante = !!partido.importante;
+                const eq1 = partido.mi_equipo || 'Nuestro equipo';
+                const eq2 = partido.rival || 'Rival';
+
+                card.innerHTML = `
+                    <div class="match-torneo">${partido.torneo || 'Amistoso'} ${esImportante ? '<span class="badge-proximo">PRÓXIMO</span>' : ''}</div>
+                    <div class="match-teams" style="margin: 10px 0 4px;">
+                        <div class="match-eq1" style="font-size: 1.05rem;">${eq1}</div>
+                        <div class="match-vs">vs</div>
+                        <div class="match-eq2" style="font-size: 0.92rem;">${eq2}</div>
+                    </div>
+                    <div class="match-fecha" style="margin-top: 8px; display: block;">${partido.fecha || 'Sin fecha'}</div>
+                    <div class="tl-slot" style="margin-top: 10px;"></div>
+                `;
+
+                card.querySelector('.tl-slot').appendChild(TL.timeline.crear(partido.estadisticas));
+                card.onclick = () => seleccionarPartidoParaColumna(partido.id);
+                contenedor.appendChild(card);
+            });
+        }
+
+        window.seleccionarPartidoParaColumna = function (partidoId) {
+            if (!columnaActivaParaModal) return;
+
+            const partido = partidosData[partidoId];
+            const eq1 = partido.mi_equipo || 'Eq1';
+            const eq2 = partido.rival || 'Eq2';
+
+            const btn = document.getElementById(`btn-elegir-${columnaActivaParaModal}`);
+            btn.innerHTML = `${eq1} vs ${eq2} <span style="color: var(--muted); font-weight: normal; font-size: 0.8rem;">(${partido.fecha})</span>`;
+
+            cargarPartidoEnColumna(partidoId, columnaActivaParaModal);
+            cerrarModal();
+        };
+
+        document.getElementById('buscador-modal').addEventListener('input', (e) => {
+            const texto = e.target.value.toLowerCase();
+            const filtrados = partidosArreglo.filter(p =>
+                (p.rival && p.rival.toLowerCase().includes(texto)) ||
+                (p.mi_equipo && p.mi_equipo.toLowerCase().includes(texto)) ||
+                (p.torneo && p.torneo.toLowerCase().includes(texto))
+            );
+            renderizarPartidosModal(filtrados);
+        });
+
+        document.getElementById('modal-seleccion').addEventListener('click', (e) => {
+            if (e.target === document.getElementById('modal-seleccion')) cerrarModal();
+        });
+
+        function cargarPartidoEnColumna(partidoId, colId) {
+            const cortesContainer = document.getElementById(`cortes-${colId}`);
+            const partido = partidosData[partidoId];
+            const videoId = TL.youtube.extraerId(partido.youtube_id);
+
+            if (apiLista) {
+                if (reproductoresYT[colId]) {
+                    reproductoresYT[colId].loadVideoById(videoId);
+                } else {
+                    reproductoresYT[colId] = new YT.Player(`player-${colId}`, {
+                        videoId: videoId,
+                        playerVars: { 'playsinline': 1 }
+                    });
+                }
+            } else {
+                setTimeout(() => cargarPartidoEnColumna(partidoId, colId), 500);
+                return;
+            }
+
+            // Dibujar cortes (componente compartido)
+            TL.cortes.render(
+                cortesContainer,
+                partido.estadisticas,
+                (t) => { if (reproductoresYT[colId]) reproductoresYT[colId].seekTo(t, true); },
+                { label: (num) => `▶ C ${num}` }
+            );
+        }
+
+        document.getElementById('btn-sumar-video').addEventListener('click', () => crearColumna());
+
+        inicializar();
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Editar partido - Timeline</title>
+    <link rel="manifest" href="/manifest.json">
+    <link rel="icon" type="image/png" href="../assets/image/logo-web.png">
+    <link rel="apple-touch-icon" href="../assets/image/logo-web.png">
+    <link rel="stylesheet" href="../assets/css/style.css">
+    <script src="../assets/js/utils/tema.js"></script>
+</head>
+
+<body>
+
+    <div id="sidebar-root" data-active="historial"></div>
+    <script src="../assets/js/components/ui.js"></script>
+
+    <div class="container-dashboard" style="max-width: 760px;">
+        <div class="header-stats" style="border: none; margin-bottom: 24px;">
+            <div>
+                <div class="eyebrow">Editar registro</div>
+                <h2>Editar partido</h2>
+                <p class="subtitle">Modificá los datos. Si no subís un nuevo archivo, se mantienen las estadísticas
+                    anteriores.</p>
+            </div>
+        </div>
+
+        <div class="card-stat" style="display: block; cursor: default;">
+            <form id="form-editar" style="display: flex; flex-direction: column; gap: 18px;">
+
+                <div class="form-group-row">
+                    <div style="flex: 1;">
+                        <label>Equipo 1 (nuestra columna)</label>
+                        <select id="input-mi-equipo" required style="margin-top: 6px;">
+                            <option value="" disabled selected>Seleccioná un equipo</option>
+                        </select>
+                    </div>
+                    <div style="flex: 1;">
+                        <label>Equipo 2 (columna rival)</label>
+                        <select id="input-rival" required style="margin-top: 6px;">
+                            <option value="" disabled selected>Seleccioná un equipo</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group-row">
+                    <div style="flex: 1;">
+                        <label>Torneo o categoría</label>
+                        <input type="text" id="input-torneo" required style="margin-top: 6px;">
+                    </div>
+                    <div style="flex: 1;">
+                        <label>Fecha</label>
+                        <input type="date" id="input-fecha" required style="margin-top: 6px;">
+                    </div>
+                </div>
+
+                <div>
+                    <label>ID de YouTube</label>
+                    <input type="text" id="input-youtube" required style="margin-top: 6px;">
+                </div>
+
+                <label class="upload-box" for="input-xml">
+                    <span class="upload-title">Reemplazar cortes (.lgm o .xml)</span>
+                    <span class="upload-sub" id="upload-filename">Opcional — solo si querés sobrescribir los cortes anteriores</span>
+                    <input type="file" id="input-xml" accept=".lgm, .xml" style="display: none;">
+                </label>
+
+                <button type="submit" id="btn-submit" class="btn-primary" style="margin-top: 6px; padding: 14px;">
+                    Guardar cambios
+                </button>
+
+                <p id="mensaje-estado" style="text-align: center; font-weight: 600; margin-top: 4px;"></p>
+            </form>
+        </div>
+    </div>
+
+    <!-- Módulo compartido de parseo de archivos (.lgm / .xml) -->
+    <script src="../assets/js/utils/parsers.js"></script>
+
+    <script type="module">
+        const uid = sessionStorage.getItem('usuarioUID');
+        if (!uid) {
+            // Si no está logueado, lo mandamos al login
+            window.location.href = "login.html";
+        }
+        import { db, doc, getDoc, updateDoc } from '../assets/js/firebase.js';
+
+        const idAEditar = sessionStorage.getItem('partidoAEditarId');
+        const form = document.getElementById('form-editar');
+        const mensaje = document.getElementById('mensaje-estado');
+        const btn = document.getElementById('btn-submit');
+
+        let estadisticasViejas = {};
+
+        // Muestra el nombre del archivo elegido dentro de la caja de subida
+        document.getElementById('input-xml').addEventListener('change', (e) => {
+            const nombreSpan = document.getElementById('upload-filename');
+            nombreSpan.textContent = e.target.files[0]
+                ? e.target.files[0].name
+                : 'Opcional — solo si querés sobrescribir los cortes anteriores';
+        });
+
+        async function cargarDatosParaEditar() {
+            if (!idAEditar) {
+                window.location.href = "../index.html";
+                return;
+            }
+            try {
+                const docSnap = await getDoc(doc(db, "partidos", idAEditar));
+                if (docSnap.exists()) {
+                    const datos = docSnap.data();
+
+                    // Llenamos los equipos del club (más los del propio partido, por si cambiaron)
+                    await poblarEquipos([datos.mi_equipo, datos.rival]);
+
+                    document.getElementById('input-mi-equipo').value = datos.mi_equipo;
+                    document.getElementById('input-rival').value = datos.rival;
+                    document.getElementById('input-fecha').value = datos.fecha;
+                    document.getElementById('input-torneo').value = datos.torneo;
+                    document.getElementById('input-youtube').value = datos.youtube_id;
+                    estadisticasViejas = datos.estadisticas;
+                }
+            } catch (error) {
+                console.error("Error trayendo datos", error);
+            }
+        }
+
+        // Llena los desplegables con los equipos del club + los indicados como extra
+        async function poblarEquipos(extra = []) {
+            const clubId = sessionStorage.getItem('clubID');
+            let equipos = [];
+            try {
+                const snap = await getDoc(doc(db, "clubes", clubId));
+                equipos = (snap.exists() && snap.data().equipos) || [];
+            } catch (e) { console.error("Error cargando equipos:", e); }
+
+            const set = new Set([...equipos, ...extra.filter(Boolean)]);
+            const lista = [...set].sort((a, b) => a.localeCompare(b, 'es'));
+            const selects = [document.getElementById('input-mi-equipo'), document.getElementById('input-rival')];
+            selects.forEach(s => {
+                lista.forEach(eq => {
+                    const o = document.createElement('option');
+                    o.value = eq; o.textContent = eq;
+                    s.appendChild(o);
+                });
+            });
+        }
+
+        form.addEventListener('submit', async function (e) {
+            e.preventDefault();
+            btn.disabled = true;
+            btn.textContent = "Actualizando...";
+            mensaje.style.color = "var(--muted)";
+            mensaje.textContent = "Guardando cambios en la nube...";
+
+            const file = document.getElementById('input-xml').files[0];
+
+            const datosActualizados = {
+                mi_equipo: document.getElementById('input-mi-equipo').value,
+                rival: document.getElementById('input-rival').value,
+                fecha: document.getElementById('input-fecha').value,
+                torneo: document.getElementById('input-torneo').value,
+                youtube_id: document.getElementById('input-youtube').value,
+                modificado_el: new Date()
+            };
+
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = async function (evento) {
+                    try {
+                        const contenidoArchivo = evento.target.result;
+                        datosActualizados.estadisticas = TL.parsers.procesarArchivo(contenidoArchivo);
+                        await subirActualizacion(datosActualizados);
+                    } catch (error) {
+                        mostrarError(error);
+                    }
+                };
+                reader.readAsText(file);
+            } else {
+                try {
+                    await subirActualizacion(datosActualizados);
+                } catch (error) {
+                    mostrarError(error);
+                }
+            }
+        });
+
+        async function subirActualizacion(datos) {
+            const docRef = doc(db, "partidos", idAEditar);
+            await updateDoc(docRef, datos);
+            mensaje.style.color = "var(--live)";
+            mensaje.textContent = "Actualizado con éxito. Volviendo...";
+            setTimeout(() => { window.location.href = "../index.html"; }, 1500);
+        }
+
+        function mostrarError(error) {
+            console.error("Error:", error);
+            mensaje.style.color = "var(--danger)";
+            mensaje.textContent = "No se pudo actualizar. Reintentá.";
+            btn.disabled = false;
+            btn.textContent = "Reintentar";
+        }
+
+        cargarDatosParaEditar();
+    </script>
+</body>
+
+</html>

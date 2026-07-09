@@ -1,0 +1,490 @@
+/* =========================================================
+   TIMELINE — "Consola de Análisis"
+   Sistema de diseño oscuro para análisis de video de hockey.
+   Base slate profundo · acento ámbar señal · datos en monospace.
+   La firma es la tira de timeline del partido (.tl-strip).
+   ========================================================= */
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+:root {
+    /* Base slate */
+    --ink: #0B0E13;
+    --panel: #12161D;
+    --panel-2: #1A1F28;
+    --panel-3: #232A35;
+    --line: #262D38;
+    --line-2: #343E4C;
+
+    --text: #EAEEF4;
+    --muted: #98A2B2;
+    --faint: #5C6675;
+
+    /* Acento: ámbar señal (el "resaltador" del analista) */
+    --accent: #F7C948;
+    --accent-hi: #FFD766;
+    --accent-ink: #16130A;
+    --accent-dim: rgba(247, 201, 72, 0.13);
+    --accent-line: rgba(247, 201, 72, 0.40);
+
+    --live: #45D6A0;
+    --danger: #FF5C63;
+    --danger-dim: rgba(255, 92, 99, 0.14);
+
+    --radius: 14px;
+    --radius-sm: 10px;
+    --radius-lg: 20px;
+    --shadow: 0 14px 40px rgba(0, 0, 0, 0.45);
+
+    --font-sans: 'Archivo', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+    /* Alias legacy (estilos inline heredados de las páginas) */
+    --bg-color: var(--ink);
+    --surface: var(--panel);
+    --border: var(--line);
+    --border-strong: var(--line-2);
+    --accent-weak: var(--accent-dim);
+    --accent-hover: var(--accent-hi);
+    --success: var(--live);
+    --success-weak: rgba(69, 214, 160, 0.14);
+    --danger-weak: var(--danger-dim);
+    --tc-blue: var(--panel-2);
+    --tc-red: var(--accent);
+    --tc-yellow: var(--accent);
+    --tc-white: #ffffff;
+}
+
+* { box-sizing: border-box; }
+
+body {
+    font-family: var(--font-sans);
+    background: var(--ink);
+    color: var(--text);
+    margin: 0;
+    padding: 0;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+}
+
+::selection { background: var(--accent); color: var(--accent-ink); }
+
+/* Utilidades de "instrumento" */
+.mono { font-family: var(--font-mono); }
+.eyebrow {
+    font-family: var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    font-size: 0.68rem;
+    color: var(--muted);
+    font-weight: 500;
+}
+
+/* =========================================================
+   SHELL: sidebar + contenido
+   ========================================================= */
+body.app-shell {
+    display: flex;
+    min-height: 100vh;
+    background:
+        radial-gradient(1100px 520px at 100% -8%, rgba(247, 201, 72, 0.045), transparent 60%),
+        var(--ink);
+}
+
+.sidebar {
+    width: 236px;
+    flex-shrink: 0;
+    background: var(--panel);
+    border-right: 1px solid var(--line);
+    display: flex;
+    flex-direction: column;
+    padding: 22px 14px;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+}
+
+.sidebar-brand {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    padding: 2px 8px 18px;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 16px;
+}
+.sidebar-brand img.logo {
+    height: 36px;
+    width: 36px;
+    object-fit: contain;
+    border-radius: 9px;
+    background: #fff;
+    padding: 3px;
+}
+.sidebar-brand .brand-name {
+    color: var(--text);
+    font-weight: 700;
+    font-size: 0.98rem;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sidebar-nav { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+.sidebar-nav a {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 0.92rem;
+    font-weight: 500;
+    padding: 10px 13px;
+    border-radius: 9px;
+    transition: background 0.15s, color 0.15s;
+}
+.sidebar-nav a:hover { background: var(--panel-2); color: var(--text); }
+.sidebar-nav a.active { color: var(--accent); background: var(--accent-dim); font-weight: 600; }
+.sidebar-nav a.active::before {
+    content: "";
+    position: absolute;
+    left: -14px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 3px;
+    height: 20px;
+    border-radius: 0 3px 3px 0;
+    background: var(--accent);
+}
+
+.sidebar-foot { border-top: 1px solid var(--line); padding-top: 12px; margin-top: 12px; }
+.sidebar-foot .user-email {
+    font-family: var(--font-mono);
+    color: var(--faint);
+    font-size: 0.72rem;
+    padding: 0 12px 8px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.btn-logout-side {
+    width: 100%;
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    font-size: 0.92rem !important;
+    font-weight: 500;
+    padding: 10px 13px;
+    border-radius: 9px;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.15s, color 0.15s;
+    font-family: inherit;
+}
+.btn-logout-side:hover { background: var(--danger-dim); color: #ffb3b6; }
+
+body.app-shell .container-dashboard {
+    flex: 1;
+    min-width: 0;
+    width: 100%;
+    padding: 34px 40px 56px;
+    max-width: 1240px;
+    margin: 0 auto;
+}
+
+.navbar { display: none; }
+
+/* =========================================================
+   ENCABEZADOS
+   ========================================================= */
+.header-stats { display: flex; flex-direction: column; gap: 16px; margin-bottom: 28px; border: none; padding: 0; }
+.header-stats-top { display: flex; justify-content: space-between; align-items: flex-end; width: 100%; gap: 16px; }
+.header-stats h2 { margin: 0; color: var(--text); font-size: 1.9rem; font-weight: 800; letter-spacing: -0.03em; }
+.subtitle { margin: 6px 0 0; color: var(--muted); font-size: 0.92rem; }
+h2, h3, h4 { color: var(--text); font-weight: 700; letter-spacing: -0.01em; }
+
+/* =========================================================
+   BOTONES
+   ========================================================= */
+.btn-danger, .btn-primary {
+    background: var(--accent);
+    color: var(--accent-ink);
+    border: none;
+    padding: 11px 18px;
+    border-radius: var(--radius-sm);
+    font-weight: 700;
+    cursor: pointer;
+    transition: filter 0.15s, transform 0.1s, box-shadow 0.15s;
+    text-decoration: none;
+    display: inline-block;
+    text-align: center;
+    font-size: 0.92rem;
+    font-family: inherit;
+}
+.btn-danger:hover, .btn-primary:hover { filter: brightness(1.08); box-shadow: 0 6px 18px rgba(247, 201, 72, 0.22); }
+.btn-danger:active, .btn-primary:active { transform: scale(0.98); }
+.btn-danger:disabled, .btn-primary:disabled { background: var(--panel-3); color: var(--faint); cursor: not-allowed; box-shadow: none; filter: none; }
+
+.btn-ghost {
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid var(--line-2);
+    padding: 10px 16px;
+    border-radius: var(--radius-sm);
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.15s, border-color 0.15s;
+}
+.btn-ghost:hover { background: var(--panel-3); border-color: var(--faint); }
+
+/* =========================================================
+   FORMULARIOS
+   ========================================================= */
+.form-group-row { display: flex; flex-direction: column; gap: 16px; }
+
+input, select, textarea {
+    width: 100%;
+    font-size: 15px !important;
+    box-sizing: border-box;
+    padding: 11px 13px;
+    border: 1px solid var(--line-2);
+    border-radius: var(--radius-sm);
+    background: var(--panel-2);
+    color: var(--text);
+    transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+    font-family: inherit;
+}
+input::placeholder, textarea::placeholder { color: var(--faint); }
+input:focus, select:focus, textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-dim);
+    background: var(--panel);
+}
+select option { background: var(--panel-2); color: var(--text); }
+button { width: 100%; font-size: 15px !important; box-sizing: border-box; cursor: pointer; font-family: inherit; }
+label { font-weight: 600; color: var(--text); font-size: 0.85rem; }
+
+.card-form, .card-stat[style*="display: block"] {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+}
+
+/* Caja clickeable para subir un archivo (carga.html, editar.html) */
+.upload-box {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 4px;
+    padding: 16px;
+    border-radius: var(--radius-sm);
+    border: 1px dashed var(--line-2);
+    background: var(--panel-2);
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+}
+.upload-box:hover { border-color: var(--accent); background: var(--panel-3); }
+.upload-title { font-weight: 600; color: var(--text); font-size: 0.92rem; }
+.upload-sub { font-family: var(--font-mono); font-size: 0.78rem; color: var(--faint); }
+
+/* =========================================================
+   HISTORIAL — tarjetas de partido
+   ========================================================= */
+.grid-partidos { display: grid; grid-template-columns: 1fr; gap: 16px; margin-top: 18px; }
+
+.card-stat {
+    background: var(--panel);
+    border-radius: var(--radius);
+    padding: 18px 20px;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--line);
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
+}
+.card-stat::before {
+    content: "";
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+    background: transparent;
+    transition: background 0.15s;
+}
+.card-stat:hover { transform: translateY(-3px); border-color: var(--line-2); box-shadow: var(--shadow); }
+.card-stat:hover::before { background: var(--accent); }
+
+/* Contenido tipográfico de la tarjeta de partido (Historial, modal de Comparar) */
+.match-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.match-torneo { font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.12em; font-size: 0.66rem; color: var(--muted); padding-top: 3px; }
+.match-acciones { display: flex; gap: 4px; flex-shrink: 0; }
+.icon-btn { background: transparent; border: 1px solid var(--line); width: auto; padding: 4px 8px; border-radius: 8px; cursor: pointer; font-size: 0.8rem; color: var(--muted); transition: border-color .15s, color .15s, background .15s; }
+.icon-btn:hover { border-color: var(--line-2); color: var(--text); background: var(--panel-2); }
+.icon-btn.on { color: var(--accent); border-color: var(--accent-line); }
+.match-teams { margin: 14px 0 4px; }
+.match-eq1 { font-size: 1.3rem; font-weight: 800; letter-spacing: -0.02em; line-height: 1.15; color: var(--text); }
+.match-vs { font-family: var(--font-mono); font-size: 0.75rem; color: var(--faint); margin: 2px 0; }
+.match-eq2 { font-size: 1.05rem; font-weight: 600; color: var(--muted); }
+.match-meta { display: flex; justify-content: space-between; align-items: baseline; margin: 14px 0 10px; }
+.match-fecha { font-family: var(--font-mono); font-size: 0.75rem; color: var(--faint); }
+.match-count { font-family: var(--font-mono); font-size: 0.72rem; color: var(--muted); }
+.match-count b { color: var(--accent); font-weight: 600; }
+.badge-proximo { background: var(--accent); color: var(--accent-ink); padding: 2px 7px; border-radius: 5px; font-size: 0.6rem; font-weight: 700; letter-spacing: 0.04em; margin-left: 8px; }
+
+.seccion-desplegable summary { cursor: pointer; list-style: none; outline: none; }
+.seccion-desplegable summary::-webkit-details-marker { display: none; }
+.titulo-desplegable {
+    background: transparent !important;
+    box-shadow: none !important;
+    border-left: none !important;
+    padding: 6px 2px !important;
+    border-bottom: 1px solid var(--line);
+    border-radius: 0 !important;
+}
+.titulo-desplegable h3 {
+    font-family: var(--font-mono);
+    font-size: 0.72rem !important;
+    color: var(--muted) !important;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    font-weight: 500;
+}
+.flecha { color: var(--faint); }
+
+/* =========================================================
+   FIRMA — tira de timeline del partido
+   ========================================================= */
+.tl-strip {
+    position: relative;
+    width: 100%;
+    height: 26px;
+    border-radius: 7px;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    overflow: hidden;
+}
+.tl-strip::after {
+    content: "";
+    position: absolute;
+    left: 0; right: 0; top: 50%;
+    height: 1px;
+    background: var(--line-2);
+}
+.tl-strip.vacio { opacity: 0.45; }
+.tl-tick {
+    position: absolute;
+    top: 4px; bottom: 4px;
+    width: 2px;
+    border-radius: 2px;
+    transform: translateX(-1px);
+    opacity: 0.92;
+}
+
+/* =========================================================
+   VIDEO / CORTES
+   ========================================================= */
+.layout-principal { display: flex; flex-direction: column; gap: 20px; }
+.columna-video { width: 100%; }
+.columna-cortes-scroll { width: 100%; max-height: none; overflow-y: visible; }
+
+.timestamp-btn {
+    background: var(--panel-2);
+    border: 1px solid var(--line-2);
+    padding: 9px 10px;
+    border-radius: 9px;
+    cursor: pointer;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--text);
+    font-weight: 500;
+    flex: 1 1 45%;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.timestamp-btn:hover { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+
+/* =========================================================
+   ESTADÍSTICAS
+   ========================================================= */
+.comparativa-container { display: flex; flex-direction: column; gap: 15px; width: 100%; margin-top: 10px; }
+.columna-equipo {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+    padding: 16px;
+    border-radius: var(--radius);
+    background: var(--panel);
+    border: 1px solid var(--line);
+    align-content: start;
+}
+.stat-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; padding: 2px 5px; border-radius: 4px; }
+.stat-row { display: flex; justify-content: space-between; align-items: center; padding: 3px 5px; border-bottom: 1px dashed var(--line); font-size: 0.75rem; font-family: var(--font-mono); }
+.stat-row:last-child { border-bottom: none; }
+.winner-bg { background-color: var(--accent-dim) !important; border-bottom: none; }
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+@media (max-width: 900px) {
+    body.app-shell { flex-direction: column; }
+
+    .sidebar {
+        width: 100%;
+        height: auto;
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        flex-direction: row;
+        align-items: center;
+        padding: 10px 14px;
+        gap: 8px;
+        overflow-x: auto;
+        border-right: none;
+        border-bottom: 1px solid var(--line);
+    }
+    .sidebar-brand { border-bottom: none; margin-bottom: 0; padding: 0 8px 0 0; flex-shrink: 0; }
+    .sidebar-brand .brand-name { display: none; }
+    .sidebar-nav { flex-direction: row; gap: 4px; }
+    .sidebar-nav a { padding: 8px 11px; font-size: 0.85rem; white-space: nowrap; }
+    .sidebar-nav a.active::before { display: none; }
+    .sidebar-foot { border-top: none; padding-top: 0; margin-top: 0; margin-left: auto; }
+    .sidebar-foot .user-email { display: none; }
+    .btn-logout-side { padding: 8px 11px; width: auto; }
+
+    body.app-shell .container-dashboard { padding: 24px 18px 44px; }
+    .header-stats h2 { font-size: 1.55rem; }
+}
+
+@media (max-width: 520px) {
+    .header-stats-top { flex-direction: column; align-items: stretch; gap: 14px; }
+    .header-stats-top .btn-primary, .header-stats-top .btn-danger { width: 100%; text-align: center; }
+    .match-teams { margin: 12px 0 4px; }
+    .card-stat { padding: 16px; }
+}
+
+@media (min-width: 768px) {
+    .header-stats { flex-direction: row; justify-content: space-between; align-items: flex-end; }
+    .header-stats-top { width: auto; }
+
+    .form-group-row { flex-direction: row; }
+
+    .grid-partidos { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
+
+    .layout-principal { flex-direction: row; align-items: flex-start; }
+    .columna-video { flex: 2; position: sticky; top: 20px; }
+    .columna-cortes-scroll { flex: 1; max-height: 640px; overflow-y: auto; }
+    .timestamp-btn { flex: 1 1 auto; }
+
+    .comparativa-container { flex-direction: row; }
+    .columna-equipo { grid-template-columns: repeat(2, 1fr); }
+    .stat-card-inner:last-child { grid-column: 1 / -1; justify-self: center; width: calc(50% - 5px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+}
