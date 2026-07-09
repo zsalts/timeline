@@ -32,7 +32,7 @@
                     <div class="eyebrow" id="eyebrow-club">Videoanálisis</div>
                     <h2 id="titulo-club">Historial</h2>
                 </div>
-                <a href="carga.html" class="btn-primary">+ Nuevo partido</a>
+                <a href="carga.html" class="btn-primary" id="btn-nuevo-partido">+ Nuevo partido</a>
             </div>
 
             <div class="buscador-row">
@@ -62,6 +62,11 @@
             const configClub = JSON.parse(configClubStr);
             document.title = `Historial · ${configClub.nombre}`;
             if (configClub.nombre) document.getElementById('eyebrow-club').textContent = configClub.nombre;
+        }
+
+        // Las jugadoras solo miran: no ven el botón de cargar partido
+        if (sessionStorage.getItem('userRole') === 'player') {
+            document.getElementById('btn-nuevo-partido').style.display = 'none';
         }
 
         let partidosGlobal = [];

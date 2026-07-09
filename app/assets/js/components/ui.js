@@ -28,14 +28,18 @@
 
     const email = sessionStorage.getItem('userEmail') || '';
     const esClubAdmin = sessionStorage.getItem('isClubAdmin') === 'true';
+    // Las jugadoras son espectadoras: ven los partidos pero no cargan
+    const esJugadora = sessionStorage.getItem('userRole') === 'player';
     // "Contexto de partido": al abrir un partido aparecen Video y Estadísticas
     const hayPartido = !!sessionStorage.getItem('partidoSeleccionadoId');
 
     const links = [
-        { id: 'historial', href: `${toPage}historial.html`, label: 'Historial' },
-        { id: 'carga', href: `${toPage}carga.html`, label: 'Cargar partido' },
-        { id: 'comparar', href: `${toPage}comparar.html`, label: 'Comparar' }
+        { id: 'historial', href: `${toPage}historial.html`, label: 'Historial' }
     ];
+    if (!esJugadora) {
+        links.push({ id: 'carga', href: `${toPage}carga.html`, label: 'Cargar partido' });
+    }
+    links.push({ id: 'comparar', href: `${toPage}comparar.html`, label: 'Comparar' });
 
     if (hayPartido) {
         links.push({ id: 'video', href: `${toPage}video.html`, label: 'Video' });

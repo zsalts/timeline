@@ -198,6 +198,10 @@
             background: var(--success-weak);
             color: var(--live);
         }
+        .role-player {
+            background: rgba(86, 194, 230, 0.14);
+            color: #56C2E6;
+        }
         .unauthorized {
             text-align: center;
             padding: 40px;
@@ -282,7 +286,7 @@
             <!-- Agregar nuevo usuario -->
             <div class="card">
                 <h2>Agregar usuario</h2>
-                <p style="color: var(--muted); margin-bottom: 15px;">Cada usuario adicional genera un costo de <strong>$50 USD/mes</strong></p>
+                <p style="color: var(--muted); margin-bottom: 15px;">Entrenador y analista adicionales cuestan <strong>$50 USD/mes</strong>. Las <strong>jugadoras</strong> son espectadoras y no se cobran.</p>
 
                 <div class="form-row">
                     <div class="form-group">
@@ -305,11 +309,12 @@
                         <select id="new-role" required>
                             <option value="trainer">Entrenador</option>
                             <option value="analyst">Analista</option>
+                            <option value="player">Jugadora (solo ve, sin costo)</option>
                         </select>
                     </div>
                 </div>
 
-                <button class="btn-primary" id="btn-add-user">Crear Usuario y Registrar Cobro</button>
+                <button class="btn-primary" id="btn-add-user">Crear usuario</button>
                 <div class="mensaje" id="mensaje-add"></div>
             </div>
 
@@ -466,7 +471,8 @@
                     const roleName = {
                         'club-admin': 'Administrador del Club',
                         'trainer': 'Entrenador',
-                        'analyst': 'Analista'
+                        'analyst': 'Analista',
+                        'player': 'Jugadora'
                     }[user.rol] || user.rol;
 
                     container.innerHTML += `
@@ -525,12 +531,14 @@
                     const userResult = await userResponse.json();
                     if (!userResponse.ok) {
                         showMessage(mensajeDiv, 'Error: ' + (userResult.error?.message || 'No se pudo crear el usuario'), 'error');
-                        btn.textContent = 'Crear Usuario y Registrar Cobro';
+                        btn.textContent = 'Crear usuario';
                         btn.disabled = false;
                         return;
                     }
 
                     const newUserUid = userResult.localId;
+                    // Las jugadoras son espectadoras: no se cobran ni cuentan como usuario pago
+                    const esPago = role !== 'player';
 
                     // Crear documento del usuario en Firestore
                     await setDoc(doc(db, 'usuarios', newUserUid), {
@@ -541,37 +549,41 @@
                         estado: 'activo'
                     });
 
-                    // Registrar cobro en facturación
-                    const billingDoc = await getDoc(doc(db, 'facturacion', clubID));
-                    if (billingDoc.exists()) {
-                        const billing = billingDoc.data();
-                        const additionalUsers = billing.usuarios_adicionales || [];
-                        additionalUsers.push({
-                            uid: newUserUid,
-                            email: email,
-                            nombre: name,
-                            rol: role,
-                            fecha_cobro: new Date()
-                        });
+                    if (esPago) {
+                        // Registrar cobro en facturación (solo entrenador / analista)
+                        const billingDoc = await getDoc(doc(db, 'facturacion', clubID));
+                        if (billingDoc.exists()) {
+                            const billing = billingDoc.data();
+                            const additionalUsers = billing.usuarios_adicionales || [];
+                            additionalUsers.push({
+                                uid: newUserUid,
+                                email: email,
+                                nombre: name,
+                                rol: role,
+                                fecha_cobro: new Date()
+                            });
 
-                        await setDoc(doc(db, 'facturacion', clubID), {
-                            ...billing,
-                            usuarios_adicionales: additionalUsers,
-                            total_usuarios: (billing.total_usuarios || 2) + 1
-                        });
+                            await setDoc(doc(db, 'facturacion', clubID), {
+                                ...billing,
+                                usuarios_adicionales: additionalUsers,
+                                total_usuarios: (billing.total_usuarios || 2) + 1
+                            });
+                        }
+
+                        // Actualizar contador de usuarios pagos en el club
+                        const clubDoc = await getDoc(doc(db, 'clubes', clubID));
+                        if (clubDoc.exists()) {
+                            const club = clubDoc.data();
+                            await setDoc(doc(db, 'clubes', clubID), {
+                                ...club,
+                                usuarios_activos: (club.usuarios_activos || 2) + 1
+                            });
+                        }
                     }
 
-                    // Actualizar contador de usuarios en club
-                    const clubDoc = await getDoc(doc(db, 'clubes', clubID));
-                    if (clubDoc.exists()) {
-                        const club = clubDoc.data();
-                        await setDoc(doc(db, 'clubes', clubID), {
-                            ...club,
-                            usuarios_activos: (club.usuarios_activos || 2) + 1
-                        });
-                    }
-
-                    showMessage(mensajeDiv, 'Usuario creado y cobro registrado ($50 USD)', 'exito');
+                    showMessage(mensajeDiv, esPago
+                        ? 'Usuario creado y cobro registrado ($50 USD)'
+                        : 'Jugadora agregada. Ya puede entrar a ver los partidos.', 'exito');
 
                     // Limpiar formulario
                     document.getElementById('new-name').value = '';
@@ -589,7 +601,7 @@
                     console.error("Error:", error);
                     showMessage(mensajeDiv, 'Error: ' + error.message, 'error');
                 } finally {
-                    btn.textContent = 'Crear Usuario y Registrar Cobro';
+                    btn.textContent = 'Crear usuario';
                     btn.disabled = false;
                 }
             });

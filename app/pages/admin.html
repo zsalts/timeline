@@ -466,7 +466,7 @@
                         ? usuarios.map(u => {
                             const esAdmin = u.rol === 'club-admin';
                             const uActivo = (u.estado || 'activo') === 'activo';
-                            const rolNombre = { 'club-admin': 'Admin', 'trainer': 'Entrenador', 'analyst': 'Analista' }[u.rol] || u.rol;
+                            const rolNombre = { 'club-admin': 'Admin', 'trainer': 'Entrenador', 'analyst': 'Analista', 'player': 'Jugadora' }[u.rol] || u.rol;
                             return `
                                 <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 10px; background:var(--panel); border:1px solid var(--line); border-radius:6px; margin-bottom:6px;">
                                     <div style="font-size:0.9rem;">
@@ -540,6 +540,7 @@
                                         <select id="nu-rol-${clubId}">
                                             <option value="trainer">Entrenador</option>
                                             <option value="analyst">Analista</option>
+                                            <option value="player">Jugadora (sin costo)</option>
                                         </select>
                                     </div>
                                 </div>
@@ -633,34 +634,40 @@
                     return;
                 }
                 const newUid = result.localId;
+                // Las jugadoras son espectadoras: no se cobran ni suman al conteo pago
+                const esPago = rol !== 'player';
 
                 // 2. Documento del usuario
                 await setDoc(doc(db, 'usuarios', newUid), {
                     email, club_id: clubId, rol, nombre, estado: 'activo'
                 });
 
-                // 3. Registrar cobro en facturación
-                const facRef = doc(db, 'facturacion', clubId);
-                const facSnap = await getDoc(facRef);
-                if (facSnap.exists()) {
-                    const fac = facSnap.data();
-                    const adicionales = fac.usuarios_adicionales || [];
-                    adicionales.push({ uid: newUid, email, nombre, rol, fecha_cobro: new Date() });
-                    await updateDoc(facRef, {
-                        usuarios_adicionales: adicionales,
-                        total_usuarios: (fac.total_usuarios || 2) + 1
-                    });
+                if (esPago) {
+                    // 3. Registrar cobro en facturación (entrenador / analista)
+                    const facRef = doc(db, 'facturacion', clubId);
+                    const facSnap = await getDoc(facRef);
+                    if (facSnap.exists()) {
+                        const fac = facSnap.data();
+                        const adicionales = fac.usuarios_adicionales || [];
+                        adicionales.push({ uid: newUid, email, nombre, rol, fecha_cobro: new Date() });
+                        await updateDoc(facRef, {
+                            usuarios_adicionales: adicionales,
+                            total_usuarios: (fac.total_usuarios || 2) + 1
+                        });
+                    }
+
+                    // 4. Incrementar contador de usuarios pagos en el club
+                    const clubSnap = await getDoc(doc(db, 'clubes', clubId));
+                    if (clubSnap.exists()) {
+                        await updateDoc(doc(db, 'clubes', clubId), {
+                            usuarios_activos: (clubSnap.data().usuarios_activos || 2) + 1
+                        });
+                    }
                 }
 
-                // 4. Incrementar contador en el club
-                const clubSnap = await getDoc(doc(db, 'clubes', clubId));
-                if (clubSnap.exists()) {
-                    await updateDoc(doc(db, 'clubes', clubId), {
-                        usuarios_activos: (clubSnap.data().usuarios_activos || 2) + 1
-                    });
-                }
-
-                showMessage(msg, 'Usuario creado y cobro registrado (+$50 USD)', 'exito');
+                showMessage(msg, esPago
+                    ? 'Usuario creado y cobro registrado (+$50 USD)'
+                    : 'Jugadora agregada (sin costo).', 'exito');
                 setTimeout(loadClubs, 1500);
             } catch (error) {
                 console.error(error);

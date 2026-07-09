@@ -72,17 +72,19 @@ service cloud.firestore {
     // COLECCIÓN: partidos (Video clips y análisis)
     // ============================================
     match /partidos/{partidoId} {
-      // Leer: usuario del mismo club
+      // Leer: cualquier usuario del mismo club (incluye jugadoras)
       allow read: if isSuper() ||
         (userExists() && userDoc().club_id == resource.data.club_id);
 
-      // Crear: usuario del club (club_id del nuevo doc == su club)
+      // Crear: usuario del club que NO sea jugadora (las jugadoras solo miran)
       allow create: if userExists() &&
+        userDoc().rol != 'player' &&
         request.resource.data.club_id == userDoc().club_id;
 
-      // Actualizar: cualquier miembro del mismo club (notas, cortes, datos).
+      // Actualizar: miembro del mismo club que no sea jugadora (notas, cortes, datos).
       // No se permite mover el partido a otro club.
       allow update: if userExists() &&
+        userDoc().rol != 'player' &&
         resource.data.club_id == userDoc().club_id &&
         request.resource.data.club_id == userDoc().club_id;
 

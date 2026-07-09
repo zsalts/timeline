@@ -4,9 +4,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Timeline — Videoanálisis de hockey para clubes</title>
+    <title>Timeline — Videoanálisis para clubes deportivos</title>
     <meta name="description"
-        content="Cada jugada del partido, a un clic. El analista corta, el entrenador revisa: cortes por categoría sobre la cancha y el tiempo, comparador de partidos y estadísticas automáticas.">
+        content="Cada jugada del partido, a un clic. El analista corta, el equipo revisa: cortes por categoría en la línea de tiempo del partido, comparador y estadísticas automáticas. Hockey, fútbol, handball y más.">
 
     <link rel="manifest" href="/manifest.json">
     <link rel="icon" type="image/png" href="assets/image/logo-web.png">
@@ -216,21 +216,8 @@
         }
         .chip[aria-pressed="true"] .n { color: var(--dot); }
 
-        .cancha-wrap { position: relative; }
-        .cancha { display: block; width: 100%; height: auto; }
-
-        .demo-dot { transition: opacity 0.35s, r 0.35s; }
-        .demo-dot.apagado { opacity: 0.16; }
-        .demo-dot.encendido { opacity: 1; }
-        /* En pantallas chicas el SVG se achica: los puntos se agrandan
-           para seguir siendo visibles (r es propiedad CSS en SVG2) */
-        @media (max-width: 560px) {
-            .demo-core { r: 12px; }
-            .demo-halo { r: 24px; }
-        }
-
-        /* Tira de tiempo bajo la cancha */
-        .demo-tl { margin-top: 18px; }
+        /* La línea de tiempo es el demo */
+        .demo-tl { margin-top: 6px; }
         .demo-tl .lbl {
             font-family: var(--mono);
             font-size: 0.64rem;
@@ -249,16 +236,30 @@
             border: 1px solid var(--linea);
             overflow: hidden;
         }
+        .tl-track.grande { height: 96px; border-radius: 12px; }
         .tl-track::after { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: var(--linea-2); }
+        /* divisor de mitad de partido */
+        .tl-track.grande::before {
+            content: "";
+            position: absolute;
+            left: 50%;
+            top: 0;
+            bottom: 0;
+            width: 1px;
+            background: var(--linea-2);
+        }
         .tl-tick {
             position: absolute;
             top: 7px;
             bottom: 7px;
             width: 3px;
             border-radius: 2px;
-            transition: opacity 0.35s;
+            transform: translateX(-1.5px);
+            transition: opacity 0.35s, box-shadow 0.35s;
         }
-        .tl-tick.apagado { opacity: 0.14; }
+        .tl-track.grande .tl-tick { top: 12px; bottom: 12px; width: 4px; }
+        .tl-tick.encendido { box-shadow: 0 0 10px 1px currentColor; }
+        .tl-tick.apagado { opacity: 0.13; }
 
         .demo-caption {
             margin-top: 14px;
@@ -432,11 +433,11 @@
     <!-- Hero -->
     <header class="hero">
         <div class="wrap">
-            <div class="eyebrow">Videoanálisis de hockey para clubes</div>
+            <div class="eyebrow">Videoanálisis para clubes — hockey · fútbol · handball y más</div>
             <h1 class="display">Cada jugada del partido, a un clic.</h1>
             <p class="bajada">
-                El analista corta el partido; el entrenador lo revisa sin buscar en horas de video.
-                Cada corte sabe <em>dónde</em> pasó en la cancha y <em>cuándo</em> pasó en el partido —
+                El analista corta el partido; el equipo lo revisa sin buscar en horas de video.
+                Cada corte vive en la línea de tiempo del partido, agrupado por categoría —
                 y un clic lleva el video a ese segundo exacto.
             </p>
             <div class="hero-ctas">
@@ -446,8 +447,8 @@
         </div>
     </header>
 
-    <!-- FIRMA: demo cancha + timeline -->
-    <section class="demo-sec" aria-label="Demostración: jugadas sobre la cancha y el tiempo">
+    <!-- FIRMA: demo de la línea de tiempo del partido -->
+    <section class="demo-sec" aria-label="Demostración: los cortes del partido en la línea de tiempo">
         <div class="wrap">
             <div class="demo-marco">
                 <div class="demo-head">
@@ -457,39 +458,9 @@
                 <div class="demo-cuerpo">
                     <div class="chips" id="demo-chips" role="group" aria-label="Categorías de cortes"></div>
 
-                    <div class="cancha-wrap">
-                        <svg class="cancha" id="demo-cancha" viewBox="0 0 1000 560" aria-hidden="true">
-                            <defs>
-                                <linearGradient id="turf" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="0" stop-color="#0E3A52" />
-                                    <stop offset="1" stop-color="#0A2C40" />
-                                </linearGradient>
-                            </defs>
-                            <!-- césped -->
-                            <rect x="14" y="14" width="972" height="532" rx="14" fill="url(#turf)" />
-                            <!-- líneas de cancha -->
-                            <g stroke="rgba(237,245,249,0.28)" stroke-width="2" fill="none">
-                                <rect x="30" y="30" width="940" height="500" rx="6" />
-                                <line x1="500" y1="30" x2="500" y2="530" />
-                                <line x1="265" y1="30" x2="265" y2="530" stroke-dasharray="7 9" />
-                                <line x1="735" y1="30" x2="735" y2="530" stroke-dasharray="7 9" />
-                                <!-- áreas ("D") -->
-                                <path d="M 30 122 A 158 158 0 0 1 30 438" />
-                                <path d="M 970 122 A 158 158 0 0 0 970 438" />
-                                <!-- arcos -->
-                                <rect x="18" y="242" width="12" height="76" fill="rgba(237,245,249,0.28)" stroke="none" />
-                                <rect x="970" y="242" width="12" height="76" fill="rgba(237,245,249,0.28)" stroke="none" />
-                            </g>
-                            <!-- puntos penal -->
-                            <circle cx="118" cy="280" r="3" fill="rgba(237,245,249,0.35)" />
-                            <circle cx="882" cy="280" r="3" fill="rgba(237,245,249,0.35)" />
-                            <g id="demo-dots"></g>
-                        </svg>
-                    </div>
-
                     <div class="demo-tl">
-                        <div class="lbl"><span>Línea de tiempo — 70 min</span><span>Q1 · Q2 · Q3 · Q4</span></div>
-                        <div class="tl-track" id="demo-track"></div>
+                        <div class="lbl"><span>Línea de tiempo del partido</span><span>1er tiempo · 2do tiempo</span></div>
+                        <div class="tl-track grande" id="demo-track"></div>
                     </div>
 
                     <p class="demo-caption" id="demo-caption"></p>
@@ -515,8 +486,8 @@
                 <div class="paso">
                     <span class="num">PASO 02 · TIMELINE</span>
                     <h3>Las jugadas se ordenan solas</h3>
-                    <p>Cada corte queda agrupado por categoría y descriptor: córners, ingresos al área,
-                        recuperaciones y pérdidas por zona — tal como lo etiquetó el analista.</p>
+                    <p>Cada corte queda agrupado por categoría y descriptor — ataques, tiros,
+                        recuperaciones, pelota parada — tal como lo etiquetó el analista, sea cual sea el deporte.</p>
                 </div>
                 <div class="paso">
                     <span class="num">PASO 03 · ENTRENADOR</span>
@@ -546,11 +517,11 @@
                 </div>
                 <div class="feat">
                     <h4>Estadísticas automáticas</h4>
-                    <p>Posesión, córners, tiros, ingresos al área y pérdidas por zona, calculados desde los cortes.</p>
+                    <p>Posesión, tiros, recuperaciones y pérdidas, calculadas solas a partir de los cortes del analista.</p>
                 </div>
                 <div class="feat">
-                    <h4>Usuarios con roles</h4>
-                    <p>Entrenador, analista y administrador del club: cada uno ve lo que necesita.</p>
+                    <h4>Acceso para las jugadoras</h4>
+                    <p>Sumá a las jugadoras como espectadoras: entran a ver los partidos y los cortes, sin tocar nada.</p>
                 </div>
                 <div class="feat">
                     <h4>La marca de tu club</h4>
@@ -627,84 +598,56 @@
         // sus puntos en ambas.
         // =====================================================
         (function () {
+            // Categorías genéricas (sirven para hockey, fútbol, handball…):
+            // cada corte es un momento del partido, marcado por el analista.
             const CATS = [
-                {
-                    id: 'corner', nombre: 'Córner corto', color: 'var(--cat-corner)', hex: '#FFB454',
-                    jugadas: [{ t: 8, x: 905, y: 140 }, { t: 24, x: 918, y: 418 }, { t: 47, x: 878, y: 190 }, { t: 63, x: 888, y: 372 }, { t: 86, x: 932, y: 288 }]
-                },
-                {
-                    id: 'ingreso', nombre: 'Ingreso al área', color: 'var(--cat-ingreso)', hex: '#56C2E6',
-                    jugadas: [{ t: 5, x: 802, y: 224 }, { t: 18, x: 782, y: 330 }, { t: 33, x: 822, y: 274 }, { t: 51, x: 792, y: 182 }, { t: 70, x: 812, y: 362 }, { t: 92, x: 772, y: 284 }]
-                },
-                {
-                    id: 'tiro', nombre: 'Tiro al arco', color: 'var(--cat-tiro)', hex: '#F58BB4',
-                    jugadas: [{ t: 9, x: 884, y: 254 }, { t: 35, x: 872, y: 306 }, { t: 66, x: 892, y: 276 }, { t: 88, x: 862, y: 238 }]
-                },
-                {
-                    id: 'recu', nombre: 'Recuperación', color: 'var(--cat-recu)', hex: '#5FD3A6',
-                    jugadas: [{ t: 3, x: 432, y: 132 }, { t: 21, x: 522, y: 392 }, { t: 44, x: 392, y: 274 }, { t: 58, x: 562, y: 182 }, { t: 76, x: 472, y: 448 }, { t: 95, x: 352, y: 322 }]
-                },
-                {
-                    id: 'perdida', nombre: 'Pérdida', color: 'var(--cat-perdida)', hex: '#A78BFA',
-                    jugadas: [{ t: 14, x: 302, y: 226 }, { t: 40, x: 252, y: 368 }, { t: 73, x: 332, y: 162 }, { t: 82, x: 212, y: 302 }]
-                }
+                { id: 'ataque', nombre: 'Ataque', hex: '#56C2E6', tiempos: [5, 18, 33, 51, 70, 92] },
+                { id: 'tiro', nombre: 'Tiro al arco', hex: '#F58BB4', tiempos: [9, 35, 66, 88] },
+                { id: 'parada', nombre: 'Pelota parada', hex: '#FFB454', tiempos: [8, 24, 47, 63, 86] },
+                { id: 'recu', nombre: 'Recuperación', hex: '#5FD3A6', tiempos: [3, 21, 44, 58, 76, 95] },
+                { id: 'perdida', nombre: 'Pérdida', hex: '#A78BFA', tiempos: [14, 40, 73, 82] }
             ];
 
             const chipsBox = document.getElementById('demo-chips');
-            const dotsBox = document.getElementById('demo-dots');
             const track = document.getElementById('demo-track');
             const caption = document.getElementById('demo-caption');
-            const total = CATS.reduce((acc, c) => acc + c.jugadas.length, 0);
+            const total = CATS.reduce((acc, c) => acc + c.tiempos.length, 0);
             document.getElementById('demo-total').textContent = `${total} cortes · ${CATS.length} categorías`;
 
-            const SVGNS = 'http://www.w3.org/2000/svg';
-
-            // Construir chips, puntos en cancha y ticks en el tiempo
+            // Construir chips y ticks en la línea de tiempo
             CATS.forEach(cat => {
                 const chip = document.createElement('button');
                 chip.className = 'chip';
                 chip.type = 'button';
-                chip.style.setProperty('--dot', cat.color);
+                chip.style.setProperty('--dot', cat.hex);
                 chip.setAttribute('aria-pressed', 'false');
                 chip.dataset.cat = cat.id;
-                chip.innerHTML = `<span class="punto"></span>${cat.nombre} <span class="n">${cat.jugadas.length}</span>`;
+                chip.innerHTML = `<span class="punto"></span>${cat.nombre} <span class="n">${cat.tiempos.length}</span>`;
                 chipsBox.appendChild(chip);
 
-                cat.jugadas.forEach(j => {
-                    const halo = document.createElementNS(SVGNS, 'circle');
-                    halo.setAttribute('cx', j.x); halo.setAttribute('cy', j.y); halo.setAttribute('r', 13);
-                    halo.setAttribute('fill', cat.hex); halo.setAttribute('opacity', '0.18');
-                    halo.classList.add('demo-dot', 'demo-halo'); halo.dataset.cat = cat.id;
-                    dotsBox.appendChild(halo);
-
-                    const dot = document.createElementNS(SVGNS, 'circle');
-                    dot.setAttribute('cx', j.x); dot.setAttribute('cy', j.y); dot.setAttribute('r', 6);
-                    dot.setAttribute('fill', cat.hex);
-                    dot.classList.add('demo-dot', 'demo-core'); dot.dataset.cat = cat.id;
-                    dotsBox.appendChild(dot);
-
+                cat.tiempos.forEach(t => {
                     const tick = document.createElement('span');
                     tick.className = 'tl-tick';
-                    tick.style.left = j.t + '%';
+                    tick.style.left = t + '%';
                     tick.style.background = cat.hex;
+                    tick.style.color = cat.hex;
                     tick.dataset.cat = cat.id;
                     track.appendChild(tick);
                 });
             });
 
             const chips = [...chipsBox.querySelectorAll('.chip')];
-            const dots = [...dotsBox.querySelectorAll('.demo-dot')];
             const ticks = [...track.querySelectorAll('.tl-tick')];
 
             function seleccionar(catId) {
                 chips.forEach(ch => ch.setAttribute('aria-pressed', String(ch.dataset.cat === catId)));
-                dots.forEach(d => {
-                    d.classList.toggle('apagado', d.dataset.cat !== catId);
-                    d.classList.toggle('encendido', d.dataset.cat === catId);
+                ticks.forEach(tk => {
+                    const on = tk.dataset.cat === catId;
+                    tk.classList.toggle('apagado', !on);
+                    tk.classList.toggle('encendido', on);
                 });
-                ticks.forEach(tk => tk.classList.toggle('apagado', tk.dataset.cat !== catId));
                 const cat = CATS.find(c => c.id === catId);
-                caption.innerHTML = `<b>${cat.nombre}</b> — ${cat.jugadas.length} cortes marcados. Un clic y el video salta a cada uno.`;
+                caption.innerHTML = `<b>${cat.nombre}</b> — ${cat.tiempos.length} cortes marcados en el partido. Un clic y el video salta a cada uno.`;
             }
 
             let idx = 0;
