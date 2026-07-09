@@ -26,6 +26,9 @@ Thumbs.db
 dist/
 build/
 
+# Firebase (caché local del deploy)
+.firebase/
+
 # Logs
 logs/
 *.log
