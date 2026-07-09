@@ -13,9 +13,10 @@
 
     const active = root.getAttribute('data-active') || '';
 
-    // Rutas: index.html vive en la raíz (app/), el resto en app/pages/
+    // Rutas: la raíz (app/) es la landing pública; todas las páginas de la
+    // app viven en app/pages/. toRoot solo se usa para /assets.
     const enPages = window.location.pathname.includes('/pages/');
-    const toRoot = enPages ? '../' : '';        // para index.html y /assets
+    const toRoot = enPages ? '../' : '';        // para /assets
     const toPage = enPages ? '' : 'pages/';      // para páginas dentro de /pages/
 
     // Marca del club (nombre) desde la sesión
@@ -31,7 +32,7 @@
     const hayPartido = !!sessionStorage.getItem('partidoSeleccionadoId');
 
     const links = [
-        { id: 'historial', href: `${toRoot}index.html`, label: 'Historial' },
+        { id: 'historial', href: `${toPage}historial.html`, label: 'Historial' },
         { id: 'carga', href: `${toPage}carga.html`, label: 'Cargar partido' },
         { id: 'comparar', href: `${toPage}comparar.html`, label: 'Comparar' }
     ];

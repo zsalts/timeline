@@ -32,7 +32,7 @@
                     <div class="eyebrow" id="eyebrow-club">Videoanálisis</div>
                     <h2 id="titulo-club">Historial</h2>
                 </div>
-                <a href="pages/carga.html" class="btn-primary">+ Nuevo partido</a>
+                <a href="carga.html" class="btn-primary">+ Nuevo partido</a>
             </div>
 
             <div class="buscador-row">
@@ -46,14 +46,14 @@
     </div>
 
     <script type="module">
-        import { db, collection, query, where, getDocs, doc, deleteDoc, updateDoc } from './assets/js/firebase.js';
+        import { db, collection, query, where, getDocs, doc, deleteDoc, updateDoc } from '../assets/js/firebase.js';
 
         // 1. Verificación de seguridad
         const uid = sessionStorage.getItem('usuarioUID');
         const miClubId = sessionStorage.getItem('clubID');
 
         if (!uid || !miClubId) {
-            window.location.href = "pages/login.html";
+            window.location.href = "login.html";
         }
 
         // 2. Personalización: el nombre del club va en el eyebrow
@@ -155,7 +155,7 @@
 
             card.onclick = () => {
                 sessionStorage.setItem('partidoSeleccionadoId', partido.id);
-                window.location.href = 'pages/video.html';
+                window.location.href = 'video.html';
             };
 
             // Marcar / desmarcar prioritario

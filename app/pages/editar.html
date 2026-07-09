@@ -104,7 +104,7 @@
 
         async function cargarDatosParaEditar() {
             if (!idAEditar) {
-                window.location.href = "../index.html";
+                window.location.href = "historial.html";
                 return;
             }
             try {
@@ -192,7 +192,7 @@
             await updateDoc(docRef, datos);
             mensaje.style.color = "var(--live)";
             mensaje.textContent = "Actualizado con éxito. Volviendo...";
-            setTimeout(() => { window.location.href = "../index.html"; }, 1500);
+            setTimeout(() => { window.location.href = "historial.html"; }, 1500);
         }
 
         function mostrarError(error) {
