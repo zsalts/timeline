@@ -3,6 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Estadísticas - Timeline</title>
     <link rel="manifest" href="/manifest.json">
     <link rel="icon" type="image/png" href="../assets/image/logo-web.png">
@@ -10,81 +11,175 @@
     <link rel="stylesheet" href="../assets/css/style.css">
     <script src="../assets/js/utils/tema.js"></script>
     <style>
-        body.app-shell .container-dashboard { max-width: 1400px; }
+        body.app-shell .container-dashboard { max-width: 1080px; }
 
-        .header-stats { text-align: center; display: block; margin-bottom: 24px; }
-        .header-stats .eyebrow { justify-content: center; display: flex; }
-        .header-stats h2 { font-size: 1.5rem; margin: 6px 0 4px; }
-        .header-stats p { margin: 0; }
+        .header-stats { margin-bottom: 22px; }
+        .header-stats h2 { font-size: 1.6rem; margin: 6px 0 4px; letter-spacing: -0.02em; }
 
-        .comparativa-container { display: flex; flex-direction: column; gap: 16px; margin-top: 10px; width: 100%; }
-        .columna-equipo {
-            flex: 1;
+        /* --- Resumen (KPIs) --- */
+        .kpi-row {
             display: grid;
-            grid-template-columns: 1fr;
-            gap: 10px;
-            align-content: start;
-            padding: 16px;
-            border-radius: var(--radius);
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 12px;
+            margin-bottom: 26px;
+        }
+        .kpi {
             background: var(--panel);
             border: 1px solid var(--line);
+            border-radius: var(--radius);
+            padding: 14px 16px;
         }
-
-        @media (min-width: 768px) {
-            .comparativa-container { flex-direction: row; }
-            .columna-equipo { grid-template-columns: repeat(2, 1fr); }
-            .stat-card:last-child { grid-column: 1 / -1; justify-self: center; width: calc(50% - 5px); }
-        }
-
-        /* Títulos con el color de cada equipo: el nuestro en acento, el rival neutro */
-        .titulo-nuestro, .titulo-rival {
-            grid-column: 1 / -1;
-            padding: 9px;
-            text-align: center;
-            margin-bottom: 0;
-            font-weight: 700;
-            font-size: 1rem;
-            border-radius: var(--radius-sm);
+        .kpi-valor {
             font-family: var(--font-mono);
+            font-size: 1.9rem;
+            font-weight: 800;
+            line-height: 1;
+            color: var(--accent);
+        }
+        .kpi-label {
+            display: block;
+            margin-top: 7px;
+            font-family: var(--font-mono);
+            font-size: 0.66rem;
             text-transform: uppercase;
-            letter-spacing: 0.06em;
+            letter-spacing: 0.13em;
+            color: var(--muted);
         }
-        .titulo-nuestro { background: var(--accent); color: var(--accent-ink); }
-        .titulo-rival { background: var(--panel-3); color: var(--text); }
 
-        .stat-card {
-            background: var(--panel-2);
-            padding: 10px 12px;
-            border-radius: var(--radius-sm);
+        /* --- Métricas del partido (según mapeo del club) --- */
+        .metricas { margin-bottom: 26px; }
+        .metrica-pos {
+            background: var(--panel);
             border: 1px solid var(--line);
-            border-left: 3px solid var(--line-2);
-            display: flex;
-            flex-direction: column;
+            border-radius: var(--radius);
+            padding: 16px 18px;
+            margin-bottom: 12px;
         }
-        .card-nuestro { border-left-color: var(--accent); }
-        .card-rival { border-left-color: var(--faint); }
-
-        .stat-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; padding: 2px 5px; border-radius: 4px; }
-        .stat-title { font-size: 0.8rem; font-weight: 600; color: var(--muted); }
-        .stat-total { font-size: 1.5rem; font-weight: 800; line-height: 1; color: var(--accent); font-family: var(--font-mono); }
-        .stat-total.dark { color: var(--text); }
-
-        .stat-row {
+        .metrica-label {
+            font-family: var(--font-mono);
+            font-size: 0.66rem;
+            text-transform: uppercase;
+            letter-spacing: 0.13em;
+            color: var(--muted);
+            margin-bottom: 10px;
+        }
+        .pos-cifras {
             display: flex;
             justify-content: space-between;
-            align-items: center;
-            padding: 3px 5px;
-            border-bottom: 1px dashed var(--line);
-            font-size: 0.75rem;
             font-family: var(--font-mono);
-            border-radius: 4px;
-            margin-bottom: 1px;
+            font-weight: 700;
+            font-size: 0.95rem;
+            margin-bottom: 8px;
         }
-        .stat-row:last-child { border-bottom: none; }
-        .stat-row .label { color: var(--muted); font-family: var(--font-sans); }
-        .stat-row .value { font-weight: 600; font-size: 0.85rem; color: var(--text); }
+        .pos-cifras .lado-n { color: var(--accent); }
+        .pos-cifras .lado-r { color: var(--muted); }
+        .pos-bar {
+            display: flex;
+            height: 16px;
+            border-radius: 6px;
+            overflow: hidden;
+            background: var(--panel-3);
+        }
+        .pos-seg-n { background: var(--accent); }
+        .pos-seg-r { background: var(--panel-3); }
 
-        .winner-bg { background-color: var(--accent-dim) !important; border-bottom: none; }
+        .metricas-num {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+            gap: 12px;
+        }
+        .metrica {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+            padding: 16px 18px;
+        }
+        .metrica-valor {
+            font-family: var(--font-mono);
+            font-size: 2.3rem;
+            font-weight: 800;
+            line-height: 1;
+            color: var(--text);
+        }
+        .zonas { margin-top: 14px; }
+        .zona-row {
+            display: grid;
+            grid-template-columns: 60px 1fr auto;
+            align-items: center;
+            gap: 10px;
+            padding: 3px 0;
+        }
+        .zona-nombre { font-family: var(--font-mono); font-size: 0.78rem; color: var(--muted); }
+        .zona-valor { font-family: var(--font-mono); font-size: 0.82rem; color: var(--text); }
+
+        .aviso-config {
+            background: var(--accent-dim);
+            border: 1px solid var(--accent-line);
+            border-radius: var(--radius);
+            padding: 14px 16px;
+            margin-bottom: 26px;
+            font-size: 0.9rem;
+            color: var(--text);
+        }
+        .aviso-config a { color: var(--accent); font-weight: 600; }
+
+        /* --- Distribución por categoría --- */
+        .seccion-titulo {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            gap: 12px;
+            margin: 0 0 14px;
+        }
+        .seccion-titulo h3 { margin: 0; font-size: 1.05rem; font-weight: 700; }
+        .seccion-titulo .hint {
+            font-family: var(--font-mono);
+            font-size: 0.68rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--faint);
+        }
+
+        .cat-block {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+            margin-bottom: 10px;
+            overflow: hidden;
+        }
+        .cat-block > summary { list-style: none; cursor: pointer; padding: 13px 16px; display: block; }
+        .cat-block > summary::-webkit-details-marker { display: none; }
+        .cat-block > summary:hover { background: var(--panel-2); }
+
+        .cat-head { display: flex; align-items: center; gap: 10px; margin-bottom: 9px; }
+        .cat-dot { width: 11px; height: 11px; border-radius: 3px; flex-shrink: 0; }
+        .cat-name { font-weight: 700; font-size: 0.98rem; }
+        .cat-metrics { margin-left: auto; font-family: var(--font-mono); font-size: 0.85rem; color: var(--muted); white-space: nowrap; }
+        .cat-metrics b { color: var(--text); font-size: 1.05rem; }
+        .cat-chevron { color: var(--faint); font-size: 0.75rem; margin-left: 4px; transition: transform 0.15s; }
+        .cat-block[open] .cat-chevron { transform: rotate(90deg); }
+
+        .barra { height: 8px; background: var(--panel-3); border-radius: 5px; overflow: hidden; }
+        .barra-fill { height: 100%; border-radius: 5px; min-width: 3px; transition: width 0.3s; }
+
+        .desc-list { padding: 4px 16px 14px; border-top: 1px solid var(--line); }
+        .desc-list-titulo {
+            font-family: var(--font-mono); font-size: 0.64rem; text-transform: uppercase;
+            letter-spacing: 0.13em; color: var(--faint); margin: 12px 0 8px;
+        }
+        .desc-row {
+            display: grid; grid-template-columns: minmax(90px, 0.9fr) 1.6fr auto;
+            align-items: center; gap: 10px; padding: 4px 0;
+        }
+        .desc-label { font-size: 0.82rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .desc-label.sin { font-style: italic; color: var(--faint); }
+        .desc-valor { font-family: var(--font-mono); font-size: 0.82rem; color: var(--text); text-align: right; white-space: nowrap; }
+        .desc-valor .pct { color: var(--faint); font-size: 0.72rem; margin-left: 5px; }
+
+        .estado-vacio {
+            text-align: center; color: var(--muted); font-weight: 600; padding: 40px 20px;
+            background: var(--panel); border: 1px dashed var(--line-2); border-radius: var(--radius);
+        }
     </style>
 </head>
 
@@ -95,14 +190,25 @@
 
     <div class="container-dashboard">
         <div class="header-stats">
-            <div class="eyebrow">Panel de control</div>
-            <h2 id="header-rival">Comparativa</h2>
-            <p class="subtitle">Análisis comparativo de rendimiento</p>
+            <div class="eyebrow">Análisis de partido</div>
+            <h2 id="header-titulo">Estadísticas</h2>
+            <p class="subtitle" id="header-sub">Resumen de los cortes cargados</p>
         </div>
 
-        <div id="panel-estadisticas" class="comparativa-container">
+        <div id="resumen" class="kpi-row"></div>
+
+        <div id="aviso-config" class="aviso-config" style="display:none;"></div>
+        <div id="metricas" class="metricas" style="display:none;"></div>
+
+        <div class="seccion-titulo">
+            <h3>Distribución por categoría</h3>
+            <span class="hint" id="hint-orden"></span>
         </div>
+        <div id="distribucion"></div>
     </div>
+
+    <!-- Módulo compartido: color estable por categoría (mismo que el timeline) -->
+    <script src="../assets/js/components/timeline.js"></script>
 
     <script type="module">
         const uid = sessionStorage.getItem('usuarioUID');
@@ -110,13 +216,185 @@
             // Si no está logueado, lo mandamos al login
             window.location.href = "login.html";
         }
+        // Las estadísticas son análisis del cuerpo técnico: las jugadoras no acceden ni por URL.
+        if (sessionStorage.getItem('userRole') === 'player') {
+            window.location.href = "historial.html";
+        }
         import { db, doc, getDoc } from '../assets/js/firebase.js';
 
-        function limpiar(texto) {
-            return texto.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+        const clubId = sessionStorage.getItem('clubID');
+
+        function fmtTiempo(seg) {
+            if (!isFinite(seg) || seg < 0) return '—';
+            const m = Math.floor(seg / 60);
+            const s = Math.floor(seg % 60);
+            return `${m}:${String(s).padStart(2, '0')}`;
         }
 
-        const win = (a, b) => a > b ? 'winner-bg' : '';
+        // Detecta la zona de cancha (C1–C4) desde los descriptores de un corte.
+        // Acepta variantes: "C1", "Campo 1", "Cancha 2", "Zona 3", o solo "4".
+        function detectarZona(ds) {
+            for (const raw of (ds || [])) {
+                const s = (raw || '').toLowerCase().normalize('NFD')
+                    .replace(/[̀-ͯ]/g, '').replace(/\s+/g, '');
+                const m = s.match(/^(?:c|campo|cancha|zona)?([1-4])$/);
+                if (m) return 'C' + m[1];
+            }
+            return null;
+        }
+
+        // Análisis genérico (para la distribución por categoría). No asume nombres.
+        function analizar(est) {
+            const cats = [];
+            let total = 0;
+            const descsGlobal = new Set();
+            let minT = Infinity, maxT = -Infinity;
+
+            for (const [nombre, cortes] of Object.entries(est)) {
+                const lista = cortes || [];
+                const n = lista.length;
+                total += n;
+                const descCount = {};
+                let sinDesc = 0;
+                lista.forEach(c => {
+                    if (typeof c.t === 'number' && isFinite(c.t)) {
+                        if (c.t < minT) minT = c.t;
+                        if (c.t > maxT) maxT = c.t;
+                    }
+                    const ds = (c.d || []).map(x => (x || '').trim()).filter(x => x !== '');
+                    if (ds.length === 0) sinDesc++;
+                    else new Set(ds).forEach(d => { descCount[d] = (descCount[d] || 0) + 1; descsGlobal.add(d); });
+                });
+                cats.push({ nombre, n, descCount, sinDesc });
+            }
+            cats.sort((a, b) => b.n - a.n || a.nombre.localeCompare(b.nombre));
+            return { cats, total, descsUnicos: descsGlobal.size, minT, maxT };
+        }
+
+        // Métricas semánticas según el mapeo del club:
+        //   mapeo.categorias[cat] = { lado: 'nuestro'|'rival', rol: ''|'recuperacion'|'perdida'|'corto' }
+        function calcularMetricas(est, mapeo) {
+            const cat = (mapeo && mapeo.categorias) || {};
+            let cortesNuestros = 0, cortesRival = 0;
+            let recuperaciones = 0, perdidas = 0, cortos = 0;
+            const zonas = { C1: 0, C2: 0, C3: 0, C4: 0, sin: 0 };
+
+            for (const [nombre, cortes] of Object.entries(est)) {
+                const m = cat[nombre] || { lado: 'nuestro', rol: '' };
+                const n = (cortes || []).length;
+                if (m.lado === 'rival') cortesRival += n; else cortesNuestros += n;
+
+                if (m.rol === 'recuperacion') recuperaciones += n;
+                else if (m.rol === 'corto') cortos += n;
+                else if (m.rol === 'perdida') {
+                    perdidas += n;
+                    (cortes || []).forEach(c => {
+                        const z = detectarZona(c.d);
+                        if (z) zonas[z]++; else zonas.sin++;
+                    });
+                }
+            }
+            const totalAcc = cortesNuestros + cortesRival;
+            const posNuestra = totalAcc ? Math.round((cortesNuestros / totalAcc) * 100) : 0;
+            return { cortesNuestros, cortesRival, posNuestra, posRival: 100 - posNuestra, recuperaciones, perdidas, cortos, zonas };
+        }
+
+        // ¿El mapeo aporta algo? (al menos una métrica asignada o un lado rival)
+        function mapeoUtil(mapeo) {
+            const cat = (mapeo && mapeo.categorias) || {};
+            return Object.values(cat).some(m => m.rol || m.lado === 'rival');
+        }
+
+        function tileKPI(valor, label) {
+            return `<div class="kpi"><div class="kpi-valor">${valor}</div><span class="kpi-label">${label}</span></div>`;
+        }
+
+        function bloqueCategoria(cat, total) {
+            const color = TL.timeline.colorCategoria(cat.nombre);
+            const pct = total > 0 ? Math.round((cat.n / total) * 100) : 0;
+            const filas = Object.entries(cat.descCount).sort((a, b) => b[1] - a[1]);
+            if (cat.sinDesc > 0) filas.push(['__sin__', cat.sinDesc]);
+
+            let cuerpo;
+            if (filas.length === 0) {
+                cuerpo = '<div class="desc-row"><span class="desc-label sin">Sin descriptores</span></div>';
+            } else {
+                cuerpo = filas.map(([desc, cant]) => {
+                    const esSin = desc === '__sin__';
+                    const pDesc = cat.n > 0 ? Math.round((cant / cat.n) * 100) : 0;
+                    const etiqueta = esSin
+                        ? '<span class="desc-label sin">Sin descriptor</span>'
+                        : `<span class="desc-label" title="${desc}">${desc}</span>`;
+                    const colorBarra = esSin ? 'var(--faint)' : color;
+                    return `
+                        <div class="desc-row">
+                            ${etiqueta}
+                            <div class="barra"><div class="barra-fill" style="width:${pDesc}%;background:${colorBarra};opacity:0.85"></div></div>
+                            <span class="desc-valor">${cant}<span class="pct">${pDesc}%</span></span>
+                        </div>`;
+                }).join('');
+            }
+
+            return `
+                <details class="cat-block">
+                    <summary>
+                        <div class="cat-head">
+                            <span class="cat-dot" style="background:${color}"></span>
+                            <span class="cat-name">${cat.nombre}</span>
+                            <span class="cat-metrics"><b>${cat.n}</b> · ${pct}%<span class="cat-chevron">▶</span></span>
+                        </div>
+                        <div class="barra"><div class="barra-fill" style="width:${pct}%;background:${color}"></div></div>
+                    </summary>
+                    <div class="desc-list">
+                        <div class="desc-list-titulo">Descriptores</div>
+                        ${cuerpo}
+                    </div>
+                </details>`;
+        }
+
+        function renderMetricas(mx, eq1, eq2) {
+            const cont = document.getElementById('metricas');
+            const zonasHtml = ['C1', 'C2', 'C3', 'C4', 'sin'].map(z => {
+                const val = mx.zonas[z];
+                const pct = mx.perdidas > 0 ? Math.round((val / mx.perdidas) * 100) : 0;
+                const nombre = z === 'sin' ? 'Sin zona' : `Campo ${z[1]}`;
+                return `
+                    <div class="zona-row">
+                        <span class="zona-nombre">${nombre}</span>
+                        <div class="barra"><div class="barra-fill" style="width:${pct}%;background:var(--danger);opacity:0.8"></div></div>
+                        <span class="zona-valor">${val}</span>
+                    </div>`;
+            }).join('');
+
+            cont.innerHTML = `
+                <div class="metrica-pos">
+                    <div class="metrica-label">Posesión (acciones a favor vs del rival)</div>
+                    <div class="pos-cifras">
+                        <span class="lado-n">${eq1} · ${mx.posNuestra}%</span>
+                        <span class="lado-r">${mx.posRival}% · ${eq2}</span>
+                    </div>
+                    <div class="pos-bar">
+                        <div class="pos-seg-n" style="width:${mx.posNuestra}%"></div>
+                        <div class="pos-seg-r" style="width:${mx.posRival}%"></div>
+                    </div>
+                </div>
+                <div class="metricas-num">
+                    <div class="metrica">
+                        <div class="metrica-label">Recuperaciones</div>
+                        <div class="metrica-valor">${mx.recuperaciones}</div>
+                    </div>
+                    <div class="metrica">
+                        <div class="metrica-label">Córners cortos</div>
+                        <div class="metrica-valor">${mx.cortos}</div>
+                    </div>
+                    <div class="metrica">
+                        <div class="metrica-label">Pérdidas</div>
+                        <div class="metrica-valor">${mx.perdidas}</div>
+                        <div class="zonas">${zonasHtml}</div>
+                    </div>
+                </div>`;
+            cont.style.display = 'block';
+        }
 
         async function cargarPanel() {
             const partidoId = sessionStorage.getItem('partidoSeleccionadoId');
@@ -127,290 +405,61 @@
 
             try {
                 const docSnap = await getDoc(doc(db, "partidos", partidoId));
-
-                if (docSnap.exists()) {
-                    const partido = docSnap.data();
-
-                    const eq1 = partido.mi_equipo || 'NUESTRO EQUIPO';
-                    const eq2 = partido.rival || 'EQUIPO RIVAL';
-
-                    document.getElementById('header-rival').textContent = `Comparativa: ${eq1} vs ${eq2}`;
-
-                    const est = partido.estadisticas;
-
-                    if (!est) {
-                        document.getElementById('panel-estadisticas').innerHTML = "<p style='text-align:center; width:100%; font-weight:600; color:var(--muted);'>Este partido todavía no tiene estadísticas cargadas.</p>";
-                        return;
-                    }
-
-                    // Contadores Nuestros
-                    let accionesNuestras = 0;
-                    let ccNuestros = 0; const ccNuestrosTipos = { 'directo': 0, 'jugado': 0 };
-                    let golesCC = 0, golesJugada = 0;
-                    let ingresosNuestrosTotal = 0; const ingresosNuestrosTipo = { 'flick': 0, 'penetracion': 0, 'pase': 0 };
-                    let tirosNuestrosTotal = 0; const tirosNuestrosResultado = { 'gol': 0, 'atajada': 0, 'afuera': 0 };
-                    let recupTotal = 0; const recupZonas = { 'C1': 0, 'C2': 0, 'C3': 0, 'C4': 0, 'Sin zona': 0 };
-                    let libres25Nuestros = 0;
-                    let libres50Nuestros = 0;
-
-                    // Contadores Rivales
-                    let accionesRivales = 0;
-                    let ccRivales = 0; const ccRivalesTipos = { 'directo': 0, 'jugado': 0 };
-                    let golesContraCC = 0, golesContraJugada = 0;
-                    let ingresosRivalesTotal = 0; const ingresosRivalesTipo = { 'flick': 0, 'penetracion': 0, 'pase': 0 };
-                    let tirosRivalesTotal = 0; const tirosRivalesResultado = { 'gol': 0, 'atajada': 0, 'afuera': 0 };
-                    let perdidasTotal = 0; const perdidasZonas = { 'C1': 0, 'C2': 0, 'C3': 0, 'C4': 0, 'Sin zona': 0 };
-                    let libres25Rivales = 0;
-                    let libres50Rivales = 0;
-
-                    for (const [categoriaReal, cortes] of Object.entries(est)) {
-                        const cat = limpiar(categoriaReal);
-                        const cantCortes = cortes.length;
-
-                        // ACÁ ESTÁ EL CAMBIO: Se agregó "bloqueo" a la lista del rival. 
-                        // Cualquier otra cosa (como "salidas") cae automáticamente como acción tuya.
-                        const esDeRival = cat.includes("contra") || cat.includes("rival") || cat.includes("perdida") || cat.includes("bloqueo");
-
-                        if (esDeRival) accionesRivales += cantCortes;
-                        else accionesNuestras += cantCortes;
-
-                        if (cat.includes("cortos")) {
-                            if (esDeRival) ccRivales += cantCortes; else ccNuestros += cantCortes;
-                        }
-                        else if (cat === "tiro al arco") tirosNuestrosTotal += cantCortes;
-                        else if (cat === "tiro arco contra") tirosRivalesTotal += cantCortes;
-                        else if (cat === "ingresos al area") ingresosNuestrosTotal += cantCortes;
-                        else if (cat === "ingreso area rival") ingresosRivalesTotal += cantCortes;
-                        else if (cat === "recuperaciones") recupTotal += cantCortes;
-                        else if (cat === "perdidas") perdidasTotal += cantCortes;
-                        else if (cat === "libres 25 a favor") libres25Nuestros += cantCortes;
-                        else if (cat === "libres 25 en contra") libres25Rivales += cantCortes;
-                        else if (cat === "libres 50 a favor") libres50Nuestros += cantCortes;
-                        else if (cat === "libres 50 en contra") libres50Rivales += cantCortes;
-
-                        cortes.forEach(c => {
-                            let tagsLimpios = c.d ? c.d.map(t => limpiar(t)) : [];
-
-                            if (tagsLimpios.includes("gol")) {
-                                let esBotonCC = cat.includes("cortos");
-
-                                // Como "bloqueo" ya es verdadero en esDeRival, no hace falta forzarlo acá,
-                                // pero se evalúa directamente para los goles
-                                if (esBotonCC) {
-                                    if (esDeRival) golesContraCC++; else golesCC++;
-                                } else {
-                                    if (esDeRival) golesContraJugada++; else golesJugada++;
-                                }
-                            }
-
-                            if (cat.includes("cortos")) {
-                                if (tagsLimpios.includes("directo")) {
-                                    if (esDeRival) ccRivalesTipos['directo']++; else ccNuestrosTipos['directo']++;
-                                }
-                                if (tagsLimpios.includes("jugado")) {
-                                    if (esDeRival) ccRivalesTipos['jugado']++; else ccNuestrosTipos['jugado']++;
-                                }
-                            }
-
-                            if (cat === "tiro al arco") {
-                                if (tagsLimpios.includes("gol")) tirosNuestrosResultado['gol']++;
-                                else if (tagsLimpios.includes("atajado") || tagsLimpios.includes("atajada")) tirosNuestrosResultado['atajada']++;
-                                else if (tagsLimpios.includes("afuera") || tagsLimpios.includes("error")) tirosNuestrosResultado['afuera']++;
-                            }
-                            if (cat === "tiro arco contra") {
-                                if (tagsLimpios.includes("gol")) tirosRivalesResultado['gol']++;
-                                else if (tagsLimpios.includes("atajado") || tagsLimpios.includes("atajada")) tirosRivalesResultado['atajada']++;
-                                else if (tagsLimpios.includes("afuera") || tagsLimpios.includes("error")) tirosRivalesResultado['afuera']++;
-                            }
-
-                            if (cat === "ingresos al area") {
-                                if (tagsLimpios.includes("flick")) ingresosNuestrosTipo['flick']++;
-                                else if (tagsLimpios.includes("pentracion") || tagsLimpios.includes("penetracion")) ingresosNuestrosTipo['penetracion']++;
-                                else if (tagsLimpios.includes("pase")) ingresosNuestrosTipo['pase']++;
-                            }
-                            if (cat === "ingreso area rival") {
-                                if (tagsLimpios.includes("flick")) ingresosRivalesTipo['flick']++;
-                                else if (tagsLimpios.includes("pentracion") || tagsLimpios.includes("penetracion")) ingresosRivalesTipo['penetracion']++;
-                                else if (tagsLimpios.includes("pase")) ingresosRivalesTipo['pase']++;
-                            }
-
-                            if (cat === "recuperaciones") {
-                                let tieneZona = false;
-                                tagsLimpios.forEach(t => {
-                                    if (t === "c1" || t === "c2" || t === "c3" || t === "c4") {
-                                        recupZonas[t.toUpperCase()]++; tieneZona = true;
-                                    }
-                                });
-                                if (!tieneZona) recupZonas['Sin zona']++;
-                            }
-
-                            if (cat === "perdidas") {
-                                let tieneZona = false;
-                                tagsLimpios.forEach(t => {
-                                    if (t === "c1" || t === "c2" || t === "c3" || t === "c4") {
-                                        perdidasZonas[t.toUpperCase()]++; tieneZona = true;
-                                    }
-                                });
-                                if (!tieneZona) perdidasZonas['Sin zona']++;
-                            }
-                        });
-                    }
-
-                    let totalAccionesPartido = accionesNuestras + accionesRivales;
-                    let posNuestraPct = 0; let posRivalPct = 0;
-                    if (totalAccionesPartido > 0) {
-                        posNuestraPct = Math.round((accionesNuestras / totalAccionesPartido) * 100);
-                        posRivalPct = 100 - posNuestraPct;
-                    }
-
-                    let golesTotalesNuestros = golesCC + golesJugada;
-                    let golesTotalesRivales = golesContraCC + golesContraJugada;
-
-                    const contenedor = document.getElementById('panel-estadisticas');
-
-                    let colNuestra = `
-                        <div class="columna-equipo">
-                            <h2 class="titulo-nuestro">${eq1.toUpperCase()}</h2>
-
-                            <div class="stat-card card-nuestro">
-                                <div class="stat-header ${win(posNuestraPct, posRivalPct)}">
-                                    <span class="stat-title">Posesión Total</span>
-                                    <span class="stat-total">${posNuestraPct}%</span>
-                                </div>
-                            </div>
-                            
-                            <div class="stat-card card-nuestro">
-                                <div class="stat-header ${win(golesTotalesNuestros, golesTotalesRivales)}">
-                                    <span class="stat-title">Goles</span>
-                                    <span class="stat-total">${golesTotalesNuestros}</span>
-                                </div>
-                                <div class="stat-row ${win(golesJugada, golesContraJugada)}"><span class="label">De Jugada</span><span class="value">${golesJugada}</span></div>
-                                <div class="stat-row ${win(golesCC, golesContraCC)}"><span class="label">De Córner Corto</span><span class="value">${golesCC}</span></div>
-                            </div>
-
-                            <div class="stat-card card-nuestro">
-                                <div class="stat-header ${win(ccNuestros, ccRivales)}">
-                                    <span class="stat-title">Córner Cortos a Favor</span>
-                                    <span class="stat-total">${ccNuestros}</span>
-                                </div>
-                                <div class="stat-row ${win(ccNuestrosTipos['directo'], ccRivalesTipos['directo'])}"><span class="label">Directos</span><span class="value">${ccNuestrosTipos['directo']}</span></div>
-                                <div class="stat-row ${win(ccNuestrosTipos['jugado'], ccRivalesTipos['jugado'])}"><span class="label">Jugados</span><span class="value">${ccNuestrosTipos['jugado']}</span></div>
-                            </div>
-
-                            <div class="stat-card card-nuestro">
-                                <div class="stat-header ${win(ingresosNuestrosTotal, ingresosRivalesTotal)}">
-                                    <span class="stat-title">Ingresos al Área</span>
-                                    <span class="stat-total">${ingresosNuestrosTotal}</span>
-                                </div>
-                                <div class="stat-row ${win(ingresosNuestrosTipo['pase'], ingresosRivalesTipo['pase'])}"><span class="label">Pase</span><span class="value">${ingresosNuestrosTipo['pase']}</span></div>
-                                <div class="stat-row ${win(ingresosNuestrosTipo['penetracion'], ingresosRivalesTipo['penetracion'])}"><span class="label">Penetración</span><span class="value">${ingresosNuestrosTipo['penetracion']}</span></div>
-                                <div class="stat-row ${win(ingresosNuestrosTipo['flick'], ingresosRivalesTipo['flick'])}"><span class="label">Flick</span><span class="value">${ingresosNuestrosTipo['flick']}</span></div>
-                            </div>
-
-                            <div class="stat-card card-nuestro">
-                                <div class="stat-header ${win(tirosNuestrosTotal, tirosRivalesTotal)}">
-                                    <span class="stat-title">Tiros al Arco</span>
-                                    <span class="stat-total">${tirosNuestrosTotal}</span>
-                                </div>
-                                <div class="stat-row ${win(tirosNuestrosResultado['gol'], tirosRivalesResultado['gol'])}"><span class="label">Terminó en Gol</span><span class="value">${tirosNuestrosResultado['gol']}</span></div>
-                                <div class="stat-row ${win(tirosNuestrosResultado['atajada'], tirosRivalesResultado['atajada'])}"><span class="label">Atajadas</span><span class="value">${tirosNuestrosResultado['atajada']}</span></div>
-                                <div class="stat-row ${win(tirosNuestrosResultado['afuera'], tirosRivalesResultado['afuera'])}"><span class="label">Afuera</span><span class="value">${tirosNuestrosResultado['afuera']}</span></div>
-                            </div>
-                            
-                            <div class="stat-card card-nuestro">
-                                <div class="stat-header ${win(libres25Nuestros + libres50Nuestros, libres25Rivales + libres50Rivales)}">
-                                    <span class="stat-title">Tiros Libres a Favor</span>
-                                    <span class="stat-total">${libres25Nuestros + libres50Nuestros}</span>
-                                </div>
-                                <div class="stat-row ${win(libres25Nuestros, libres25Rivales)}"><span class="label">Libres de 25</span><span class="value">${libres25Nuestros}</span></div>
-                                <div class="stat-row ${win(libres50Nuestros, libres50Rivales)}"><span class="label">Libres de 50</span><span class="value">${libres50Nuestros}</span></div>
-                            </div>
-
-                            <div class="stat-card card-nuestro">
-                                <div class="stat-header ${win(recupTotal, perdidasTotal)}">
-                                    <span class="stat-title">Recuperaciones (Quites)</span>
-                                    <span class="stat-total">${recupTotal}</span>
-                                </div>
-                    `;
-                    ['C1', 'C2', 'C3', 'C4'].forEach(zona => {
-                        colNuestra += `<div class="stat-row ${win(recupZonas[zona], perdidasZonas[zona])}"><span class="label">En Zona ${zona}</span><span class="value">${recupZonas[zona]}</span></div>`;
-                    });
-                    colNuestra += `</div></div>`;
-
-                    let colRival = `
-                        <div class="columna-equipo">
-                            <h2 class="titulo-rival">${eq2.toUpperCase()}</h2>
-
-                            <div class="stat-card card-rival">
-                                <div class="stat-header ${win(posRivalPct, posNuestraPct)}">
-                                    <span class="stat-title">Posesión Total</span>
-                                    <span class="stat-total dark">${posRivalPct}%</span>
-                                </div>
-                            </div>
-
-                            <div class="stat-card card-rival">
-                                <div class="stat-header ${win(golesTotalesRivales, golesTotalesNuestros)}">
-                                    <span class="stat-title">Goles</span>
-                                    <span class="stat-total dark">${golesTotalesRivales}</span>
-                                </div>
-                                <div class="stat-row ${win(golesContraJugada, golesJugada)}"><span class="label">De Jugada</span><span class="value">${golesContraJugada}</span></div>
-                                <div class="stat-row ${win(golesContraCC, golesCC)}"><span class="label">De Córner Corto</span><span class="value">${golesContraCC}</span></div>
-                            </div>
-
-                            <div class="stat-card card-rival">
-                                <div class="stat-header ${win(ccRivales, ccNuestros)}">
-                                    <span class="stat-title">Córner Cortos en Contra</span>
-                                    <span class="stat-total dark">${ccRivales}</span>
-                                </div>
-                                <div class="stat-row ${win(ccRivalesTipos['directo'], ccNuestrosTipos['directo'])}"><span class="label">Directos</span><span class="value">${ccRivalesTipos['directo']}</span></div>
-                                <div class="stat-row ${win(ccRivalesTipos['jugado'], ccNuestrosTipos['jugado'])}"><span class="label">Jugados</span><span class="value">${ccRivalesTipos['jugado']}</span></div>
-                            </div>
-
-                            <div class="stat-card card-rival">
-                                <div class="stat-header ${win(ingresosRivalesTotal, ingresosNuestrosTotal)}">
-                                    <span class="stat-title">Ingresos al Área</span>
-                                    <span class="stat-total dark">${ingresosRivalesTotal}</span>
-                                </div>
-                                <div class="stat-row ${win(ingresosRivalesTipo['pase'], ingresosNuestrosTipo['pase'])}"><span class="label">Pase</span><span class="value">${ingresosRivalesTipo['pase']}</span></div>
-                                <div class="stat-row ${win(ingresosRivalesTipo['penetracion'], ingresosNuestrosTipo['penetracion'])}"><span class="label">Penetración</span><span class="value">${ingresosNuestrosTipo['penetracion']}</span></div>
-                                <div class="stat-row ${win(ingresosRivalesTipo['flick'], ingresosNuestrosTipo['flick'])}"><span class="label">Flick</span><span class="value">${ingresosRivalesTipo['flick']}</span></div>
-                            </div>
-
-                            <div class="stat-card card-rival">
-                                <div class="stat-header ${win(tirosRivalesTotal, tirosNuestrosTotal)}">
-                                    <span class="stat-title">Tiros al Arco</span>
-                                    <span class="stat-total dark">${tirosRivalesTotal}</span>
-                                </div>
-                                <div class="stat-row ${win(tirosRivalesResultado['gol'], tirosNuestrosResultado['gol'])}"><span class="label">Terminó en Gol</span><span class="value">${tirosRivalesResultado['gol']}</span></div>
-                                <div class="stat-row ${win(tirosRivalesResultado['atajada'], tirosNuestrosResultado['atajada'])}"><span class="label">Atajadas (Ntras)</span><span class="value">${tirosRivalesResultado['atajada']}</span></div>
-                                <div class="stat-row ${win(tirosRivalesResultado['afuera'], tirosNuestrosResultado['afuera'])}"><span class="label">Afuera</span><span class="value">${tirosRivalesResultado['afuera']}</span></div>
-                            </div>
-                            
-                            <div class="stat-card card-rival">
-                                <div class="stat-header ${win(libres25Rivales + libres50Rivales, libres25Nuestros + libres50Nuestros)}">
-                                    <span class="stat-title">Tiros Libres en Contra</span>
-                                    <span class="stat-total dark">${libres25Rivales + libres50Rivales}</span>
-                                </div>
-                                <div class="stat-row ${win(libres25Rivales, libres25Nuestros)}"><span class="label">Libres de 25</span><span class="value">${libres25Rivales}</span></div>
-                                <div class="stat-row ${win(libres50Rivales, libres50Nuestros)}"><span class="label">Libres de 50</span><span class="value">${libres50Rivales}</span></div>
-                            </div>
-
-                            <div class="stat-card card-rival">
-                                <div class="stat-header ${win(perdidasTotal, recupTotal)}">
-                                    <span class="stat-title">Recuperaciones (Pérdidas Ntras)</span>
-                                    <span class="stat-total dark">${perdidasTotal}</span>
-                                </div>
-                    `;
-                    ['C1', 'C2', 'C3', 'C4'].forEach(zona => {
-                        colRival += `<div class="stat-row ${win(perdidasZonas[zona], recupZonas[zona])}"><span class="label">En Zona ${zona}</span><span class="value">${perdidasZonas[zona]}</span></div>`;
-                    });
-                    colRival += `</div></div>`;
-
-                    contenedor.innerHTML = colNuestra + colRival;
+                if (!docSnap.exists()) {
+                    document.getElementById('header-titulo').textContent = "No se encontró el partido.";
+                    return;
                 }
+
+                const partido = docSnap.data();
+                const eq1 = partido.mi_equipo || 'Nuestro equipo';
+                const eq2 = partido.rival || 'Rival';
+                document.getElementById('header-titulo').textContent = `${eq1} vs ${eq2}`;
+                document.getElementById('header-sub').textContent =
+                    `${partido.torneo || 'Amistoso'} · ${partido.fecha || 'sin fecha'}`;
+
+                const est = partido.estadisticas;
+                const resumen = document.getElementById('resumen');
+                const distribucion = document.getElementById('distribucion');
+
+                if (!est || Object.keys(est).length === 0) {
+                    resumen.innerHTML = '';
+                    document.querySelector('.seccion-titulo').style.display = 'none';
+                    distribucion.innerHTML = '<div class="estado-vacio">Este partido todavía no tiene cortes cargados.</div>';
+                    return;
+                }
+
+                // Resumen genérico (siempre)
+                const { cats, total, descsUnicos, minT, maxT } = analizar(est);
+                resumen.innerHTML =
+                    tileKPI(total, 'Cortes totales') +
+                    tileKPI(cats.length, 'Categorías') +
+                    tileKPI(descsUnicos, 'Descriptores') +
+                    tileKPI(fmtTiempo(maxT - minT), 'Ventana analizada');
+                document.getElementById('hint-orden').textContent = 'Ordenado por cantidad';
+                distribucion.innerHTML = cats.map(c => bloqueCategoria(c, total)).join('');
+
+                // Métricas según mapeo del club
+                let mapeo = null;
+                try {
+                    if (clubId) {
+                        const clubSnap = await getDoc(doc(db, "clubes", clubId));
+                        if (clubSnap.exists()) mapeo = clubSnap.data().mapeoEstadisticas || null;
+                    }
+                } catch (e) {
+                    console.warn("No se pudo leer el mapeo del club:", e);
+                }
+
+                if (mapeoUtil(mapeo)) {
+                    renderMetricas(calcularMetricas(est, mapeo), eq1, eq2);
+                } else {
+                    const aviso = document.getElementById('aviso-config');
+                    aviso.innerHTML = 'Para ver <strong>posesión, recuperaciones, pérdidas y cortos</strong>, configurá una vez qué categoría de tu plantilla es cada métrica en <a href="gestion-usuarios.html">Gestión de usuarios → Estadísticas del club</a>.';
+                    aviso.style.display = 'block';
+                }
+
             } catch (error) {
                 console.error("Error al cargar estadísticas:", error);
-                document.getElementById('header-rival').textContent = "Error al cargar los datos.";
+                document.getElementById('header-titulo').textContent = "Error al cargar los datos.";
             }
         }
 

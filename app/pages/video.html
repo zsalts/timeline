@@ -9,8 +9,21 @@
     <link rel="apple-touch-icon" href="../assets/image/logo.jpg">
     <link rel="stylesheet" href="../assets/css/style.css">
     <script src="../assets/js/utils/tema.js"></script>
+    <!-- Rol jugadora (espectadora): solo ve el partido, sin cortes ni notas del
+         cuerpo técnico. Se marca en <html> antes de pintar para evitar parpadeo. -->
+    <script>
+        if (sessionStorage.getItem('userRole') === 'player') {
+            document.documentElement.classList.add('rol-jugadora');
+        }
+    </script>
     <style>
         body.app-shell .container-dashboard { max-width: 1500px; }
+
+        /* Vista jugadora: ocultar cortes, notas y tira de timeline; video full-width */
+        html.rol-jugadora #tl-header,
+        html.rol-jugadora #seccion-observaciones,
+        html.rol-jugadora .columna-derecha-wrapper { display: none; }
+        html.rol-jugadora .columna-izquierda { width: 100%; }
 
         #titulo-partido {
             color: var(--text);
@@ -185,6 +198,8 @@
         let player;
         let videoIdLimpio = '';
         const partidoId = sessionStorage.getItem('partidoSeleccionadoId');
+        // Las jugadoras son espectadoras: ven el partido, no el análisis.
+        const esJugadora = sessionStorage.getItem('userRole') === 'player';
 
         // El origen se toma del dominio real donde corre la web (localhost en dev,
         // el dominio de Firebase Hosting en producción).
@@ -231,18 +246,9 @@
                 if (snap.exists()) {
                     const partido = snap.data();
 
-                    document.getElementById('texto-observaciones').value = partido.observaciones || "";
-                    document.getElementById('btn-guardar-obs').onclick = guardarNotas;
-
                     const eq1 = partido.mi_equipo || 'Nuestro equipo';
                     const eq2 = partido.rival || 'Rival';
                     document.getElementById('titulo-partido').textContent = `${eq1} vs ${eq2}`;
-
-                    // Firma: tira de timeline del partido + conteo
-                    const res = TL.timeline.resumen(partido.estadisticas);
-                    document.getElementById('tl-count').textContent =
-                        `${res.total} cortes · ${res.categorias} categorías · ${partido.fecha || 's/f'}`;
-                    document.getElementById('tl-slot').appendChild(TL.timeline.crear(partido.estadisticas));
 
                     videoIdLimpio = TL.youtube.extraerId(partido.youtube_id || partido.video_url || '');
 
@@ -251,14 +257,27 @@
                     tag.src = "https://www.youtube.com/iframe_api";
                     document.body.appendChild(tag);
 
-                    // Dibujar botones de cortes (componente compartido)
-                    const container = document.getElementById('cortes-container');
-                    TL.cortes.render(
-                        container,
-                        partido.estadisticas,
-                        (t) => { if (player) player.seekTo(t, true); },
-                        { label: (num) => `▶ ${num}` }
-                    );
+                    // El análisis (notas, tira de timeline y cortes) es solo para el
+                    // cuerpo técnico; las jugadoras únicamente miran el partido.
+                    if (!esJugadora) {
+                        document.getElementById('texto-observaciones').value = partido.observaciones || "";
+                        document.getElementById('btn-guardar-obs').onclick = guardarNotas;
+
+                        // Firma: tira de timeline del partido + conteo
+                        const res = TL.timeline.resumen(partido.estadisticas);
+                        document.getElementById('tl-count').textContent =
+                            `${res.total} cortes · ${res.categorias} categorías · ${partido.fecha || 's/f'}`;
+                        document.getElementById('tl-slot').appendChild(TL.timeline.crear(partido.estadisticas));
+
+                        // Dibujar botones de cortes (componente compartido)
+                        const container = document.getElementById('cortes-container');
+                        TL.cortes.render(
+                            container,
+                            partido.estadisticas,
+                            (t) => { if (player) player.seekTo(t, true); },
+                            { label: (num) => `▶ ${num}` }
+                        );
+                    }
                 } else {
                     document.getElementById('titulo-partido').textContent = "No se encontró el partido.";
                 }

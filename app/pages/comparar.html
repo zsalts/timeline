@@ -30,7 +30,7 @@
             body.app-shell .container-dashboard { height: auto; overflow: visible; }
         }
 
-        .header-stats { flex-shrink: 0; margin-bottom: 18px; }
+        .header-stats { flex-shrink: 0; margin-bottom: 16px; }
 
         .header-acciones {
             display: flex;
@@ -40,36 +40,47 @@
             width: 100%;
         }
 
-        .comparativa-grid {
-            flex: 1;
+        /* --- FILA DE VIDEOS (arriba) --- */
+        .videos-row {
+            flex-shrink: 0;
             display: flex;
             flex-direction: row;
-            gap: 18px;
+            gap: 16px;
             overflow-x: auto;
-            overflow-y: hidden;
-            min-height: 0;
-            padding-bottom: 10px;
+            padding-bottom: 8px;
         }
 
         @media (max-width: 900px) {
-            .comparativa-grid { flex-direction: column; overflow-x: visible; min-height: auto; }
+            .videos-row { flex-direction: column; overflow-x: visible; }
         }
 
         .video-columna {
-            flex: 1;
-            min-width: 340px;
+            flex: 1 1 380px;
+            max-width: 560px;
+            min-width: 300px;
             display: flex;
             flex-direction: column;
-            gap: 10px;
+            gap: 8px;
             background: var(--panel);
-            padding: 14px;
+            padding: 12px;
             border-radius: var(--radius);
             border: 1px solid var(--line);
-            min-height: 0;
         }
 
         @media (max-width: 900px) {
-            .video-columna { min-width: 100%; min-height: 460px; }
+            .video-columna { max-width: 100%; min-width: 100%; }
+        }
+
+        .video-columna-head { display: flex; gap: 8px; align-items: center; }
+
+        /* Etiqueta V1 / V2… al lado del selector */
+        .video-tag {
+            flex-shrink: 0;
+            width: 34px; height: 34px;
+            display: flex; align-items: center; justify-content: center;
+            border-radius: var(--radius-sm);
+            font-family: var(--font-mono); font-weight: 700; font-size: 0.85rem;
+            color: var(--bg); background: var(--faint);
         }
 
         .btn-elegir {
@@ -118,26 +129,93 @@
         }
         .video-wrapper iframe { width: 100% !important; height: 100% !important; border: none; }
 
-        .cortes-wrapper {
+        /* --- PANEL ÚNICO DE CORTES (abajo) --- */
+        .cortes-panel {
+            flex: 1;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            margin-top: 16px;
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+            overflow: hidden;
+        }
+
+        @media (max-width: 900px) {
+            .cortes-panel { min-height: 420px; }
+        }
+
+        .cortes-panel-head {
+            flex-shrink: 0;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 10px 16px;
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--line);
+        }
+        .cortes-panel-head h3 {
+            margin: 0; font-family: var(--font-mono); font-size: 0.72rem;
+            text-transform: uppercase; letter-spacing: 0.14em; color: var(--muted); font-weight: 500;
+        }
+
+        .leyenda-videos { display: flex; flex-wrap: wrap; gap: 8px; }
+        .leyenda-chip {
+            display: inline-flex; align-items: center; gap: 6px;
+            font-size: 0.78rem; color: var(--muted);
+        }
+        .leyenda-chip b {
+            width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center;
+            border-radius: 5px; font-family: var(--font-mono); font-size: 0.72rem; color: var(--bg);
+        }
+
+        .cortes-unificados {
             flex: 1;
             overflow-y: auto;
-            background: var(--panel-2);
-            padding: 10px;
-            border-radius: var(--radius-sm);
-            border: 1px solid var(--line);
+            padding: 14px 16px;
         }
-        .cortes-wrapper::-webkit-scrollbar { width: 6px; }
-        .cortes-wrapper::-webkit-scrollbar-track { background: transparent; }
-        .cortes-wrapper::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 4px; }
-        .cortes-wrapper::-webkit-scrollbar-thumb:hover { background: var(--faint); }
+        .cortes-unificados::-webkit-scrollbar { width: 8px; }
+        .cortes-unificados::-webkit-scrollbar-track { background: transparent; }
+        .cortes-unificados::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 4px; }
+        .cortes-unificados::-webkit-scrollbar-thumb:hover { background: var(--faint); }
 
-        .comparativa-grid::-webkit-scrollbar { height: 8px; }
-        .comparativa-grid::-webkit-scrollbar-track { background: transparent; }
-        .comparativa-grid::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 4px; }
+        .videos-row::-webkit-scrollbar { height: 8px; }
+        .videos-row::-webkit-scrollbar-track { background: transparent; }
+        .videos-row::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 4px; }
 
-        .cat-details > summary { font-size: 0.85rem; }
-        .botones-container { grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 5px; padding: 8px 0; }
-        .timestamp-btn { padding: 5px; font-size: 0.72rem; }
+        /* Fila de corte: número + botones por video */
+        .corte-fila {
+            display: flex; align-items: center; gap: 10px;
+            padding: 6px 4px;
+        }
+        .corte-num {
+            flex-shrink: 0;
+            min-width: 70px;
+            font-family: var(--font-mono); font-size: 0.8rem; color: var(--muted);
+        }
+        .corte-botones { display: flex; flex-wrap: wrap; gap: 6px; }
+        .btn-video-corte {
+            border: 1px solid; background: transparent;
+            padding: 5px 10px; border-radius: 7px;
+            font-family: var(--font-mono); font-weight: 600; font-size: 0.75rem;
+            cursor: pointer; transition: filter 0.15s;
+        }
+        .btn-video-corte:hover { filter: brightness(1.25); }
+
+        .cat-details { background: var(--panel-2); border-radius: 10px; margin-bottom: 10px; border: 1px solid var(--line); }
+        .cat-details > summary {
+            background: var(--panel-3); color: var(--text);
+            padding: 10px 14px; font-weight: 700; cursor: pointer; list-style: none;
+            border-radius: 9px; font-size: 0.88rem;
+        }
+        .cat-details > summary::-webkit-details-marker { display: none; }
+        .desc-details {
+            margin: 8px; background: var(--panel); border-left: 3px solid var(--accent);
+            border-radius: 6px; padding: 4px 12px 8px;
+        }
+        .desc-details > summary { list-style: none; cursor: pointer; color: var(--muted); font-size: 0.82rem; padding: 6px 0; }
+        .desc-details > summary::-webkit-details-marker { display: none; }
 
         /* --- MODAL DE SELECCIÓN --- */
         .modal-overlay {
@@ -177,7 +255,7 @@
                 <div>
                     <div class="eyebrow">Análisis comparado</div>
                     <h2 style="margin:0;">Comparar</h2>
-                    <p class="subtitle" style="margin-top: 5px;">Agregá varios partidos y compará sus cortes en simultáneo.</p>
+                    <p class="subtitle" style="margin-top: 5px;">Sumá partidos y compará sus cortes con una sola lista: cada corte enlaza a cada video.</p>
                 </div>
                 <button id="btn-sumar-video" class="btn-primary" style="width: auto; padding: 10px 18px;">
                     + Sumar video
@@ -185,7 +263,17 @@
             </div>
         </div>
 
-        <div id="grid-comparativa" class="comparativa-grid"></div>
+        <div id="videos-row" class="videos-row"></div>
+
+        <div class="cortes-panel">
+            <div class="cortes-panel-head">
+                <h3>Cortes</h3>
+                <div id="leyenda-videos" class="leyenda-videos"></div>
+            </div>
+            <div id="cortes-unificados" class="cortes-unificados">
+                <p style="text-align: center; color: var(--muted); margin-top: 24px;">Elegí al menos un partido para ver los cortes.</p>
+            </div>
+        </div>
     </div>
 
     <!-- VENTANA MODAL PARA ELEGIR PARTIDO -->
@@ -216,7 +304,14 @@
             // Si no está logueado (o no tiene club), lo mandamos al login
             window.location.href = "login.html";
         }
+        // Comparar es análisis del cuerpo técnico: las jugadoras no acceden ni por URL.
+        if (sessionStorage.getItem('userRole') === 'player') {
+            window.location.href = "historial.html";
+        }
         import { db, collection, getDocs, query, where } from '../assets/js/firebase.js';
+
+        // Paleta para distinguir cada video (V1, V2, …). Misma familia que las categorías.
+        const COLORES_VIDEO = ['#56C2E6', '#F7C948', '#5FD3A6', '#F58BB4', '#A78BFA', '#FFB454'];
 
         let reproductoresYT = {};
         let partidosData = {};
@@ -259,7 +354,7 @@
                 errorCargaHistorial = true;
                 // Aun si falló la carga del historial, dejamos crear columnas
                 // vacías para que la página no quede en blanco sin explicación.
-                document.getElementById('grid-comparativa').innerHTML =
+                document.getElementById('videos-row').innerHTML =
                     '<p style="color: var(--danger); padding: 20px;">No se pudo conectar con la nube para traer tus partidos. Recargá la página o revisá tu conexión.</p>';
             }
         }
@@ -272,7 +367,8 @@
             colDiv.id = colId;
 
             colDiv.innerHTML = `
-                <div style="display: flex; gap: 8px;">
+                <div class="video-columna-head">
+                    <span class="video-tag" data-tag>–</span>
                     <button id="btn-elegir-${colId}" class="btn-elegir" onclick="abrirModal('${colId}')">
                         Elegir partido…
                     </button>
@@ -281,17 +377,16 @@
                 <div class="video-wrapper">
                     <div id="player-${colId}"></div>
                 </div>
-                <div class="cortes-wrapper" id="cortes-${colId}">
-                    <p style="text-align: center; color: var(--muted); margin-top: 20px;">Esperando selección de video.</p>
-                </div>
             `;
-            document.getElementById('grid-comparativa').appendChild(colDiv);
+            document.getElementById('videos-row').appendChild(colDiv);
+            renderCortesUnificados();
         };
 
         window.eliminarColumna = function (colId) {
             const colDiv = document.getElementById(colId);
             if (colDiv) colDiv.remove();
             if (reproductoresYT[colId]) delete reproductoresYT[colId];
+            renderCortesUnificados();
         };
 
         window.abrirModal = function (colId) {
@@ -348,6 +443,9 @@
             const eq1 = partido.mi_equipo || 'Eq1';
             const eq2 = partido.rival || 'Eq2';
 
+            const col = document.getElementById(columnaActivaParaModal);
+            col.dataset.partidoId = partidoId;
+
             const btn = document.getElementById(`btn-elegir-${columnaActivaParaModal}`);
             btn.innerHTML = `${eq1} vs ${eq2} <span style="color: var(--muted); font-weight: normal; font-size: 0.8rem;">(${partido.fecha})</span>`;
 
@@ -370,7 +468,6 @@
         });
 
         function cargarPartidoEnColumna(partidoId, colId) {
-            const cortesContainer = document.getElementById(`cortes-${colId}`);
             const partido = partidosData[partidoId];
             const videoId = TL.youtube.extraerId(partido.youtube_id);
 
@@ -388,13 +485,143 @@
                 return;
             }
 
-            // Dibujar cortes (componente compartido)
-            TL.cortes.render(
-                cortesContainer,
-                partido.estadisticas,
-                (t) => { if (reproductoresYT[colId]) reproductoresYT[colId].seekTo(t, true); },
-                { label: (num) => `▶ C ${num}` }
-            );
+            // Al cambiar/agregar un video, se rearma la lista única de cortes.
+            renderCortesUnificados();
+        }
+
+        // Agrupa las estadísticas de un partido en categoria -> descriptor -> [{t, num}].
+        // Misma lógica que cortesRenderer, para poder cruzar varios partidos.
+        function agrupar(estadisticas) {
+            const agrupado = {};
+            if (!estadisticas) return agrupado;
+            for (const [categoria, cortes] of Object.entries(estadisticas)) {
+                agrupado[categoria] = {};
+                cortes.forEach((corte, index) => {
+                    const num = index + 1;
+                    const descs = (corte.d && corte.d.length > 0) ? corte.d : ['General'];
+                    descs.forEach(desc => {
+                        if (!agrupado[categoria][desc]) agrupado[categoria][desc] = [];
+                        agrupado[categoria][desc].push({ t: corte.t, num });
+                    });
+                });
+            }
+            return agrupado;
+        }
+
+        // Dibuja UNA sola lista de cortes. Cada corte muestra un botón por cada
+        // video que tenga esa ocurrencia (V1, V2, …), y salta ese video a su segundo.
+        function renderCortesUnificados() {
+            const cont = document.getElementById('cortes-unificados');
+            const leyenda = document.getElementById('leyenda-videos');
+
+            // Videos seleccionados, en el orden en que aparecen en pantalla
+            const videos = [];
+            document.querySelectorAll('.video-columna').forEach(col => {
+                const pid = col.dataset.partidoId;
+                if (pid && partidosData[pid]) {
+                    videos.push({ colId: col.id, partido: partidosData[pid] });
+                }
+            });
+
+            // Actualizar etiquetas V1/V2 de cada columna y la leyenda
+            document.querySelectorAll('.video-columna').forEach(col => {
+                const tag = col.querySelector('[data-tag]');
+                const idx = videos.findIndex(v => v.colId === col.id);
+                if (idx === -1) {
+                    tag.textContent = '–';
+                    tag.style.background = 'var(--faint)';
+                } else {
+                    tag.textContent = 'V' + (idx + 1);
+                    tag.style.background = COLORES_VIDEO[idx % COLORES_VIDEO.length];
+                }
+            });
+
+            leyenda.innerHTML = videos.map((v, i) => {
+                const p = v.partido;
+                const nombre = `${p.mi_equipo || 'Eq1'} vs ${p.rival || 'Eq2'}`;
+                const color = COLORES_VIDEO[i % COLORES_VIDEO.length];
+                return `<span class="leyenda-chip"><b style="background:${color}">V${i + 1}</b> ${nombre}</span>`;
+            }).join('');
+
+            if (videos.length === 0) {
+                cont.innerHTML = '<p style="text-align: center; color: var(--muted); margin-top: 24px;">Elegí al menos un partido para ver los cortes.</p>';
+                return;
+            }
+
+            // Agrupar cada video y armar la unión de categorías/descriptores (la plantilla)
+            const grupos = videos.map(v => agrupar(v.partido.estadisticas));
+
+            const categorias = new Set();
+            grupos.forEach(g => Object.keys(g).forEach(c => categorias.add(c)));
+
+            if (categorias.size === 0) {
+                cont.innerHTML = '<p style="text-align: center; color: var(--muted); margin-top: 24px;">Los partidos elegidos no tienen cortes.</p>';
+                return;
+            }
+
+            cont.innerHTML = '';
+
+            [...categorias].sort().forEach(cat => {
+                const catDetails = document.createElement('details');
+                catDetails.className = 'cat-details';
+                catDetails.open = true;
+                const catSummary = document.createElement('summary');
+                catSummary.innerHTML = `📁 ${cat}`;
+                catDetails.appendChild(catSummary);
+
+                // Unión de descriptores de esta categoría entre todos los videos
+                const descriptores = new Set();
+                grupos.forEach(g => { if (g[cat]) Object.keys(g[cat]).forEach(d => descriptores.add(d)); });
+
+                [...descriptores].sort().forEach(desc => {
+                    const descDetails = document.createElement('details');
+                    descDetails.className = 'desc-details';
+                    descDetails.open = true;
+                    const descSummary = document.createElement('summary');
+
+                    // Cuántas ocurrencias como máximo tiene este descriptor entre los videos
+                    const maxLen = Math.max(...grupos.map(g => (g[cat] && g[cat][desc]) ? g[cat][desc].length : 0));
+                    descSummary.innerHTML = `📂 ${desc} <span style="color:var(--faint); font-size:0.8rem;">(${maxLen})</span>`;
+                    descDetails.appendChild(descSummary);
+
+                    for (let i = 0; i < maxLen; i++) {
+                        const fila = document.createElement('div');
+                        fila.className = 'corte-fila';
+
+                        const numSpan = document.createElement('span');
+                        numSpan.className = 'corte-num';
+                        numSpan.textContent = `Corte ${i + 1}`;
+                        fila.appendChild(numSpan);
+
+                        const botones = document.createElement('div');
+                        botones.className = 'corte-botones';
+
+                        videos.forEach((v, vi) => {
+                            const lista = grupos[vi][cat] && grupos[vi][cat][desc];
+                            const corte = lista && lista[i];
+                            if (!corte) return;
+                            const color = COLORES_VIDEO[vi % COLORES_VIDEO.length];
+                            const btn = document.createElement('button');
+                            btn.className = 'btn-video-corte';
+                            btn.style.color = color;
+                            btn.style.borderColor = color;
+                            btn.textContent = `▶ V${vi + 1}`;
+                            const p = v.partido;
+                            btn.title = `${p.mi_equipo || 'Eq1'} vs ${p.rival || 'Eq2'} · corte ${corte.num}`;
+                            btn.onclick = () => {
+                                const player = reproductoresYT[v.colId];
+                                if (player && player.seekTo) player.seekTo(corte.t, true);
+                            };
+                            botones.appendChild(btn);
+                        });
+
+                        fila.appendChild(botones);
+                        descDetails.appendChild(fila);
+                    }
+                    catDetails.appendChild(descDetails);
+                });
+                cont.appendChild(catDetails);
+            });
         }
 
         document.getElementById('btn-sumar-video').addEventListener('click', () => crearColumna());

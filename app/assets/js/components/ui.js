@@ -36,14 +36,18 @@
     const links = [
         { id: 'historial', href: `${toPage}historial.html`, label: 'Historial' }
     ];
+    // Cargar partido y Comparar son herramientas del cuerpo técnico.
     if (!esJugadora) {
         links.push({ id: 'carga', href: `${toPage}carga.html`, label: 'Cargar partido' });
+        links.push({ id: 'comparar', href: `${toPage}comparar.html`, label: 'Comparar' });
     }
-    links.push({ id: 'comparar', href: `${toPage}comparar.html`, label: 'Comparar' });
 
     if (hayPartido) {
+        // Las jugadoras solo miran el partido; las estadísticas son análisis.
         links.push({ id: 'video', href: `${toPage}video.html`, label: 'Video' });
-        links.push({ id: 'estadisticas', href: `${toPage}estadisticas.html`, label: 'Estadísticas' });
+        if (!esJugadora) {
+            links.push({ id: 'estadisticas', href: `${toPage}estadisticas.html`, label: 'Estadísticas' });
+        }
     }
 
     if (esClubAdmin) {

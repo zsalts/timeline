@@ -223,6 +223,27 @@
             color: var(--muted);
         }
         .tab-info strong { color: var(--text); }
+
+        /* Mapeo de estadísticas */
+        .mapeo-head, .mapeo-row {
+            display: grid;
+            grid-template-columns: 1fr 120px 170px;
+            gap: 10px;
+            align-items: center;
+        }
+        .mapeo-head {
+            font-family: var(--font-mono); font-size: 0.64rem; text-transform: uppercase;
+            letter-spacing: 0.1em; color: var(--faint); padding-bottom: 8px;
+        }
+        .mapeo-row { padding: 8px 0; border-top: 1px solid var(--line); }
+        .mapeo-cat { font-weight: 600; font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .mapeo-row select { padding: 8px; font-size: 0.85rem; }
+        @media (max-width: 640px) {
+            .mapeo-head { display: none; }
+            .mapeo-row { grid-template-columns: 1fr 1fr; gap: 6px; }
+            .mapeo-cat { grid-column: 1 / -1; }
+        }
+
         @media (max-width: 768px) {
             .form-row {
                 grid-template-columns: 1fr;
@@ -283,6 +304,21 @@
                 </div>
             </div>
 
+            <!-- Mapeo de estadísticas -->
+            <div class="card">
+                <h2>Estadísticas del club</h2>
+                <p style="color: var(--muted); margin-bottom: 15px; font-size: 0.9rem;">
+                    Asigná cada categoría de tu plantilla de cortes a una métrica. Con esto, las estadísticas de cada partido
+                    calculan <strong>posesión</strong>, <strong>recuperaciones</strong>, <strong>pérdidas</strong> (por zona C1–C4)
+                    y <strong>córners cortos</strong>, sin importar cómo nombre las categorías cada analista. Se configura una sola vez.
+                </p>
+                <div class="mensaje" id="mensaje-mapeo"></div>
+                <div id="mapeo-container">
+                    <p style="color: var(--muted);">Cargando categorías…</p>
+                </div>
+                <button class="btn-primary" id="btn-guardar-mapeo" style="width: auto; margin-top: 16px; display: none;">Guardar mapeo</button>
+            </div>
+
             <!-- Agregar nuevo usuario -->
             <div class="card">
                 <h2>Agregar usuario</h2>
@@ -334,6 +370,8 @@
         const mainContent = document.getElementById('main-content');
         const unauthorizedScreen = document.getElementById('unauthorized-screen');
         let equiposActuales = [];
+        let mapeoActual = {};             // { categoria: { lado, rol } }
+        let categoriasDetectadas = [];    // nombres de categoría presentes en los partidos del club
 
         // Validar acceso
         async function checkAccess() {
@@ -362,6 +400,90 @@
             loadUsers();
             setupAddUser();
             setupAddTeam();
+            loadMapeo();
+            setupMapeo();
+        }
+
+        // ---- Mapeo de estadísticas (categorías → métricas), guardado en el club ----
+        async function loadMapeo() {
+            const clubID = sessionStorage.getItem('clubID');
+            const cont = document.getElementById('mapeo-container');
+            try {
+                // Mapeo ya guardado
+                const clubDoc = await getDoc(doc(db, 'clubes', clubID));
+                mapeoActual = (clubDoc.exists() && clubDoc.data().mapeoEstadisticas
+                    && clubDoc.data().mapeoEstadisticas.categorias) || {};
+
+                // Categorías presentes en los partidos del club
+                const q = query(collection(db, 'partidos'), where('club_id', '==', clubID));
+                const snap = await getDocs(q);
+                const set = new Set();
+                snap.forEach(d => {
+                    const est = d.data().estadisticas || {};
+                    Object.keys(est).forEach(c => set.add(c));
+                });
+                categoriasDetectadas = [...set].sort((a, b) => a.localeCompare(b, 'es'));
+            } catch (e) {
+                console.error('Error cargando mapeo:', e);
+                cont.innerHTML = '<p style="color: var(--danger);">No se pudieron cargar las categorías.</p>';
+                return;
+            }
+            renderMapeo();
+        }
+
+        function renderMapeo() {
+            const cont = document.getElementById('mapeo-container');
+            const btn = document.getElementById('btn-guardar-mapeo');
+            if (!categoriasDetectadas.length) {
+                cont.innerHTML = '<p style="color: var(--muted);">Todavía no hay partidos con cortes para detectar categorías. Cargá un partido con su archivo de análisis y volvé.</p>';
+                btn.style.display = 'none';
+                return;
+            }
+            const roles = [['', '—'], ['recuperacion', 'Recuperaciones'], ['perdida', 'Pérdidas'], ['corto', 'Córners cortos']];
+            cont.innerHTML =
+                '<div class="mapeo-head"><span>Categoría</span><span>Lado</span><span>Métrica</span></div>' +
+                categoriasDetectadas.map((cat, i) => {
+                    const m = mapeoActual[cat] || {};
+                    const lado = m.lado || 'nuestro';
+                    const rol = m.rol || '';
+                    const opts = roles.map(([v, l]) => `<option value="${v}" ${v === rol ? 'selected' : ''}>${l}</option>`).join('');
+                    return `
+                        <div class="mapeo-row">
+                            <span class="mapeo-cat" title="${cat}">${cat}</span>
+                            <select data-lado="${i}">
+                                <option value="nuestro" ${lado === 'nuestro' ? 'selected' : ''}>Nuestro</option>
+                                <option value="rival" ${lado === 'rival' ? 'selected' : ''}>Rival</option>
+                            </select>
+                            <select data-rol="${i}">${opts}</select>
+                        </div>`;
+                }).join('');
+            btn.style.display = 'inline-block';
+        }
+
+        function setupMapeo() {
+            const btn = document.getElementById('btn-guardar-mapeo');
+            btn.addEventListener('click', async () => {
+                const cont = document.getElementById('mapeo-container');
+                const msg = document.getElementById('mensaje-mapeo');
+                const nuevo = {};
+                categoriasDetectadas.forEach((cat, i) => {
+                    const lado = cont.querySelector(`[data-lado="${i}"]`).value;
+                    const rol = cont.querySelector(`[data-rol="${i}"]`).value;
+                    nuevo[cat] = { lado, rol };
+                });
+                const clubID = sessionStorage.getItem('clubID');
+                btn.disabled = true;
+                try {
+                    await updateDoc(doc(db, 'clubes', clubID), { mapeoEstadisticas: { categorias: nuevo } });
+                    mapeoActual = nuevo;
+                    showMessage(msg, 'Mapeo guardado. Las estadísticas ya usan esta configuración.', 'exito');
+                } catch (e) {
+                    console.error(e);
+                    showMessage(msg, 'Error al guardar: ' + e.message, 'error');
+                } finally {
+                    btn.disabled = false;
+                }
+            });
         }
 
         // ---- Equipos del club ----
