@@ -13,8 +13,19 @@
     <style>
         body.app-shell .container-dashboard { max-width: 1080px; }
 
-        .header-stats { margin-bottom: 22px; }
-        .header-stats h2 { font-size: 1.6rem; margin: 6px 0 4px; letter-spacing: -0.02em; }
+        .header-stats { margin-bottom: 22px; text-align: center; }
+        .header-stats .eyebrow { justify-content: center; display: flex; }
+        .marcador {
+            display: flex; align-items: center; justify-content: center; gap: 18px;
+            margin: 8px 0 4px; flex-wrap: wrap;
+        }
+        .marcador .eq { font-size: 1.4rem; font-weight: 800; letter-spacing: -0.02em; }
+        .marcador .eq.rival { color: var(--muted); }
+        .marcador .score {
+            font-family: var(--font-mono); font-weight: 800; font-size: 1.7rem;
+            color: var(--accent); letter-spacing: 0.04em; white-space: nowrap;
+        }
+        .header-stats .subtitle { justify-content: center; }
 
         /* --- Resumen (KPIs) --- */
         .kpi-row {
@@ -29,154 +40,68 @@
             border-radius: var(--radius);
             padding: 14px 16px;
         }
-        .kpi-valor {
-            font-family: var(--font-mono);
-            font-size: 1.9rem;
-            font-weight: 800;
-            line-height: 1;
-            color: var(--accent);
-        }
-        .kpi-label {
-            display: block;
-            margin-top: 7px;
-            font-family: var(--font-mono);
-            font-size: 0.66rem;
-            text-transform: uppercase;
-            letter-spacing: 0.13em;
-            color: var(--muted);
-        }
+        .kpi-valor { font-family: var(--font-mono); font-size: 1.9rem; font-weight: 800; line-height: 1; color: var(--accent); }
+        .kpi-label { display: block; margin-top: 7px; font-family: var(--font-mono); font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.13em; color: var(--muted); }
 
-        /* --- Métricas del partido --- */
+        /* --- Marcador comparativo (a favor vs en contra) --- */
         .metricas { margin-bottom: 26px; }
-        .metrica-pos {
-            background: var(--panel);
-            border: 1px solid var(--line);
-            border-radius: var(--radius);
-            padding: 16px 18px;
+        .comp-titulos {
+            display: grid; grid-template-columns: 1fr auto 1fr; align-items: baseline; gap: 12px;
+            margin-bottom: 12px; font-family: var(--font-mono); font-size: 0.7rem;
+            text-transform: uppercase; letter-spacing: 0.1em;
         }
-        .metrica-label {
-            font-family: var(--font-mono);
-            font-size: 0.64rem;
-            text-transform: uppercase;
-            letter-spacing: 0.13em;
-            color: var(--muted);
-            margin-bottom: 10px;
-        }
-        .pos-cifras {
-            display: flex;
-            justify-content: space-between;
-            font-family: var(--font-mono);
-            font-weight: 700;
-            font-size: 0.95rem;
-            margin-bottom: 8px;
-        }
-        .pos-cifras .lado-n { color: var(--accent); }
-        .pos-cifras .lado-r { color: var(--muted); }
-        .pos-bar {
-            display: flex;
-            height: 16px;
-            border-radius: 6px;
-            overflow: hidden;
-            background: var(--panel-3);
-        }
-        .pos-seg-n { background: var(--accent); }
-        .pos-seg-r { background: var(--panel-3); }
+        .comp-titulos .t-fav { text-align: right; color: var(--accent); font-weight: 600; }
+        .comp-titulos .t-con { text-align: left; color: var(--muted); font-weight: 600; }
+        .comp-titulos .t-vs { color: var(--faint); }
 
-        .fila-top {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 12px;
-            margin-bottom: 12px;
+        .comp { display: flex; flex-direction: column; gap: 8px; }
+        .comp-row {
+            display: grid; grid-template-columns: 52px 1fr 52px; align-items: center; gap: 14px;
+            background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+            padding: 11px 16px;
         }
-        .fila-top .metrica-pos { flex: 1 1 260px; }
-        .fila-top .metrica { flex: 0 1 220px; }
+        .comp-row .v { font-family: var(--font-mono); font-weight: 800; font-size: 1.25rem; font-variant-numeric: tabular-nums; }
+        .comp-row .v.fav { color: var(--accent); text-align: right; }
+        .comp-row .v.con { color: var(--muted); text-align: left; }
+        .comp-row .mid { text-align: center; }
+        .comp-row .lbl { font-family: var(--font-mono); font-size: 0.6rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--faint); margin-bottom: 6px; }
+        .comp-duel { display: flex; height: 7px; border-radius: 4px; overflow: hidden; background: var(--panel-3); }
+        .comp-duel .df { background: var(--accent); }
+        .comp-duel .dc { background: var(--line-2); }
 
-        .metrica {
-            background: var(--panel);
-            border: 1px solid var(--line);
-            border-radius: var(--radius);
-            padding: 16px 18px;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-        }
-        .metrica-valor {
-            font-family: var(--font-mono);
-            font-size: 2.3rem;
-            font-weight: 800;
-            line-height: 1;
-            color: var(--text);
-        }
-
-        /* Mapas de cancha por zona (bloque estrella) */
-        .mapas { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
-        .card-mapa {
-            background: var(--panel);
-            border: 1px solid var(--line);
-            border-radius: var(--radius);
-            padding: 16px 18px;
-        }
+        /* Mapas de cancha por zona (aparecen si el partido trae recuperaciones/pérdidas con zona) */
+        .mapas { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin-top: 16px; }
+        .card-mapa { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; }
         .mapa-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 12px; }
+        .mapa-label { font-family: var(--font-mono); font-size: 0.64rem; text-transform: uppercase; letter-spacing: 0.13em; color: var(--muted); }
         .mapa-tot { font-family: var(--font-mono); font-weight: 800; font-size: 1.5rem; line-height: 1; }
         .mapa-tot.recu { color: var(--live); }
         .mapa-tot.perd { color: var(--danger); }
-
         .pitch {
-            position: relative;
-            background: linear-gradient(180deg, #0f3b34, #0b2b27);
-            border: 1.5px solid var(--line-2);
-            border-radius: 10px;
-            padding: 8px;
-            display: grid;
-            grid-template-rows: repeat(4, 1fr);
-            gap: 6px;
-            aspect-ratio: 4 / 5;
+            position: relative; background: linear-gradient(180deg, #0f3b34, #0b2b27);
+            border: 1.5px solid var(--line-2); border-radius: 10px; padding: 8px;
+            display: grid; grid-template-rows: repeat(4, 1fr); gap: 6px; aspect-ratio: 4 / 5;
         }
-        /* arco de tiro (la "D") en el borde de ataque */
         .pitch::before {
             content: ""; position: absolute; top: -1px; left: 50%; transform: translateX(-50%);
-            width: 48%; height: 15%;
-            border: 1.5px solid var(--line-2); border-top: none;
+            width: 48%; height: 15%; border: 1.5px solid var(--line-2); border-top: none;
             border-radius: 0 0 999px 999px; pointer-events: none;
         }
-        .pzona {
-            position: relative;
-            border-radius: 7px; border: 1px solid rgba(255, 255, 255, 0.06);
-            display: flex; align-items: center; justify-content: center;
-        }
+        .pzona { position: relative; border-radius: 7px; border: 1px solid rgba(255, 255, 255, 0.06); display: flex; align-items: center; justify-content: center; }
         .pz-lbl { position: absolute; top: 6px; left: 9px; font-family: var(--font-mono); font-size: 0.6rem; letter-spacing: 0.08em; color: rgba(237, 245, 249, 0.5); }
         .pz-val { font-family: var(--font-mono); font-weight: 700; font-size: 1.35rem; color: #EDF5F9; }
         .pzona.zero .pz-val { color: rgba(237, 245, 249, 0.35); font-weight: 500; }
         .mapa-cap { margin-top: 10px; font-family: var(--font-mono); font-size: 0.62rem; letter-spacing: 0.06em; color: var(--faint); text-transform: uppercase; }
 
         /* --- Distribución por categoría --- */
-        .seccion-titulo {
-            display: flex;
-            justify-content: space-between;
-            align-items: baseline;
-            gap: 12px;
-            margin: 0 0 14px;
-        }
+        .seccion-titulo { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin: 0 0 14px; }
         .seccion-titulo h3 { margin: 0; font-size: 1.05rem; font-weight: 700; }
-        .seccion-titulo .hint {
-            font-family: var(--font-mono);
-            font-size: 0.68rem;
-            text-transform: uppercase;
-            letter-spacing: 0.1em;
-            color: var(--faint);
-        }
+        .seccion-titulo .hint { font-family: var(--font-mono); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--faint); }
 
-        .cat-block {
-            background: var(--panel);
-            border: 1px solid var(--line);
-            border-radius: var(--radius);
-            margin-bottom: 10px;
-            overflow: hidden;
-        }
+        .cat-block { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); margin-bottom: 10px; overflow: hidden; }
         .cat-block > summary { list-style: none; cursor: pointer; padding: 13px 16px; display: block; }
         .cat-block > summary::-webkit-details-marker { display: none; }
         .cat-block > summary:hover { background: var(--panel-2); }
-
         .cat-head { display: flex; align-items: center; gap: 10px; margin-bottom: 9px; }
         .cat-dot { width: 11px; height: 11px; border-radius: 3px; flex-shrink: 0; }
         .cat-name { font-weight: 700; font-size: 0.98rem; }
@@ -184,28 +109,17 @@
         .cat-metrics b { color: var(--text); font-size: 1.05rem; }
         .cat-chevron { color: var(--faint); font-size: 0.75rem; margin-left: 4px; transition: transform 0.15s; }
         .cat-block[open] .cat-chevron { transform: rotate(90deg); }
-
         .barra { height: 8px; background: var(--panel-3); border-radius: 5px; overflow: hidden; }
         .barra-fill { height: 100%; border-radius: 5px; min-width: 3px; transition: width 0.3s; }
-
         .desc-list { padding: 4px 16px 14px; border-top: 1px solid var(--line); }
-        .desc-list-titulo {
-            font-family: var(--font-mono); font-size: 0.64rem; text-transform: uppercase;
-            letter-spacing: 0.13em; color: var(--faint); margin: 12px 0 8px;
-        }
-        .desc-row {
-            display: grid; grid-template-columns: minmax(90px, 0.9fr) 1.6fr auto;
-            align-items: center; gap: 10px; padding: 4px 0;
-        }
+        .desc-list-titulo { font-family: var(--font-mono); font-size: 0.64rem; text-transform: uppercase; letter-spacing: 0.13em; color: var(--faint); margin: 12px 0 8px; }
+        .desc-row { display: grid; grid-template-columns: minmax(90px, 0.9fr) 1.6fr auto; align-items: center; gap: 10px; padding: 4px 0; }
         .desc-label { font-size: 0.82rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .desc-label.sin { font-style: italic; color: var(--faint); }
         .desc-valor { font-family: var(--font-mono); font-size: 0.82rem; color: var(--text); text-align: right; white-space: nowrap; }
         .desc-valor .pct { color: var(--faint); font-size: 0.72rem; margin-left: 5px; }
 
-        .estado-vacio {
-            text-align: center; color: var(--muted); font-weight: 600; padding: 40px 20px;
-            background: var(--panel); border: 1px dashed var(--line-2); border-radius: var(--radius);
-        }
+        .estado-vacio { text-align: center; color: var(--muted); font-weight: 600; padding: 40px 20px; background: var(--panel); border: 1px dashed var(--line-2); border-radius: var(--radius); }
     </style>
 </head>
 
@@ -217,7 +131,11 @@
     <div class="container-dashboard">
         <div class="header-stats">
             <div class="eyebrow">Análisis de partido</div>
-            <h2 id="header-titulo">Estadísticas</h2>
+            <div class="marcador">
+                <span class="eq" id="eq-nuestro">Nuestro equipo</span>
+                <span class="score" id="marcador-score">–</span>
+                <span class="eq rival" id="eq-rival">Rival</span>
+            </div>
             <p class="subtitle" id="header-sub">Resumen de los cortes cargados</p>
         </div>
 
@@ -238,7 +156,6 @@
     <script type="module">
         const uid = sessionStorage.getItem('usuarioUID');
         if (!uid) {
-            // Si no está logueado, lo mandamos al login
             window.location.href = "login.html";
         }
         // Las estadísticas son análisis del cuerpo técnico: las jugadoras no acceden ni por URL.
@@ -256,16 +173,26 @@
             return `${m}:${String(s).padStart(2, '0')}`;
         }
 
+        function norm(s) {
+            return (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+        }
+
         // Detecta la zona de cancha (C1–C4) desde los descriptores de un corte.
-        // Acepta variantes: "C1", "Campo 1", "Cancha 2", "Zona 3", o solo "4".
         function detectarZona(ds) {
             for (const raw of (ds || [])) {
-                const s = (raw || '').toLowerCase().normalize('NFD')
-                    .replace(/[̀-ͯ]/g, '').replace(/\s+/g, '');
+                const s = norm(raw).replace(/\s+/g, '');
                 const m = s.match(/^(?:c|campo|cancha|zona)?([1-4])$/);
                 if (m) return 'C' + m[1];
             }
             return null;
+        }
+
+        // Lado de una categoría: el mapeo manual manda; si no, se detecta por el
+        // nombre ("en contra" / "contra" / "rival" → del rival).
+        function ladoDe(nombre, mapeo) {
+            const m = mapeo && mapeo.categorias && mapeo.categorias[nombre];
+            if (m && m.lado) return m.lado === 'rival' ? 'contra' : 'favor';
+            return /(en contra|contra|rival|recib)/.test(norm(nombre)) ? 'contra' : 'favor';
         }
 
         // Análisis genérico (para la distribución por categoría). No asume nombres.
@@ -296,58 +223,44 @@
             return { cats, total, descsUnicos: descsGlobal.size, minT, maxT };
         }
 
-        // Métricas semánticas según el mapeo:
-        //   mapeo.categorias[cat] = { lado: 'nuestro'|'rival', rol: ''|'recuperacion'|'perdida'|'corto' }
-        function calcularMetricas(est, mapeo) {
-            const cat = (mapeo && mapeo.categorias) || {};
-            let cortesNuestros = 0, cortesRival = 0;
-            let recuperaciones = 0, perdidas = 0, cortos = 0;
-            const zonasRecu = { C1: 0, C2: 0, C3: 0, C4: 0, sin: 0 };
-            const zonasPerd = { C1: 0, C2: 0, C3: 0, C4: 0, sin: 0 };
+        // Marcador comparativo (a favor vs en contra). Detecta las métricas por
+        // el nombre de la categoría y el gol por el descriptor "GOL".
+        function calcularComparativa(est, mapeo) {
+            const M = () => ({ favor: 0, contra: 0 });
+            const mx = {
+                goles: M(), cortos: M(), libres25: M(), libres50: M(),
+                recuperaciones: M(), perdidas: M(),
+                zonasRecu: { C1: 0, C2: 0, C3: 0, C4: 0, sin: 0 },
+                zonasPerd: { C1: 0, C2: 0, C3: 0, C4: 0, sin: 0 },
+                accFavor: 0, accContra: 0
+            };
 
             for (const [nombre, cortes] of Object.entries(est)) {
-                const m = cat[nombre] || { lado: 'nuestro', rol: '' };
                 const lista = cortes || [];
                 const n = lista.length;
-                if (m.lado === 'rival') cortesRival += n; else cortesNuestros += n;
+                const lado = ladoDe(nombre, mapeo);
+                mx[lado === 'contra' ? 'accContra' : 'accFavor'] += n;
 
-                if (m.rol === 'recuperacion') {
-                    recuperaciones += n;
-                    lista.forEach(c => { const z = detectarZona(c.d); if (z) zonasRecu[z]++; else zonasRecu.sin++; });
-                } else if (m.rol === 'corto') {
-                    cortos += n;
-                } else if (m.rol === 'perdida') {
-                    perdidas += n;
-                    lista.forEach(c => { const z = detectarZona(c.d); if (z) zonasPerd[z]++; else zonasPerd.sin++; });
+                // Goles: cortes con descriptor "gol"
+                const goles = lista.filter(c => (c.d || []).some(d => norm(d) === 'gol')).length;
+                mx.goles[lado] += goles;
+
+                const s = norm(nombre);
+                if (s.includes('corto') || /\bcc\b/.test(s)) mx.cortos[lado] += n;
+                else if (s.includes('libre') && s.includes('25')) mx.libres25[lado] += n;
+                else if (s.includes('libre') && s.includes('50')) mx.libres50[lado] += n;
+                else if (s.includes('recuper')) {
+                    mx.recuperaciones[lado] += n;
+                    if (lado === 'favor') lista.forEach(c => { const z = detectarZona(c.d); if (z) mx.zonasRecu[z]++; else mx.zonasRecu.sin++; });
+                } else if (s.includes('perd')) {
+                    mx.perdidas[lado] += n;
+                    if (lado === 'favor') lista.forEach(c => { const z = detectarZona(c.d); if (z) mx.zonasPerd[z]++; else mx.zonasPerd.sin++; });
                 }
             }
-            const totalAcc = cortesNuestros + cortesRival;
-            const posNuestra = totalAcc ? Math.round((cortesNuestros / totalAcc) * 100) : 0;
-            return { cortesNuestros, cortesRival, posNuestra, posRival: 100 - posNuestra, recuperaciones, perdidas, cortos, zonasRecu, zonasPerd };
-        }
-
-        // ¿El mapeo aporta algo? (al menos una métrica asignada o un lado rival)
-        function mapeoUtil(mapeo) {
-            const cat = (mapeo && mapeo.categorias) || {};
-            return Object.values(cat).some(m => m.rol || m.lado === 'rival');
-        }
-
-        // Infiere el mapeo por el nombre de las categorías, para que las
-        // estadísticas funcionen solas, sin configuración previa. El mapeo
-        // manual del club (si existe) siempre tiene prioridad sobre esto.
-        function inferirMapeo(est) {
-            const norm = s => (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-            const categorias = {};
-            for (const nombre of Object.keys(est)) {
-                const s = norm(nombre);
-                let rol = '';
-                if (s.includes('recuper')) rol = 'recuperacion';
-                else if (s.includes('perd')) rol = 'perdida';
-                else if (s.includes('corto') || /\bcc\b/.test(s)) rol = 'corto';
-                const lado = /(en contra|contra|rival|recib)/.test(s) ? 'rival' : 'nuestro';
-                categorias[nombre] = { lado, rol };
-            }
-            return { categorias };
+            const tot = mx.accFavor + mx.accContra;
+            mx.posFavor = tot ? Math.round((mx.accFavor / tot) * 100) : 0;
+            mx.posContra = 100 - mx.posFavor;
+            return mx;
         }
 
         function tileKPI(valor, label) {
@@ -397,8 +310,21 @@
                 </details>`;
         }
 
-        // Dibuja la cancha de 4 zonas (C4 ataque arriba → C1 fondo propio abajo),
-        // pintando cada zona según su intensidad (heatmap).
+        // Fila comparativa: valor a favor | barra doble | valor en contra
+        function filaComp(label, favor, contra) {
+            const tot = favor + contra;
+            const pf = tot ? Math.round((favor / tot) * 100) : 50;
+            return `
+                <div class="comp-row">
+                    <div class="v fav">${favor}</div>
+                    <div class="mid">
+                        <div class="lbl">${label}</div>
+                        <div class="comp-duel"><div class="df" style="width:${pf}%"></div><div class="dc" style="width:${100 - pf}%"></div></div>
+                    </div>
+                    <div class="v con">${contra}</div>
+                </div>`;
+        }
+
         function pitchZonas(zonas, rgb) {
             const orden = ['C4', 'C3', 'C2', 'C1'];
             const max = Math.max(...orden.map(z => zonas[z]), 1);
@@ -416,10 +342,7 @@
             const cap = `C1 fondo propio → C4 ataque` + (zonas.sin ? ` · ${zonas.sin} sin zona` : '');
             return `
                 <div class="card-mapa">
-                    <div class="mapa-head">
-                        <span class="metrica-label">${titulo}</span>
-                        <span class="mapa-tot ${claseTot}">${total}</span>
-                    </div>
+                    <div class="mapa-head"><span class="mapa-label">${titulo}</span><span class="mapa-tot ${claseTot}">${total}</span></div>
                     <div class="pitch">${pitchZonas(zonas, rgb)}</div>
                     <div class="mapa-cap">${cap}</div>
                 </div>`;
@@ -428,38 +351,44 @@
         function renderMetricas(mx, eq1, eq2) {
             const cont = document.getElementById('metricas');
 
-            const posHtml = `
-                <div class="metrica-pos">
-                    <div class="metrica-label">Posesión (acciones a favor vs del rival)</div>
-                    <div class="pos-cifras">
-                        <span class="lado-n">${eq1} · ${mx.posNuestra}%</span>
-                        <span class="lado-r">${mx.posRival}% · ${eq2}</span>
-                    </div>
-                    <div class="pos-bar">
-                        <div class="pos-seg-n" style="width:${mx.posNuestra}%"></div>
-                        <div class="pos-seg-r" style="width:${mx.posRival}%"></div>
-                    </div>
-                </div>`;
-            const cortosHtml = `
-                <div class="metrica">
-                    <div class="metrica-label">Córners cortos</div>
-                    <div class="metrica-valor">${mx.cortos}</div>
-                </div>`;
+            // Filas comparativas que tengan algún dato
+            const filas = [];
+            const poseer = (m) => m.favor + m.contra > 0;
+            if (poseer(mx.goles)) filas.push(filaComp('Goles', mx.goles.favor, mx.goles.contra));
+            if (poseer(mx.cortos)) filas.push(filaComp('Córners cortos', mx.cortos.favor, mx.cortos.contra));
+            if (poseer(mx.libres25)) filas.push(filaComp('Libres de 25', mx.libres25.favor, mx.libres25.contra));
+            if (poseer(mx.libres50)) filas.push(filaComp('Libres de 50', mx.libres50.favor, mx.libres50.contra));
+            if (poseer(mx.recuperaciones)) filas.push(filaComp('Recuperaciones', mx.recuperaciones.favor, mx.recuperaciones.contra));
+            if (poseer(mx.perdidas)) filas.push(filaComp('Pérdidas', mx.perdidas.favor, mx.perdidas.contra));
 
-            // Cada bloque aparece solo si tiene datos
-            const top = [];
-            if (mx.cortesRival > 0) top.push(posHtml);
-            if (mx.cortos > 0) top.push(cortosHtml);
-
+            // Mapas (solo si el partido trae recuperaciones/pérdidas con zona)
             const mapas = [];
-            if (mx.recuperaciones > 0) mapas.push(mapaCancha('Recuperaciones · por zona', mx.recuperaciones, mx.zonasRecu, '69,214,160', 'recu'));
-            if (mx.perdidas > 0) mapas.push(mapaCancha('Pérdidas · por zona', mx.perdidas, mx.zonasPerd, '255,92,99', 'perd'));
+            if (mx.recuperaciones.favor > 0 && (mx.zonasRecu.C1 + mx.zonasRecu.C2 + mx.zonasRecu.C3 + mx.zonasRecu.C4) > 0)
+                mapas.push(mapaCancha('Recuperaciones · por zona', mx.recuperaciones.favor, mx.zonasRecu, '69,214,160', 'recu'));
+            if (mx.perdidas.favor > 0 && (mx.zonasPerd.C1 + mx.zonasPerd.C2 + mx.zonasPerd.C3 + mx.zonasPerd.C4) > 0)
+                mapas.push(mapaCancha('Pérdidas · por zona', mx.perdidas.favor, mx.zonasPerd, '255,92,99', 'perd'));
 
-            if (!top.length && !mapas.length) { cont.style.display = 'none'; return; }
+            const hayComparativa = filas.length > 0 || (mx.accFavor + mx.accContra > 0);
+            if (!hayComparativa) { cont.style.display = 'none'; return; }
 
-            cont.innerHTML =
-                (top.length ? `<div class="fila-top">${top.join('')}</div>` : '') +
-                (mapas.length ? `<div class="mapas">${mapas.join('')}</div>` : '');
+            cont.innerHTML = `
+                <div class="comp-titulos">
+                    <span class="t-fav">${eq1} · a favor</span>
+                    <span class="t-vs">vs</span>
+                    <span class="t-con">en contra · ${eq2}</span>
+                </div>
+                <div class="comp">
+                    <div class="comp-row">
+                        <div class="v fav">${mx.posFavor}%</div>
+                        <div class="mid">
+                            <div class="lbl">Posesión (acciones)</div>
+                            <div class="comp-duel"><div class="df" style="width:${mx.posFavor}%"></div><div class="dc" style="width:${mx.posContra}%"></div></div>
+                        </div>
+                        <div class="v con">${mx.posContra}%</div>
+                    </div>
+                    ${filas.join('')}
+                </div>
+                ${mapas.length ? `<div class="mapas">${mapas.join('')}</div>` : ''}`;
             cont.style.display = 'block';
         }
 
@@ -473,14 +402,15 @@
             try {
                 const docSnap = await getDoc(doc(db, "partidos", partidoId));
                 if (!docSnap.exists()) {
-                    document.getElementById('header-titulo').textContent = "No se encontró el partido.";
+                    document.getElementById('eq-nuestro').textContent = "No se encontró el partido.";
                     return;
                 }
 
                 const partido = docSnap.data();
                 const eq1 = partido.mi_equipo || 'Nuestro equipo';
                 const eq2 = partido.rival || 'Rival';
-                document.getElementById('header-titulo').textContent = `${eq1} vs ${eq2}`;
+                document.getElementById('eq-nuestro').textContent = eq1;
+                document.getElementById('eq-rival').textContent = eq2;
                 document.getElementById('header-sub').textContent =
                     `${partido.torneo || 'Amistoso'} · ${partido.fecha || 'sin fecha'}`;
 
@@ -505,8 +435,7 @@
                 document.getElementById('hint-orden').textContent = 'Ordenado por cantidad';
                 distribucion.innerHTML = cats.map(c => bloqueCategoria(c, total)).join('');
 
-                // Métricas: si el club configuró el mapeo, se usa; si no, se
-                // infiere por el nombre de las categorías para que funcione solo.
+                // Marcador comparativo (usa el mapeo del club si existe, para el lado)
                 let mapeo = null;
                 try {
                     if (clubId) {
@@ -516,12 +445,16 @@
                 } catch (e) {
                     console.warn("No se pudo leer el mapeo del club:", e);
                 }
-                const efectivo = mapeoUtil(mapeo) ? mapeo : inferirMapeo(est);
-                renderMetricas(calcularMetricas(est, efectivo), eq1, eq2);
+                const mx = calcularComparativa(est, mapeo);
+
+                // Marcador de goles en el header
+                document.getElementById('marcador-score').textContent = `${mx.goles.favor} – ${mx.goles.contra}`;
+
+                renderMetricas(mx, eq1, eq2);
 
             } catch (error) {
                 console.error("Error al cargar estadísticas:", error);
-                document.getElementById('header-titulo').textContent = "Error al cargar los datos.";
+                document.getElementById('eq-nuestro').textContent = "Error al cargar los datos.";
             }
         }
 
