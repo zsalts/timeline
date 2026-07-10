@@ -191,7 +191,8 @@
         // nombre ("en contra" / "contra" / "rival" → del rival).
         function ladoDe(nombre, mapeo) {
             const m = mapeo && mapeo.categorias && mapeo.categorias[nombre];
-            if (m && m.lado) return m.lado === 'rival' ? 'contra' : 'favor';
+            // "auto" (o sin config) → se detecta por el nombre
+            if (m && (m.lado === 'nuestro' || m.lado === 'rival')) return m.lado === 'rival' ? 'contra' : 'favor';
             return /(en contra|contra|rival|recib)/.test(norm(nombre)) ? 'contra' : 'favor';
         }
 
@@ -223,8 +224,40 @@
             return { cats, total, descsUnicos: descsGlobal.size, minT, maxT };
         }
 
-        // Marcador comparativo (a favor vs en contra). Detecta las métricas por
-        // el nombre de la categoría y el gol por el descriptor "GOL".
+        // ¿El corte es gol? El mapeo de descriptores manda (descriptor con
+        // significado "gol"); si no hay config, cae al nombre "gol".
+        function esGol(c, mapeo) {
+            const map = (mapeo && mapeo.descriptores) || {};
+            return (c.d || []).some(d => map[d] === 'gol' || norm(d) === 'gol');
+        }
+
+        // Zona del corte (C1–C4): el mapeo de descriptores manda; si no hay
+        // config, cae a la detección por nombre (C1, Campo 2…).
+        function zonaDeCorte(c, mapeo) {
+            const map = (mapeo && mapeo.descriptores) || {};
+            for (const d of (c.d || [])) {
+                const sig = map[d];
+                if (sig === 'c1' || sig === 'c2' || sig === 'c3' || sig === 'c4') return sig.toUpperCase();
+            }
+            return detectarZona(c.d);
+        }
+
+        // Rol/métrica de una categoría: el mapeo manda; si no, se detecta por nombre.
+        function rolDe(nombre, mapeo) {
+            const m = mapeo && mapeo.categorias && mapeo.categorias[nombre];
+            if (m && m.rol) return m.rol;
+            const s = norm(nombre);
+            if (s.includes('corto') || /\bcc\b/.test(s)) return 'corto';
+            if (s.includes('libre') && s.includes('25')) return 'libre25';
+            if (s.includes('libre') && s.includes('50')) return 'libre50';
+            if (s.includes('recuper')) return 'recuperacion';
+            if (s.includes('perd')) return 'perdida';
+            return '';
+        }
+
+        // Marcador comparativo (a favor vs en contra), dirigido por la config del
+        // club (categorías → métrica/lado, descriptores → gol/zona). Sin config,
+        // cae a detección por nombre para que igual funcione.
         function calcularComparativa(est, mapeo) {
             const M = () => ({ favor: 0, contra: 0 });
             const mx = {
@@ -241,20 +274,18 @@
                 const lado = ladoDe(nombre, mapeo);
                 mx[lado === 'contra' ? 'accContra' : 'accFavor'] += n;
 
-                // Goles: cortes con descriptor "gol"
-                const goles = lista.filter(c => (c.d || []).some(d => norm(d) === 'gol')).length;
-                mx.goles[lado] += goles;
+                mx.goles[lado] += lista.filter(c => esGol(c, mapeo)).length;
 
-                const s = norm(nombre);
-                if (s.includes('corto') || /\bcc\b/.test(s)) mx.cortos[lado] += n;
-                else if (s.includes('libre') && s.includes('25')) mx.libres25[lado] += n;
-                else if (s.includes('libre') && s.includes('50')) mx.libres50[lado] += n;
-                else if (s.includes('recuper')) {
+                const rol = rolDe(nombre, mapeo);
+                if (rol === 'corto') mx.cortos[lado] += n;
+                else if (rol === 'libre25') mx.libres25[lado] += n;
+                else if (rol === 'libre50') mx.libres50[lado] += n;
+                else if (rol === 'recuperacion') {
                     mx.recuperaciones[lado] += n;
-                    if (lado === 'favor') lista.forEach(c => { const z = detectarZona(c.d); if (z) mx.zonasRecu[z]++; else mx.zonasRecu.sin++; });
-                } else if (s.includes('perd')) {
+                    if (lado === 'favor') lista.forEach(c => { const z = zonaDeCorte(c, mapeo); if (z) mx.zonasRecu[z]++; else mx.zonasRecu.sin++; });
+                } else if (rol === 'perdida') {
                     mx.perdidas[lado] += n;
-                    if (lado === 'favor') lista.forEach(c => { const z = detectarZona(c.d); if (z) mx.zonasPerd[z]++; else mx.zonasPerd.sin++; });
+                    if (lado === 'favor') lista.forEach(c => { const z = zonaDeCorte(c, mapeo); if (z) mx.zonasPerd[z]++; else mx.zonasPerd.sin++; });
                 }
             }
             const tot = mx.accFavor + mx.accContra;

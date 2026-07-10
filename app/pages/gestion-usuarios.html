@@ -238,9 +238,15 @@
         .mapeo-row { padding: 8px 0; border-top: 1px solid var(--line); }
         .mapeo-cat { font-weight: 600; font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .mapeo-row select { padding: 8px; font-size: 0.85rem; }
+        .mapeo-head-desc, .mapeo-row-desc { grid-template-columns: 1fr 170px; }
+        .mapeo-sub {
+            font-size: 0.95rem; font-weight: 700; color: var(--text);
+            margin: 0 0 8px; padding: 0; border: none;
+        }
         @media (max-width: 640px) {
             .mapeo-head { display: none; }
             .mapeo-row { grid-template-columns: 1fr 1fr; gap: 6px; }
+            .mapeo-row-desc { grid-template-columns: 1fr; }
             .mapeo-cat { grid-column: 1 / -1; }
         }
 
@@ -308,9 +314,9 @@
             <div class="card">
                 <h2>Estadísticas del club</h2>
                 <p style="color: var(--muted); margin-bottom: 15px; font-size: 0.9rem;">
-                    Asigná cada categoría de tu plantilla de cortes a una métrica. Con esto, las estadísticas de cada partido
-                    calculan <strong>posesión</strong>, <strong>recuperaciones</strong>, <strong>pérdidas</strong> (por zona C1–C4)
-                    y <strong>córners cortos</strong>, sin importar cómo nombre las categorías cada analista. Se configura una sola vez.
+                    Traducí tu plantilla de Nacsport a las métricas del tablero: decí qué es cada <strong>categoría</strong>
+                    (recuperaciones, pérdidas, córners, tiros libres) y qué significa cada <strong>descriptor</strong>
+                    (gol, zonas C1–C4). Con esto las estadísticas se llenan solas sin importar cómo las nombres. Se configura una sola vez.
                 </p>
                 <div class="mensaje" id="mensaje-mapeo"></div>
                 <div id="mapeo-container">
@@ -372,6 +378,8 @@
         let equiposActuales = [];
         let mapeoActual = {};             // { categoria: { lado, rol } }
         let categoriasDetectadas = [];    // nombres de categoría presentes en los partidos del club
+        let descriptoresActuales = {};    // { descriptor: significado }
+        let descriptoresDetectados = [];  // descriptores presentes en los cortes del club
 
         // Validar acceso
         async function checkAccess() {
@@ -409,20 +417,28 @@
             const clubID = sessionStorage.getItem('clubID');
             const cont = document.getElementById('mapeo-container');
             try {
-                // Mapeo ya guardado
+                // Mapeo ya guardado (categorías + descriptores)
                 const clubDoc = await getDoc(doc(db, 'clubes', clubID));
-                mapeoActual = (clubDoc.exists() && clubDoc.data().mapeoEstadisticas
-                    && clubDoc.data().mapeoEstadisticas.categorias) || {};
+                const mapa = (clubDoc.exists() && clubDoc.data().mapeoEstadisticas) || {};
+                mapeoActual = mapa.categorias || {};
+                descriptoresActuales = mapa.descriptores || {};
 
-                // Categorías presentes en los partidos del club
+                // Categorías y descriptores presentes en los partidos del club
                 const q = query(collection(db, 'partidos'), where('club_id', '==', clubID));
                 const snap = await getDocs(q);
-                const set = new Set();
+                const cats = new Set();
+                const descs = new Set();
                 snap.forEach(d => {
                     const est = d.data().estadisticas || {};
-                    Object.keys(est).forEach(c => set.add(c));
+                    for (const [c, cortes] of Object.entries(est)) {
+                        cats.add(c);
+                        (cortes || []).forEach(x => (x.d || []).forEach(dd => {
+                            if (dd && dd.trim()) descs.add(dd.trim());
+                        }));
+                    }
                 });
-                categoriasDetectadas = [...set].sort((a, b) => a.localeCompare(b, 'es'));
+                categoriasDetectadas = [...cats].sort((a, b) => a.localeCompare(b, 'es'));
+                descriptoresDetectados = [...descs].sort((a, b) => a.localeCompare(b, 'es'));
             } catch (e) {
                 console.error('Error cargando mapeo:', e);
                 cont.innerHTML = '<p style="color: var(--danger);">No se pudieron cargar las categorías.</p>';
@@ -434,29 +450,50 @@
         function renderMapeo() {
             const cont = document.getElementById('mapeo-container');
             const btn = document.getElementById('btn-guardar-mapeo');
-            if (!categoriasDetectadas.length) {
-                cont.innerHTML = '<p style="color: var(--muted);">Todavía no hay partidos con cortes para detectar categorías. Cargá un partido con su archivo de análisis y volvé.</p>';
+            if (!categoriasDetectadas.length && !descriptoresDetectados.length) {
+                cont.innerHTML = '<p style="color: var(--muted);">Todavía no hay partidos con cortes para detectar tu plantilla. Cargá un partido con su archivo de análisis y volvé.</p>';
                 btn.style.display = 'none';
                 return;
             }
-            const roles = [['', '—'], ['recuperacion', 'Recuperaciones'], ['perdida', 'Pérdidas'], ['corto', 'Córners cortos']];
+            const roles = [['', '—'], ['recuperacion', 'Recuperaciones'], ['perdida', 'Pérdidas'], ['corto', 'Córner corto'], ['libre25', 'Tiro libre 25'], ['libre50', 'Tiro libre 50']];
+            const significados = [['', '—'], ['gol', 'Gol'], ['c1', 'Zona C1'], ['c2', 'Zona C2'], ['c3', 'Zona C3'], ['c4', 'Zona C4']];
+
+            const filasCat = categoriasDetectadas.map((cat, i) => {
+                const m = mapeoActual[cat] || {};
+                const lado = m.lado || 'auto';
+                const rol = m.rol || '';
+                const opts = roles.map(([v, l]) => `<option value="${v}" ${v === rol ? 'selected' : ''}>${l}</option>`).join('');
+                return `
+                    <div class="mapeo-row">
+                        <span class="mapeo-cat" title="${cat}">${cat}</span>
+                        <select data-lado="${i}">
+                            <option value="auto" ${lado === 'auto' ? 'selected' : ''}>Auto (por nombre)</option>
+                            <option value="nuestro" ${lado === 'nuestro' ? 'selected' : ''}>Nuestro</option>
+                            <option value="rival" ${lado === 'rival' ? 'selected' : ''}>Rival</option>
+                        </select>
+                        <select data-rol="${i}">${opts}</select>
+                    </div>`;
+            }).join('');
+
+            const filasDesc = descriptoresDetectados.map((desc, i) => {
+                const sig = descriptoresActuales[desc] || '';
+                const opts = significados.map(([v, l]) => `<option value="${v}" ${v === sig ? 'selected' : ''}>${l}</option>`).join('');
+                return `
+                    <div class="mapeo-row mapeo-row-desc">
+                        <span class="mapeo-cat" title="${desc}">${desc}</span>
+                        <select data-desc="${i}">${opts}</select>
+                    </div>`;
+            }).join('');
+
             cont.innerHTML =
-                '<div class="mapeo-head"><span>Categoría</span><span>Lado</span><span>Métrica</span></div>' +
-                categoriasDetectadas.map((cat, i) => {
-                    const m = mapeoActual[cat] || {};
-                    const lado = m.lado || 'nuestro';
-                    const rol = m.rol || '';
-                    const opts = roles.map(([v, l]) => `<option value="${v}" ${v === rol ? 'selected' : ''}>${l}</option>`).join('');
-                    return `
-                        <div class="mapeo-row">
-                            <span class="mapeo-cat" title="${cat}">${cat}</span>
-                            <select data-lado="${i}">
-                                <option value="nuestro" ${lado === 'nuestro' ? 'selected' : ''}>Nuestro</option>
-                                <option value="rival" ${lado === 'rival' ? 'selected' : ''}>Rival</option>
-                            </select>
-                            <select data-rol="${i}">${opts}</select>
-                        </div>`;
-                }).join('');
+                '<h3 class="mapeo-sub">Categorías</h3>' +
+                (categoriasDetectadas.length
+                    ? '<div class="mapeo-head"><span>Categoría</span><span>Lado</span><span>Métrica</span></div>' + filasCat
+                    : '<p style="color: var(--muted);">Sin categorías detectadas.</p>') +
+                '<h3 class="mapeo-sub" style="margin-top:22px;">Descriptores</h3>' +
+                (descriptoresDetectados.length
+                    ? '<div class="mapeo-head mapeo-head-desc"><span>Descriptor</span><span>Significado</span></div>' + filasDesc
+                    : '<p style="color: var(--muted);">Sin descriptores detectados en tus cortes.</p>');
             btn.style.display = 'inline-block';
         }
 
@@ -465,18 +502,24 @@
             btn.addEventListener('click', async () => {
                 const cont = document.getElementById('mapeo-container');
                 const msg = document.getElementById('mensaje-mapeo');
-                const nuevo = {};
+                const categorias = {};
                 categoriasDetectadas.forEach((cat, i) => {
-                    const lado = cont.querySelector(`[data-lado="${i}"]`).value;
-                    const rol = cont.querySelector(`[data-rol="${i}"]`).value;
-                    nuevo[cat] = { lado, rol };
+                    const ladoEl = cont.querySelector(`[data-lado="${i}"]`);
+                    const rolEl = cont.querySelector(`[data-rol="${i}"]`);
+                    if (ladoEl && rolEl) categorias[cat] = { lado: ladoEl.value, rol: rolEl.value };
+                });
+                const descriptores = {};
+                descriptoresDetectados.forEach((desc, i) => {
+                    const el = cont.querySelector(`[data-desc="${i}"]`);
+                    if (el && el.value) descriptores[desc] = el.value;
                 });
                 const clubID = sessionStorage.getItem('clubID');
                 btn.disabled = true;
                 try {
-                    await updateDoc(doc(db, 'clubes', clubID), { mapeoEstadisticas: { categorias: nuevo } });
-                    mapeoActual = nuevo;
-                    showMessage(msg, 'Mapeo guardado. Las estadísticas ya usan esta configuración.', 'exito');
+                    await updateDoc(doc(db, 'clubes', clubID), { mapeoEstadisticas: { categorias, descriptores } });
+                    mapeoActual = categorias;
+                    descriptoresActuales = descriptores;
+                    showMessage(msg, 'Configuración guardada. Las estadísticas ya la usan.', 'exito');
                 } catch (e) {
                     console.error(e);
                     showMessage(msg, 'Error al guardar: ' + e.message, 'error');
