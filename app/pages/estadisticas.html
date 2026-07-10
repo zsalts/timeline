@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Estadísticas - Timeline</title>
-    <link rel="manifest" href="/manifest.json">
+    <link rel="manifest" href="../manifest.json">
     <link rel="icon" type="image/png" href="../assets/image/logo-web.png">
     <link rel="apple-touch-icon" href="../assets/image/logo-web.png">
     <link rel="stylesheet" href="../assets/css/style.css">
@@ -46,18 +46,17 @@
             color: var(--muted);
         }
 
-        /* --- Métricas del partido (según mapeo del club) --- */
+        /* --- Métricas del partido --- */
         .metricas { margin-bottom: 26px; }
         .metrica-pos {
             background: var(--panel);
             border: 1px solid var(--line);
             border-radius: var(--radius);
             padding: 16px 18px;
-            margin-bottom: 12px;
         }
         .metrica-label {
             font-family: var(--font-mono);
-            font-size: 0.66rem;
+            font-size: 0.64rem;
             text-transform: uppercase;
             letter-spacing: 0.13em;
             color: var(--muted);
@@ -149,17 +148,6 @@
         .pz-val { font-family: var(--font-mono); font-weight: 700; font-size: 1.35rem; color: #EDF5F9; }
         .pzona.zero .pz-val { color: rgba(237, 245, 249, 0.35); font-weight: 500; }
         .mapa-cap { margin-top: 10px; font-family: var(--font-mono); font-size: 0.62rem; letter-spacing: 0.06em; color: var(--faint); text-transform: uppercase; }
-
-        .aviso-config {
-            background: var(--accent-dim);
-            border: 1px solid var(--accent-line);
-            border-radius: var(--radius);
-            padding: 14px 16px;
-            margin-bottom: 26px;
-            font-size: 0.9rem;
-            color: var(--text);
-        }
-        .aviso-config a { color: var(--accent); font-weight: 600; }
 
         /* --- Distribución por categoría --- */
         .seccion-titulo {
@@ -308,7 +296,7 @@
             return { cats, total, descsUnicos: descsGlobal.size, minT, maxT };
         }
 
-        // Métricas semánticas según el mapeo del club:
+        // Métricas semánticas según el mapeo:
         //   mapeo.categorias[cat] = { lado: 'nuestro'|'rival', rol: ''|'recuperacion'|'perdida'|'corto' }
         function calcularMetricas(est, mapeo) {
             const cat = (mapeo && mapeo.categorias) || {};
