@@ -295,12 +295,13 @@
         // cae a detección por nombre para que igual funcione.
         function calcularComparativa(est, mapeo) {
             const M = () => ({ favor: 0, contra: 0 });
+            const T = () => ({ total: 0, izq: 0, cen: 0, der: 0, sin: 0, gol: 0, atajado: 0, desviado: 0 });
             const mx = {
                 goles: M(), cortos: M(), libres25: M(), libres50: M(),
                 recuperaciones: M(), perdidas: M(),
                 zonasRecu: { C1: 0, C2: 0, C3: 0, C4: 0, sin: 0 },
                 zonasPerd: { C1: 0, C2: 0, C3: 0, C4: 0, sin: 0 },
-                tiros: { total: 0, izq: 0, cen: 0, der: 0, sin: 0, gol: 0, atajado: 0, desviado: 0 },
+                tiros: { favor: T(), contra: T() },
                 accFavor: 0, accContra: 0
             };
 
@@ -323,12 +324,13 @@
                     mx.perdidas[lado] += n;
                     if (lado === 'favor') lista.forEach(c => { const z = zonaDeCorte(c, mapeo); if (z) mx.zonasPerd[z]++; else mx.zonasPerd.sin++; });
                 } else if (rol === 'tiro') {
+                    const t = mx.tiros[lado === 'contra' ? 'contra' : 'favor'];
                     lista.forEach(c => {
-                        mx.tiros.total++;
+                        t.total++;
                         const z = areaZonaDe(c, mapeo);
-                        if (z === 'aizq') mx.tiros.izq++; else if (z === 'acen') mx.tiros.cen++; else if (z === 'ader') mx.tiros.der++; else mx.tiros.sin++;
+                        if (z === 'aizq') t.izq++; else if (z === 'acen') t.cen++; else if (z === 'ader') t.der++; else t.sin++;
                         const r = resultadoDe(c, mapeo);
-                        if (r === 'gol') mx.tiros.gol++; else if (r === 'atajado') mx.tiros.atajado++; else if (r === 'desviado') mx.tiros.desviado++;
+                        if (r === 'gol') t.gol++; else if (r === 'atajado') t.atajado++; else if (r === 'desviado') t.desviado++;
                     });
                 }
             }
@@ -427,14 +429,14 @@
                 </div>`;
         }
 
-        // Bloque "Área / zonas de tiro al arco": semicírculo con 3 zonas
-        // (de dónde tiraron) + resumen de resultado.
-        function areaTiros(t) {
+        // Bloque "Área": semicírculo (la D) con 3 zonas de dónde tiraron +
+        // resumen de resultado. Se usa dos veces: tiros nuestros y del rival.
+        function areaTiros(t, subtitulo, rgb, totColor) {
             const total = t.total || 0;
             const max = Math.max(t.izq, t.cen, t.der, 1);
             const zona = (v, lbl) => {
                 const a = v === 0 ? 0 : (0.14 + 0.6 * (v / max)).toFixed(2);
-                const bg = v === 0 ? 'transparent' : `rgba(86,194,230,${a})`;
+                const bg = v === 0 ? 'transparent' : `rgba(${rgb},${a})`;
                 return `<div class="azona" style="background:${bg}"><span class="az-val">${v}</span><span class="az-lbl">${lbl}</span></div>`;
             };
             const cap = total === 0
@@ -442,7 +444,7 @@
                 : `${total} tiros · ${t.gol} gol · ${t.atajado} atajado · ${t.desviado} desviado` + (t.sin ? ` · ${t.sin} sin zona` : '');
             return `
                 <div class="card-mapa area-card">
-                    <div class="mapa-head"><span class="mapa-label">Zonas de tiro al arco · de dónde tiraron</span><span class="mapa-tot" style="color:#56C2E6">${total}</span></div>
+                    <div class="mapa-head"><span class="mapa-label">${subtitulo}</span><span class="mapa-tot" style="color:${totColor}">${total}</span></div>
                     <div class="area-arco">${zona(t.izq, 'IZQ')}${zona(t.cen, 'CEN')}${zona(t.der, 'DER')}</div>
                     <div class="mapa-cap">${cap}</div>
                 </div>`;
@@ -489,8 +491,11 @@
                 </div>`;
 
             const area = `
-                <h3 class="bloque-titulo">Área</h3>
-                <div class="mapas mapas-area">${areaTiros(mx.tiros)}</div>`;
+                <h3 class="bloque-titulo">Área · zonas de tiro</h3>
+                <div class="mapas">
+                    ${areaTiros(mx.tiros.favor, 'De dónde tiramos', '86,194,230', '#56C2E6')}
+                    ${areaTiros(mx.tiros.contra, 'De dónde nos tiraron', '255,107,112', 'var(--danger)')}
+                </div>`;
 
             cont.innerHTML = marcador + cancha + area;
             cont.style.display = 'block';
