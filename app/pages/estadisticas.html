@@ -156,16 +156,7 @@
         <div id="resumen" class="kpi-row"></div>
 
         <div id="metricas" class="metricas" style="display:none;"></div>
-
-        <div class="seccion-titulo">
-            <h3>Distribución por categoría</h3>
-            <span class="hint" id="hint-orden"></span>
-        </div>
-        <div id="distribucion"></div>
     </div>
-
-    <!-- Módulo compartido: color estable por categoría (mismo que el timeline) -->
-    <script src="../assets/js/components/timeline.js"></script>
 
     <script type="module">
         const uid = sessionStorage.getItem('usuarioUID');
@@ -296,12 +287,14 @@
         function calcularComparativa(est, mapeo) {
             const M = () => ({ favor: 0, contra: 0 });
             const T = () => ({ total: 0, izq: 0, cen: 0, der: 0, sin: 0, gol: 0, atajado: 0, desviado: 0 });
+            const Z = () => ({ total: 0, izq: 0, cen: 0, der: 0, sin: 0 });
             const mx = {
                 goles: M(), cortos: M(), libres25: M(), libres50: M(),
                 recuperaciones: M(), perdidas: M(),
                 zonasRecu: { C1: 0, C2: 0, C3: 0, C4: 0, sin: 0 },
                 zonasPerd: { C1: 0, C2: 0, C3: 0, C4: 0, sin: 0 },
                 tiros: { favor: T(), contra: T() },
+                cortosZona: { favor: Z(), contra: Z() },
                 accFavor: 0, accContra: 0
             };
 
@@ -314,7 +307,15 @@
                 mx.goles[lado] += lista.filter(c => esGol(c, mapeo)).length;
 
                 const rol = rolDe(nombre, mapeo);
-                if (rol === 'corto') mx.cortos[lado] += n;
+                if (rol === 'corto') {
+                    mx.cortos[lado] += n;
+                    const z = mx.cortosZona[lado === 'contra' ? 'contra' : 'favor'];
+                    lista.forEach(c => {
+                        z.total++;
+                        const a = areaZonaDe(c, mapeo);
+                        if (a === 'aizq') z.izq++; else if (a === 'acen') z.cen++; else if (a === 'ader') z.der++; else z.sin++;
+                    });
+                }
                 else if (rol === 'libre25') mx.libres25[lado] += n;
                 else if (rol === 'libre50') mx.libres50[lado] += n;
                 else if (rol === 'recuperacion') {
@@ -342,49 +343,6 @@
 
         function tileKPI(valor, label) {
             return `<div class="kpi"><div class="kpi-valor">${valor}</div><span class="kpi-label">${label}</span></div>`;
-        }
-
-        function bloqueCategoria(cat, total) {
-            const color = TL.timeline.colorCategoria(cat.nombre);
-            const pct = total > 0 ? Math.round((cat.n / total) * 100) : 0;
-            const filas = Object.entries(cat.descCount).sort((a, b) => b[1] - a[1]);
-            if (cat.sinDesc > 0) filas.push(['__sin__', cat.sinDesc]);
-
-            let cuerpo;
-            if (filas.length === 0) {
-                cuerpo = '<div class="desc-row"><span class="desc-label sin">Sin descriptores</span></div>';
-            } else {
-                cuerpo = filas.map(([desc, cant]) => {
-                    const esSin = desc === '__sin__';
-                    const pDesc = cat.n > 0 ? Math.round((cant / cat.n) * 100) : 0;
-                    const etiqueta = esSin
-                        ? '<span class="desc-label sin">Sin descriptor</span>'
-                        : `<span class="desc-label" title="${desc}">${desc}</span>`;
-                    const colorBarra = esSin ? 'var(--faint)' : color;
-                    return `
-                        <div class="desc-row">
-                            ${etiqueta}
-                            <div class="barra"><div class="barra-fill" style="width:${pDesc}%;background:${colorBarra};opacity:0.85"></div></div>
-                            <span class="desc-valor">${cant}<span class="pct">${pDesc}%</span></span>
-                        </div>`;
-                }).join('');
-            }
-
-            return `
-                <details class="cat-block">
-                    <summary>
-                        <div class="cat-head">
-                            <span class="cat-dot" style="background:${color}"></span>
-                            <span class="cat-name">${cat.nombre}</span>
-                            <span class="cat-metrics"><b>${cat.n}</b> · ${pct}%<span class="cat-chevron">▶</span></span>
-                        </div>
-                        <div class="barra"><div class="barra-fill" style="width:${pct}%;background:${color}"></div></div>
-                    </summary>
-                    <div class="desc-list">
-                        <div class="desc-list-titulo">Descriptores</div>
-                        ${cuerpo}
-                    </div>
-                </details>`;
         }
 
         // Fila comparativa: valor a favor | barra doble | valor en contra
@@ -450,6 +408,27 @@
                 </div>`;
         }
 
+        // Bloque de córners cortos por zona (dónde se consiguen). Misma "D" que
+        // el área; se usa para los córners a favor y en contra.
+        function areaCorner(z, subtitulo, rgb, totColor) {
+            const total = z.total || 0;
+            const max = Math.max(z.izq, z.cen, z.der, 1);
+            const zona = (v, lbl) => {
+                const a = v === 0 ? 0 : (0.14 + 0.6 * (v / max)).toFixed(2);
+                const bg = v === 0 ? 'transparent' : `rgba(${rgb},${a})`;
+                return `<div class="azona" style="background:${bg}"><span class="az-val">${v}</span><span class="az-lbl">${lbl}</span></div>`;
+            };
+            const cap = total === 0
+                ? 'Sin datos · mapeá una categoría a “Córner corto” en la config'
+                : `${total} córners` + (z.sin ? ` · ${z.sin} sin zona` : '');
+            return `
+                <div class="card-mapa area-card">
+                    <div class="mapa-head"><span class="mapa-label">${subtitulo}</span><span class="mapa-tot" style="color:${totColor}">${total}</span></div>
+                    <div class="area-arco">${zona(z.izq, 'IZQ')}${zona(z.cen, 'CEN')}${zona(z.der, 'DER')}</div>
+                    <div class="mapa-cap">${cap}</div>
+                </div>`;
+        }
+
         function renderMetricas(mx, eq1, eq2) {
             const cont = document.getElementById('metricas');
 
@@ -497,7 +476,14 @@
                     ${areaTiros(mx.tiros.contra, 'De dónde nos tiraron', '255,107,112', 'var(--danger)')}
                 </div>`;
 
-            cont.innerHTML = marcador + cancha + area;
+            const corners = `
+                <h3 class="bloque-titulo">Córners cortos · por zona</h3>
+                <div class="mapas">
+                    ${areaCorner(mx.cortosZona.favor, 'A favor · dónde los conseguimos', '95,211,166', 'var(--live)')}
+                    ${areaCorner(mx.cortosZona.contra, 'En contra · dónde nos los consiguen', '255,107,112', 'var(--danger)')}
+                </div>`;
+
+            cont.innerHTML = marcador + cancha + area + corners;
             cont.style.display = 'block';
         }
 
@@ -525,24 +511,22 @@
 
                 const est = partido.estadisticas;
                 const resumen = document.getElementById('resumen');
-                const distribucion = document.getElementById('distribucion');
+                const metricasEl = document.getElementById('metricas');
 
                 if (!est || Object.keys(est).length === 0) {
                     resumen.innerHTML = '';
-                    document.querySelector('.seccion-titulo').style.display = 'none';
-                    distribucion.innerHTML = '<div class="estado-vacio">Este partido todavía no tiene cortes cargados.</div>';
+                    metricasEl.innerHTML = '<div class="estado-vacio">Este partido todavía no tiene cortes cargados.</div>';
+                    metricasEl.style.display = 'block';
                     return;
                 }
 
-                // Resumen genérico (siempre)
+                // Resumen (KPIs del partido)
                 const { cats, total, descsUnicos, minT, maxT } = analizar(est);
                 resumen.innerHTML =
                     tileKPI(total, 'Cortes totales') +
                     tileKPI(cats.length, 'Categorías') +
                     tileKPI(descsUnicos, 'Descriptores') +
                     tileKPI(fmtTiempo(maxT - minT), 'Ventana analizada');
-                document.getElementById('hint-orden').textContent = 'Ordenado por cantidad';
-                distribucion.innerHTML = cats.map(c => bloqueCategoria(c, total)).join('');
 
                 // Marcador comparativo (usa el mapeo del club si existe, para el lado)
                 let mapeo = null;
