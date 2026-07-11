@@ -227,8 +227,9 @@
 
         // Estado del tablero: se re-pinta al editar la config en vivo.
         let estGlobal = null, mapeoGlobal = null, eqG1 = 'Nuestro equipo', eqG2 = 'Rival', editMode = false;
-        const canchaN = () => (mapeoGlobal && mapeoGlobal.tablero && mapeoGlobal.tablero.canchaZonas) || 4;
-        const areaM = () => (mapeoGlobal && mapeoGlobal.tablero && mapeoGlobal.tablero.areaZonas) || 3;
+        const tb = (k, def) => (mapeoGlobal && mapeoGlobal.tablero && mapeoGlobal.tablero[k]) || def;
+        const cFilas = () => tb('canchaFilas', 4), cCols = () => tb('canchaCols', 3);
+        const aFilas = () => tb('areaFilas', 3), aCols = () => tb('areaCols', 3);
 
         function fmtTiempo(seg) {
             if (!isFinite(seg) || seg < 0) return '—';
@@ -241,19 +242,10 @@
             return (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
         }
 
-        // Zona de cancha del corte (C1..CN): el mapeo de descriptores manda
-        // (descriptor → 'c1'..'cN'); si no, cae a la detección por nombre.
-        function zonaCancha(c, mapeo, N) {
+        // Celda de cancha del corte (c<fila>_<col>): sale del mapeo de descriptores.
+        function celdaCancha(c, mapeo) {
             const map = (mapeo && mapeo.descriptores) || {};
-            for (const d of (c.d || [])) {
-                const s = map[d];
-                if (typeof s === 'string' && /^c[1-9]$/.test(s) && +s.slice(1) <= N) return s.toUpperCase();
-            }
-            for (const raw of (c.d || [])) {
-                const t = norm(raw).replace(/\s+/g, '');
-                const m = t.match(/^(?:c|campo|cancha|zona)?([1-9])$/);
-                if (m && +m[1] <= N) return 'C' + m[1];
-            }
+            for (const d of (c.d || [])) { const s = map[d]; if (typeof s === 'string' && /^c\d+_\d+$/.test(s)) return s; }
             return null;
         }
 
@@ -315,13 +307,10 @@
             return '';
         }
 
-        // Zona del área del corte (A1..AM): descriptor → 'a1'..'aM'.
-        function zonaArea(c, mapeo, M) {
+        // Celda del área del corte (a<fila>_<col>): sale del mapeo de descriptores.
+        function celdaArea(c, mapeo) {
             const map = (mapeo && mapeo.descriptores) || {};
-            for (const d of (c.d || [])) {
-                const s = map[d];
-                if (typeof s === 'string' && /^a[1-9]$/.test(s) && +s.slice(1) <= M) return s.toUpperCase();
-            }
+            for (const d of (c.d || [])) { const s = map[d]; if (typeof s === 'string' && /^a\d+_\d+$/.test(s)) return s; }
             return null;
         }
 
@@ -335,19 +324,19 @@
             return null;
         }
 
-        function zonasCancha(N) { const o = { sin: 0 }; for (let i = 1; i <= N; i++) o['C' + i] = 0; return o; }
-        function zonasArea(M) { const o = { sin: 0 }; for (let i = 1; i <= M; i++) o['A' + i] = 0; return o; }
+        function celdasCancha(R, C) { const o = { sin: 0 }; for (let f = 1; f <= R; f++) for (let l = 1; l <= C; l++) o[`c${f}_${l}`] = 0; return o; }
+        function celdasArea(R, C) { const o = { sin: 0 }; for (let f = 1; f <= R; f++) for (let l = 1; l <= C; l++) o[`a${f}_${l}`] = 0; return o; }
 
-        // Marcador comparativo + zonas (cancha N, área M), dirigido por la config
-        // del club. Sin config, cae a detección por nombre para que igual funcione.
-        function calcularComparativa(est, mapeo, N, M) {
+        // Marcador comparativo + zonas 2D (cancha CR×CC, área AR×AC), dirigido por
+        // la config del club (descriptor → celda). Los conteos caen por nombre.
+        function calcularComparativa(est, mapeo, CR, CC, AR, AC) {
             const MM = () => ({ favor: 0, contra: 0 });
-            const T = () => ({ total: 0, gol: 0, atajado: 0, desviado: 0, zonas: zonasArea(M) });
-            const Z = () => ({ total: 0, zonas: zonasArea(M) });
+            const T = () => ({ total: 0, gol: 0, atajado: 0, desviado: 0, zonas: celdasArea(AR, AC) });
+            const Z = () => ({ total: 0, zonas: celdasArea(AR, AC) });
             const mx = {
                 goles: MM(), cortos: MM(), libres25: MM(), libres50: MM(),
                 recuperaciones: MM(), perdidas: MM(),
-                zonasRecu: zonasCancha(N), zonasPerd: zonasCancha(N),
+                zonasRecu: celdasCancha(CR, CC), zonasPerd: celdasCancha(CR, CC),
                 tiros: { favor: T(), contra: T() },
                 cortosZona: { favor: Z(), contra: Z() },
                 accFavor: 0, accContra: 0
@@ -365,21 +354,21 @@
                 if (rol === 'corto') {
                     mx.cortos[lado] += n;
                     const z = mx.cortosZona[lado === 'contra' ? 'contra' : 'favor'];
-                    lista.forEach(c => { z.total++; const a = zonaArea(c, mapeo, M); if (a) z.zonas[a]++; else z.zonas.sin++; });
+                    lista.forEach(c => { z.total++; const a = celdaArea(c, mapeo); if (a && a in z.zonas) z.zonas[a]++; else z.zonas.sin++; });
                 }
                 else if (rol === 'libre25') mx.libres25[lado] += n;
                 else if (rol === 'libre50') mx.libres50[lado] += n;
                 else if (rol === 'recuperacion') {
                     mx.recuperaciones[lado] += n;
-                    if (lado === 'favor') lista.forEach(c => { const z = zonaCancha(c, mapeo, N); if (z) mx.zonasRecu[z]++; else mx.zonasRecu.sin++; });
+                    if (lado === 'favor') lista.forEach(c => { const z = celdaCancha(c, mapeo); if (z && z in mx.zonasRecu) mx.zonasRecu[z]++; else mx.zonasRecu.sin++; });
                 } else if (rol === 'perdida') {
                     mx.perdidas[lado] += n;
-                    if (lado === 'favor') lista.forEach(c => { const z = zonaCancha(c, mapeo, N); if (z) mx.zonasPerd[z]++; else mx.zonasPerd.sin++; });
+                    if (lado === 'favor') lista.forEach(c => { const z = celdaCancha(c, mapeo); if (z && z in mx.zonasPerd) mx.zonasPerd[z]++; else mx.zonasPerd.sin++; });
                 } else if (rol === 'tiro') {
                     const t = mx.tiros[lado === 'contra' ? 'contra' : 'favor'];
                     lista.forEach(c => {
                         t.total++;
-                        const a = zonaArea(c, mapeo, M); if (a) t.zonas[a]++; else t.zonas.sin++;
+                        const a = celdaArea(c, mapeo); if (a && a in t.zonas) t.zonas[a]++; else t.zonas.sin++;
                         const r = resultadoDe(c, mapeo);
                         if (r === 'gol') t.gol++; else if (r === 'atajado') t.atajado++; else if (r === 'desviado') t.desviado++;
                     });
@@ -410,49 +399,53 @@
                 </div>`;
         }
 
-        function pitchZonas(zonas, rgb, N) {
-            const vals = []; for (let i = 1; i <= N; i++) vals.push(zonas['C' + i]);
+        const lblCol = (l, C) => (C === 3 ? ['I', 'C', 'D'][l - 1] : l);
+
+        // Grilla de cancha CR×CC (fila CR = ataque arriba → fila 1 = fondo abajo).
+        function gridCancha(zonas, rgb, R, C) {
+            const vals = Object.keys(zonas).filter(k => k !== 'sin').map(k => zonas[k]);
             const max = Math.max(...vals, 1);
             let out = '';
-            for (let i = N; i >= 1; i--) {   // CN (ataque) arriba → C1 (fondo) abajo
-                const v = zonas['C' + i];
+            for (let f = R; f >= 1; f--) for (let l = 1; l <= C; l++) {
+                const v = zonas[`c${f}_${l}`] || 0;
                 const a = v === 0 ? 0 : (0.14 + 0.6 * (v / max)).toFixed(2);
                 const bg = v === 0 ? 'transparent' : `rgba(${rgb},${a})`;
-                out += `<div class="pzona ${v === 0 ? 'zero' : ''}" data-zona="c${i}" style="background:${bg}"><span class="pz-lbl">C${i}</span><span class="pz-val">${v}</span></div>`;
+                out += `<div class="pzona ${v === 0 ? 'zero' : ''}" data-zona="c${f}_${l}" style="background:${bg}"><span class="pz-lbl">${f}${lblCol(l, C)}</span><span class="pz-val">${v}</span></div>`;
             }
             return out;
         }
 
-        function areaZonasHTML(zonas, rgb, M) {
-            const vals = []; for (let i = 1; i <= M; i++) vals.push(zonas['A' + i]);
+        // Grilla del área AR×AC (fila 1 arriba, cerca del arco).
+        function gridArea(zonas, rgb, R, C) {
+            const vals = Object.keys(zonas).filter(k => k !== 'sin').map(k => zonas[k]);
             const max = Math.max(...vals, 1);
             let out = '';
-            for (let i = 1; i <= M; i++) {
-                const v = zonas['A' + i];
+            for (let f = 1; f <= R; f++) for (let l = 1; l <= C; l++) {
+                const v = zonas[`a${f}_${l}`] || 0;
                 const a = v === 0 ? 0 : (0.14 + 0.6 * (v / max)).toFixed(2);
                 const bg = v === 0 ? 'transparent' : `rgba(${rgb},${a})`;
-                out += `<div class="azona" data-zona="a${i}" style="background:${bg}"><span class="az-val">${v}</span><span class="az-lbl">A${i}</span></div>`;
+                out += `<div class="azona" data-zona="a${f}_${l}" style="background:${bg}"><span class="az-val">${v}</span><span class="az-lbl">${f}${lblCol(l, C)}</span></div>`;
             }
             return out;
         }
 
-        function mapaCancha(titulo, total, zonas, rgb, claseTot, N) {
-            let conZona = 0; for (let i = 1; i <= N; i++) conZona += zonas['C' + i];
+        function mapaCancha(titulo, total, zonas, rgb, claseTot, R, C) {
+            let conZona = 0; for (const k in zonas) if (k !== 'sin') conZona += zonas[k];
             let cap;
             if (total === 0) cap = 'Sin datos · mapeá tu categoría en “Estadísticas del club”';
-            else if (conZona === 0) cap = editMode ? 'Tocá una zona y poné cómo la llamás' : 'Sin datos de zona · entrá a Configurar';
-            else cap = 'C1 fondo → C' + N + ' ataque' + (zonas.sin ? ` · ${zonas.sin} sin zona` : '');
+            else if (conZona === 0) cap = editMode ? 'Tocá una celda y poné cómo la llamás' : 'Sin zonas · entrá a “⚙ Configurar”';
+            else cap = 'Abajo tu fondo → arriba ataque' + (zonas.sin ? ` · ${zonas.sin} s/z` : '');
             return `
                 <div class="card-mapa">
                     <div class="mapa-head"><span class="mapa-label">${titulo}</span><span class="mapa-tot ${claseTot}">${total}</span></div>
-                    <div class="pitch" style="grid-template-rows:repeat(${N},1fr)">${pitchZonas(zonas, rgb, N)}</div>
+                    <div class="pitch" style="grid-template-columns:repeat(${C},1fr);grid-template-rows:repeat(${R},1fr)">${gridCancha(zonas, rgb, R, C)}</div>
                     <div class="mapa-cap">${cap}</div>
                 </div>`;
         }
 
         // Bloque "Área": semicírculo (la D) con 3 zonas de dónde tiraron +
         // resumen de resultado. Se usa dos veces: tiros nuestros y del rival.
-        function areaTiros(t, subtitulo, rgb, totColor, M) {
+        function areaTiros(t, subtitulo, rgb, totColor, R, C) {
             const total = t.total || 0;
             const cap = total === 0
                 ? 'Sin datos · mapeá una categoría a “Tiro al arco”'
@@ -460,13 +453,13 @@
             return `
                 <div class="card-mapa area-card">
                     <div class="mapa-head"><span class="mapa-label">${subtitulo}</span><span class="mapa-tot" style="color:${totColor}">${total}</span></div>
-                    <div class="area-arco" style="grid-template-columns:repeat(${M},1fr)">${areaZonasHTML(t.zonas, rgb, M)}</div>
+                    <div class="area-arco" style="grid-template-columns:repeat(${C},1fr);grid-template-rows:repeat(${R},1fr)">${gridArea(t.zonas, rgb, R, C)}</div>
                     <div class="mapa-cap">${cap}</div>
                 </div>`;
         }
 
         // Córners cortos por zona (dónde se consiguen). Misma "D" que el área.
-        function areaCorner(z, subtitulo, rgb, totColor, M) {
+        function areaCorner(z, subtitulo, rgb, totColor, R, C) {
             const total = z.total || 0;
             const cap = total === 0
                 ? 'Sin datos · mapeá una categoría a “Córner corto”'
@@ -474,12 +467,12 @@
             return `
                 <div class="card-mapa area-card">
                     <div class="mapa-head"><span class="mapa-label">${subtitulo}</span><span class="mapa-tot" style="color:${totColor}">${total}</span></div>
-                    <div class="area-arco" style="grid-template-columns:repeat(${M},1fr)">${areaZonasHTML(z.zonas, rgb, M)}</div>
+                    <div class="area-arco" style="grid-template-columns:repeat(${C},1fr);grid-template-rows:repeat(${R},1fr)">${gridArea(z.zonas, rgb, R, C)}</div>
                     <div class="mapa-cap">${cap}</div>
                 </div>`;
         }
 
-        function renderMetricas(mx, N, M) {
+        function renderMetricas(mx, CR, CC, AR, AC) {
             const cont = document.getElementById('metricas');
 
             const tile = (lbl, fav, con) => `
@@ -493,9 +486,9 @@
                 <div class="tablero-controls">
                     <button class="btn-edit" onclick="window.__toggleEdit()">${editMode ? '✓ Listo' : '⚙ Configurar'}</button>
                     ${editMode ? `
-                        <label>Cancha ${sel('canchaZonas', [4, 6, 8], N)}</label>
-                        <label>Área ${sel('areaZonas', [3, 5], M)}</label>
-                        <span class="edit-hint">Tocá una zona y poné cómo la llamás en tu plantilla</span>
+                        <label>Cancha ${sel('canchaFilas', [2, 3, 4, 6], CR)}×${sel('canchaCols', [1, 3], CC)}</label>
+                        <label>Área ${sel('areaFilas', [2, 3], AR)}×${sel('areaCols', [3], AC)}</label>
+                        <span class="edit-hint">Tocá una celda y poné cómo la llamás en tu plantilla</span>
                     ` : ''}
                 </div>` : '';
 
@@ -512,12 +505,12 @@
             // Grilla 3×2: fila de arriba = a favor, fila de abajo = en contra.
             const tablero = `
                 <div class="tablero ${editMode ? 'editando' : ''}">
-                    ${mapaCancha('Recuperaciones · zona', mx.recuperaciones.favor, mx.zonasRecu, '69,214,160', 'recu', N)}
-                    ${areaTiros(mx.tiros.favor, 'De dónde tiramos', '86,194,230', '#56C2E6', M)}
-                    ${areaCorner(mx.cortosZona.favor, 'Córners a favor', '95,211,166', 'var(--live)', M)}
-                    ${mapaCancha('Pérdidas · zona', mx.perdidas.favor, mx.zonasPerd, '255,92,99', 'perd', N)}
-                    ${areaTiros(mx.tiros.contra, 'De dónde nos tiraron', '255,107,112', 'var(--danger)', M)}
-                    ${areaCorner(mx.cortosZona.contra, 'Córners en contra', '255,107,112', 'var(--danger)', M)}
+                    ${mapaCancha('Recuperaciones · zona', mx.recuperaciones.favor, mx.zonasRecu, '69,214,160', 'recu', CR, CC)}
+                    ${areaTiros(mx.tiros.favor, 'De dónde tiramos', '86,194,230', '#56C2E6', AR, AC)}
+                    ${areaCorner(mx.cortosZona.favor, 'Córners a favor', '95,211,166', 'var(--live)', AR, AC)}
+                    ${mapaCancha('Pérdidas · zona', mx.perdidas.favor, mx.zonasPerd, '255,92,99', 'perd', CR, CC)}
+                    ${areaTiros(mx.tiros.contra, 'De dónde nos tiraron', '255,107,112', 'var(--danger)', AR, AC)}
+                    ${areaCorner(mx.cortosZona.contra, 'Córners en contra', '255,107,112', 'var(--danger)', AR, AC)}
                 </div>`;
 
             cont.innerHTML = controls + strip + tablero;
@@ -525,12 +518,12 @@
             if (editMode) wireEdit();
         }
 
-        // Re-dibuja todo el tablero con la config actual (N/M y descriptores).
+        // Re-dibuja todo el tablero con la config actual (grillas + descriptores).
         function pintar() {
-            const N = canchaN(), M = areaM();
-            const mx = calcularComparativa(estGlobal, mapeoGlobal, N, M);
+            const CR = cFilas(), CC = cCols(), AR = aFilas(), AC = aCols();
+            const mx = calcularComparativa(estGlobal, mapeoGlobal, CR, CC, AR, AC);
             document.getElementById('marcador-score').textContent = `${mx.goles.favor} – ${mx.goles.contra}`;
-            renderMetricas(mx, N, M);
+            renderMetricas(mx, CR, CC, AR, AC);
         }
 
         // En modo config, cada zona es clickeable para setear su descriptor.
@@ -541,15 +534,17 @@
             });
         }
 
-        async function editarZona(zonaVal) {
+        async function editarZona(cellId) {
             mapeoGlobal = mapeoGlobal || {};
             mapeoGlobal.descriptores = mapeoGlobal.descriptores || {};
             const desc = mapeoGlobal.descriptores;
-            const actuales = Object.keys(desc).filter(d => desc[d] === zonaVal);
-            const entrada = prompt(`¿Qué descriptor(es) de tu plantilla van en ${zonaVal.toUpperCase()}? (separá con comas)`, actuales.join(', '));
+            const actuales = Object.keys(desc).filter(d => desc[d] === cellId);
+            const m = cellId.match(/^([ca])(\d+)_(\d+)$/);
+            const nombre = m ? `${m[1] === 'c' ? 'cancha' : 'área'} · fila ${m[2]}, columna ${m[3]}` : cellId;
+            const entrada = prompt(`¿Qué descriptor(es) de tu plantilla van en ${nombre}? (separá con comas)`, actuales.join(', '));
             if (entrada === null) return;
             actuales.forEach(d => delete desc[d]);
-            entrada.split(',').map(s => s.trim()).filter(Boolean).forEach(d => { desc[d] = zonaVal; });
+            entrada.split(',').map(s => s.trim()).filter(Boolean).forEach(d => { desc[d] = cellId; });
             await guardar();
             pintar();
         }
