@@ -242,10 +242,24 @@
             return (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
         }
 
-        // Celda de cancha del corte (c<fila>_<col>): sale del mapeo de descriptores.
-        function celdaCancha(c, mapeo) {
+        // Celda de cancha del corte. Acepta celda exacta (c<f>_<l>) o el combo
+        // fila (cr<f>, ej. "CAMPO 2") + columna (cc<l>, ej. "IZQ") en dos
+        // descriptores distintos del mismo corte.
+        function celdaCancha(c, mapeo, C) {
             const map = (mapeo && mapeo.descriptores) || {};
-            for (const d of (c.d || [])) { const s = map[d]; if (typeof s === 'string' && /^c\d+_\d+$/.test(s)) return s; }
+            let fila = null, col = null;
+            for (const d of (c.d || [])) {
+                const s = map[d];
+                if (typeof s !== 'string') continue;
+                let m;
+                if (/^c\d+_\d+$/.test(s)) return s;
+                if ((m = s.match(/^cr(\d+)$/))) fila = +m[1];
+                else if ((m = s.match(/^cc(\d+)$/))) col = +m[1];
+            }
+            if (fila !== null) {
+                if (col !== null) return `c${fila}_${col}`;
+                if (C === 1) return `c${fila}_1`;
+            }
             return null;
         }
 
@@ -307,10 +321,23 @@
             return '';
         }
 
-        // Celda del área del corte (a<fila>_<col>): sale del mapeo de descriptores.
-        function celdaArea(c, mapeo) {
+        // Celda del área del corte. Acepta celda exacta (a<f>_<l>) o el combo
+        // fila (ar<f>, ej. "PUERTA 2") + columna (ac<l>, ej. "IZQ").
+        function celdaArea(c, mapeo, C) {
             const map = (mapeo && mapeo.descriptores) || {};
-            for (const d of (c.d || [])) { const s = map[d]; if (typeof s === 'string' && /^a\d+_\d+$/.test(s)) return s; }
+            let fila = null, col = null;
+            for (const d of (c.d || [])) {
+                const s = map[d];
+                if (typeof s !== 'string') continue;
+                let m;
+                if (/^a\d+_\d+$/.test(s)) return s;
+                if ((m = s.match(/^ar(\d+)$/))) fila = +m[1];
+                else if ((m = s.match(/^ac(\d+)$/))) col = +m[1];
+            }
+            if (fila !== null) {
+                if (col !== null) return `a${fila}_${col}`;
+                if (C === 1) return `a${fila}_1`;
+            }
             return null;
         }
 
@@ -354,21 +381,21 @@
                 if (rol === 'corto') {
                     mx.cortos[lado] += n;
                     const z = mx.cortosZona[lado === 'contra' ? 'contra' : 'favor'];
-                    lista.forEach(c => { z.total++; const a = celdaArea(c, mapeo); if (a && a in z.zonas) z.zonas[a]++; else z.zonas.sin++; });
+                    lista.forEach(c => { z.total++; const a = celdaArea(c, mapeo, AC); if (a && a in z.zonas) z.zonas[a]++; else z.zonas.sin++; });
                 }
                 else if (rol === 'libre25') mx.libres25[lado] += n;
                 else if (rol === 'libre50') mx.libres50[lado] += n;
                 else if (rol === 'recuperacion') {
                     mx.recuperaciones[lado] += n;
-                    if (lado === 'favor') lista.forEach(c => { const z = celdaCancha(c, mapeo); if (z && z in mx.zonasRecu) mx.zonasRecu[z]++; else mx.zonasRecu.sin++; });
+                    if (lado === 'favor') lista.forEach(c => { const z = celdaCancha(c, mapeo, CC); if (z && z in mx.zonasRecu) mx.zonasRecu[z]++; else mx.zonasRecu.sin++; });
                 } else if (rol === 'perdida') {
                     mx.perdidas[lado] += n;
-                    if (lado === 'favor') lista.forEach(c => { const z = celdaCancha(c, mapeo); if (z && z in mx.zonasPerd) mx.zonasPerd[z]++; else mx.zonasPerd.sin++; });
+                    if (lado === 'favor') lista.forEach(c => { const z = celdaCancha(c, mapeo, CC); if (z && z in mx.zonasPerd) mx.zonasPerd[z]++; else mx.zonasPerd.sin++; });
                 } else if (rol === 'tiro') {
                     const t = mx.tiros[lado === 'contra' ? 'contra' : 'favor'];
                     lista.forEach(c => {
                         t.total++;
-                        const a = celdaArea(c, mapeo); if (a && a in t.zonas) t.zonas[a]++; else t.zonas.sin++;
+                        const a = celdaArea(c, mapeo, AC); if (a && a in t.zonas) t.zonas[a]++; else t.zonas.sin++;
                         const r = resultadoDe(c, mapeo);
                         if (r === 'gol') t.gol++; else if (r === 'atajado') t.atajado++; else if (r === 'desviado') t.desviado++;
                     });

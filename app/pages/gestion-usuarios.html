@@ -310,6 +310,24 @@
                 </div>
             </div>
 
+            <!-- Importar plantilla de Nacsport -->
+            <div class="card">
+                <h2>Importar plantilla de Nacsport</h2>
+                <p style="color: var(--muted); margin-bottom: 15px; font-size: 0.9rem;">
+                    Subí tu plantilla de botones (<strong>.maccat</strong>) y la traducimos sola: detectamos tus categorías
+                    y descriptores, te proponemos el mapeo y vos lo revisás antes de aplicar. Después podés retocar lo que
+                    quieras acá abajo o tocando el tablero de Estadísticas.
+                </p>
+                <label class="upload-box" for="input-maccat">
+                    <span class="upload-title">Plantilla de Nacsport (.maccat)</span>
+                    <span class="upload-sub" id="maccat-filename">Hacé clic para elegir el archivo</span>
+                    <input type="file" id="input-maccat" accept=".maccat" style="display: none;">
+                </label>
+                <div class="mensaje" id="mensaje-import"></div>
+                <div id="import-review" style="margin-top: 16px;"></div>
+                <button class="btn-primary" id="btn-aplicar-import" style="width: auto; margin-top: 16px; display: none;">Aplicar importación</button>
+            </div>
+
             <!-- Mapeo de estadísticas -->
             <div class="card">
                 <h2>Estadísticas del club</h2>
@@ -379,8 +397,9 @@
         let equiposActuales = [];
         let mapeoActual = {};             // { categoria: { lado, rol } }
         let categoriasDetectadas = [];    // nombres de categoría presentes en los partidos del club
-        let descriptoresActuales = {};    // { descriptor: significado }
+        let descriptoresActuales = {};    // { descriptor: significado/celda }
         let descriptoresDetectados = [];  // descriptores presentes en los cortes del club
+        let mapeoTablero = {};            // config de grillas (filas × columnas), se preserva al guardar
 
         // Validar acceso
         async function checkAccess() {
@@ -411,6 +430,185 @@
             setupAddTeam();
             loadMapeo();
             setupMapeo();
+            setupImport();
+        }
+
+        // ---- Importar plantilla de Nacsport (.maccat) ----
+        // El .maccat es un SQLite: se lee 100% en el navegador con sql.js (WASM).
+        let importPropuesta = null;   // { categorias: [nombres], descriptores: [nombres] }
+        let sqlJsPromise = null;
+
+        function ensureSqlJs() {
+            if (!sqlJsPromise) {
+                sqlJsPromise = new Promise((resolve, reject) => {
+                    const s = document.createElement('script');
+                    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js';
+                    s.onload = resolve;
+                    s.onerror = () => reject(new Error('No se pudo descargar el lector de plantillas. Revisá tu conexión.'));
+                    document.body.appendChild(s);
+                }).then(() => window.initSqlJs({ locateFile: f => 'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/' + f }));
+            }
+            return sqlJsPromise;
+        }
+
+        const normImp = s => (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+
+        // Propone lado + métrica para una categoría según su nombre.
+        function sugerirCategoria(nombre) {
+            const s = normImp(nombre);
+            let rol = '';
+            if (s.includes('recuper')) rol = 'recuperacion';
+            else if (s.includes('perd')) rol = 'perdida';
+            else if (s.includes('corto') || /\bcc\b/.test(s)) rol = 'corto';
+            else if (s.includes('libre') && s.includes('25')) rol = 'libre25';
+            else if (s.includes('libre') && s.includes('50')) rol = 'libre50';
+            else if (s.includes('tiro') || s.includes('remate') || s.includes('shot')) rol = 'tiro';
+            const lado = /(contra|rival|recib)/.test(s) ? 'rival' : 'auto';
+            return { lado, rol };
+        }
+
+        // Propone significado/celda para un descriptor según su nombre.
+        function sugerirDescriptor(nombre) {
+            const s = normImp(nombre);
+            let m;
+            if (/^gol\b/.test(s)) return 'gol';   // GOL, GOL JUGADA, GOL CORTO, GOL PENAL…
+            if (s === 'atajado' || s === 'atajada') return 'atajado';
+            if (s === 'afuera' || s === 'desviado' || s === 'desviada') return 'desviado';
+            // ZONA 1..9 → área 3×3 en orden de lectura (fila por fila)
+            if ((m = s.match(/^zona\s*([1-9])$/))) { const n = +m[1]; return `a${Math.ceil(n / 3)}_${((n - 1) % 3) + 1}`; }
+            // CAMPO n → fila de la cancha (se combina con izq/cen/der del corte)
+            if ((m = s.match(/^(?:campo|cancha)\s*([1-6])$/))) return `cr${m[1]}`;
+            if (s === 'izq' || s === 'izquierda') return 'cc1';
+            if (s === 'cen' || s === 'centro') return 'cc2';
+            if (s === 'der' || s === 'derecha') return 'cc3';
+            return '';
+        }
+
+        // Extrae categorías y descriptores del .maccat. La tabla "cat" tiene
+        // todos los botones; la columna "manual" distingue: 3 = descriptor,
+        // 1/0 = categoría (verificado contra plantillas reales de Nacsport).
+        function leerMaccat(SQL, buffer) {
+            const db = new SQL.Database(new Uint8Array(buffer));
+            let filas, tieneManual = true;
+            try {
+                const r = db.exec('SELECT texto, manual FROM cat');
+                filas = (r[0] && r[0].values) || [];
+            } catch (e) {
+                tieneManual = false;
+                try {
+                    const r = db.exec('SELECT texto FROM cat');
+                    filas = ((r[0] && r[0].values) || []).map(v => [v[0], null]);
+                } catch (e2) {
+                    db.close();
+                    throw new Error('El archivo no parece una plantilla de Nacsport (.maccat).');
+                }
+            }
+            db.close();
+
+            const categorias = [], descriptores = [], visto = new Set();
+            for (const [texto, manual] of filas) {
+                const t = (texto || '').trim();
+                if (!t || normImp(t) === 'inicio') continue;
+                const clave = t.toLowerCase();
+                if (visto.has(clave)) continue;
+                visto.add(clave);
+                const esDescriptor = tieneManual ? manual === 3 : !!sugerirDescriptor(t);
+                (esDescriptor ? descriptores : categorias).push(t);
+            }
+            if (!categorias.length && !descriptores.length) throw new Error('La plantilla no tiene botones con nombre.');
+            return { categorias, descriptores };
+        }
+
+        function renderImportReview() {
+            const cont = document.getElementById('import-review');
+            const btn = document.getElementById('btn-aplicar-import');
+            if (!importPropuesta) { cont.innerHTML = ''; btn.style.display = 'none'; return; }
+
+            const filasCat = importPropuesta.categorias.map((cat, i) => {
+                const sug = mapeoActual[cat] || sugerirCategoria(cat);
+                const opts = ROLES_CAT.map(([v, l]) => `<option value="${v}" ${v === (sug.rol || '') ? 'selected' : ''}>${l}</option>`).join('');
+                const lado = sug.lado || 'auto';
+                return `
+                    <div class="mapeo-row">
+                        <span class="mapeo-cat" title="${cat}">${cat}</span>
+                        <select data-imp-lado="${i}">
+                            <option value="auto" ${lado === 'auto' ? 'selected' : ''}>Auto (por nombre)</option>
+                            <option value="nuestro" ${lado === 'nuestro' ? 'selected' : ''}>Nuestro</option>
+                            <option value="rival" ${lado === 'rival' ? 'selected' : ''}>Rival</option>
+                        </select>
+                        <select data-imp-rol="${i}">${opts}</select>
+                    </div>`;
+            }).join('');
+
+            const filasDesc = importPropuesta.descriptores.map((desc, i) =>
+                `<div class="mapeo-row mapeo-row-desc">
+                    <span class="mapeo-cat" title="${desc}">${desc}</span>
+                    ${selectDescriptor(descriptoresActuales[desc] || sugerirDescriptor(desc), `data-imp-desc="${i}"`)}
+                </div>`).join('');
+
+            cont.innerHTML =
+                `<h3 class="mapeo-sub">Detectamos ${importPropuesta.categorias.length} categorías y ${importPropuesta.descriptores.length} descriptores. Revisá la propuesta y aplicá.</h3>` +
+                (filasCat ? '<div class="mapeo-head"><span>Categoría</span><span>Lado</span><span>Métrica</span></div>' + filasCat : '') +
+                (filasDesc ? '<h3 class="mapeo-sub" style="margin-top:22px;">Descriptores</h3><div class="mapeo-head mapeo-head-desc"><span>Descriptor</span><span>Significado</span></div>' + filasDesc : '');
+            btn.style.display = 'inline-block';
+        }
+
+        function setupImport() {
+            document.getElementById('input-maccat').addEventListener('change', async (e) => {
+                const file = e.target.files[0];
+                const msg = document.getElementById('mensaje-import');
+                if (!file) return;
+                document.getElementById('maccat-filename').textContent = file.name;
+                msg.style.display = 'none';
+                document.getElementById('import-review').innerHTML = '<p style="color: var(--muted);">Leyendo plantilla…</p>';
+                try {
+                    const SQL = await ensureSqlJs();
+                    const buf = await file.arrayBuffer();
+                    importPropuesta = leerMaccat(SQL, buf);
+                    renderImportReview();
+                } catch (err) {
+                    console.error('Error importando .maccat:', err);
+                    importPropuesta = null;
+                    renderImportReview();
+                    showMessage(msg, err.message || 'No se pudo leer el archivo.', 'error');
+                }
+            });
+
+            document.getElementById('btn-aplicar-import').addEventListener('click', async () => {
+                if (!importPropuesta) return;
+                const cont = document.getElementById('import-review');
+                const msg = document.getElementById('mensaje-import');
+                const btn = document.getElementById('btn-aplicar-import');
+
+                const categorias = { ...mapeoActual };
+                importPropuesta.categorias.forEach((cat, i) => {
+                    const lado = cont.querySelector(`[data-imp-lado="${i}"]`).value;
+                    const rol = cont.querySelector(`[data-imp-rol="${i}"]`).value;
+                    categorias[cat] = { lado, rol };
+                });
+                const descriptores = { ...descriptoresActuales };
+                importPropuesta.descriptores.forEach((desc, i) => {
+                    const v = cont.querySelector(`[data-imp-desc="${i}"]`).value;
+                    if (v) descriptores[desc] = v; else delete descriptores[desc];
+                });
+
+                const clubID = sessionStorage.getItem('clubID');
+                btn.disabled = true;
+                try {
+                    await updateDoc(doc(db, 'clubes', clubID), { mapeoEstadisticas: { categorias, descriptores, tablero: mapeoTablero } });
+                    mapeoActual = categorias;
+                    descriptoresActuales = descriptores;
+                    importPropuesta = null;
+                    renderImportReview();
+                    renderMapeo();
+                    showMessage(msg, 'Plantilla importada. El tablero de Estadísticas ya usa esta configuración.', 'exito');
+                } catch (e) {
+                    console.error(e);
+                    showMessage(msg, 'Error al guardar: ' + e.message, 'error');
+                } finally {
+                    btn.disabled = false;
+                }
+            });
         }
 
         // ---- Mapeo de estadísticas (categorías → métricas), guardado en el club ----
@@ -423,6 +621,7 @@
                 const mapa = (clubDoc.exists() && clubDoc.data().mapeoEstadisticas) || {};
                 mapeoActual = mapa.categorias || {};
                 descriptoresActuales = mapa.descriptores || {};
+                mapeoTablero = mapa.tablero || {};
 
                 // Categorías y descriptores presentes en los partidos del club
                 const q = query(collection(db, 'partidos'), where('club_id', '==', clubID));
@@ -448,6 +647,29 @@
             renderMapeo();
         }
 
+        const ROLES_CAT = [['', '—'], ['recuperacion', 'Recuperaciones'], ['perdida', 'Pérdidas'], ['corto', 'Córner corto'], ['libre25', 'Tiro libre 25'], ['libre50', 'Tiro libre 50'], ['tiro', 'Tiro al arco']];
+
+        // Todas las opciones de significado de un descriptor: resultado de tiro,
+        // fila/columna de cancha (combinables) y celdas del área 3×3.
+        function opcionesDescriptor() {
+            const LADOS = ['izquierda', 'centro', 'derecha'];
+            const ops = [['', '—'], ['gol', 'Gol'], ['atajado', 'Atajado'], ['desviado', 'Desviado']];
+            for (let f = 1; f <= 6; f++) ops.push([`cr${f}`, `Cancha · fila ${f}`]);
+            LADOS.forEach((l, i) => ops.push([`cc${i + 1}`, `Cancha · ${l}`]));
+            for (let f = 1; f <= 3; f++) for (let l = 1; l <= 3; l++) ops.push([`a${f}_${l}`, `Área · fila ${f} ${LADOS[l - 1]}`]);
+            for (let f = 1; f <= 3; f++) ops.push([`ar${f}`, `Área · fila ${f} (entera)`]);
+            LADOS.forEach((l, i) => ops.push([`ac${i + 1}`, `Área · ${l} (columna)`]));
+            return ops;
+        }
+
+        function selectDescriptor(valor, attr) {
+            let ops = opcionesDescriptor();
+            // Valores seteados tocando el tablero (celdas exactas de cancha) se
+            // conservan aunque no estén en la lista.
+            if (valor && !ops.some(([v]) => v === valor)) ops = [...ops, [valor, valor]];
+            return `<select ${attr}>${ops.map(([v, l]) => `<option value="${v}" ${v === valor ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
+        }
+
         function renderMapeo() {
             const cont = document.getElementById('mapeo-container');
             const btn = document.getElementById('btn-guardar-mapeo');
@@ -456,8 +678,7 @@
                 btn.style.display = 'none';
                 return;
             }
-            const roles = [['', '—'], ['recuperacion', 'Recuperaciones'], ['perdida', 'Pérdidas'], ['corto', 'Córner corto'], ['libre25', 'Tiro libre 25'], ['libre50', 'Tiro libre 50'], ['tiro', 'Tiro al arco']];
-            const significados = [['', '—'], ['gol', 'Gol'], ['atajado', 'Atajado'], ['desviado', 'Desviado']];
+            const roles = ROLES_CAT;
 
             const filasCat = categoriasDetectadas.map((cat, i) => {
                 const m = mapeoActual[cat] || {};
@@ -476,15 +697,11 @@
                     </div>`;
             }).join('');
 
-            const filasDesc = descriptoresDetectados.map((desc, i) => {
-                const sig = descriptoresActuales[desc] || '';
-                const opts = significados.map(([v, l]) => `<option value="${v}" ${v === sig ? 'selected' : ''}>${l}</option>`).join('');
-                return `
+            const filasDesc = descriptoresDetectados.map((desc, i) => `
                     <div class="mapeo-row mapeo-row-desc">
                         <span class="mapeo-cat" title="${desc}">${desc}</span>
-                        <select data-desc="${i}">${opts}</select>
-                    </div>`;
-            }).join('');
+                        ${selectDescriptor(descriptoresActuales[desc] || '', `data-desc="${i}"`)}
+                    </div>`).join('');
 
             cont.innerHTML =
                 '<h3 class="mapeo-sub">Categorías</h3>' +
@@ -503,21 +720,24 @@
             btn.addEventListener('click', async () => {
                 const cont = document.getElementById('mapeo-container');
                 const msg = document.getElementById('mensaje-mapeo');
-                const categorias = {};
+                // Se parte de lo ya guardado (importado o seteado en el tablero)
+                // y solo se pisan las filas visibles en esta pantalla.
+                const categorias = { ...mapeoActual };
                 categoriasDetectadas.forEach((cat, i) => {
                     const ladoEl = cont.querySelector(`[data-lado="${i}"]`);
                     const rolEl = cont.querySelector(`[data-rol="${i}"]`);
                     if (ladoEl && rolEl) categorias[cat] = { lado: ladoEl.value, rol: rolEl.value };
                 });
-                const descriptores = {};
+                const descriptores = { ...descriptoresActuales };
                 descriptoresDetectados.forEach((desc, i) => {
                     const el = cont.querySelector(`[data-desc="${i}"]`);
-                    if (el && el.value) descriptores[desc] = el.value;
+                    if (!el) return;
+                    if (el.value) descriptores[desc] = el.value; else delete descriptores[desc];
                 });
                 const clubID = sessionStorage.getItem('clubID');
                 btn.disabled = true;
                 try {
-                    await updateDoc(doc(db, 'clubes', clubID), { mapeoEstadisticas: { categorias, descriptores } });
+                    await updateDoc(doc(db, 'clubes', clubID), { mapeoEstadisticas: { categorias, descriptores, tablero: mapeoTablero } });
                     mapeoActual = categorias;
                     descriptoresActuales = descriptores;
                     showMessage(msg, 'Configuración guardada. Las estadísticas ya la usan.', 'exito');
