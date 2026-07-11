@@ -315,8 +315,9 @@
                 <h2>Estadísticas del club</h2>
                 <p style="color: var(--muted); margin-bottom: 15px; font-size: 0.9rem;">
                     Traducí tu plantilla de Nacsport a las métricas del tablero: decí qué es cada <strong>categoría</strong>
-                    (recuperaciones, pérdidas, córners, tiros libres) y qué significa cada <strong>descriptor</strong>
-                    (gol, zonas C1–C4). Con esto las estadísticas se llenan solas sin importar cómo las nombres. Se configura una sola vez.
+                    (recuperaciones, pérdidas, córners, tiros libres, tiro al arco) y qué significa cada <strong>descriptor</strong>
+                    de resultado (gol, atajado, desviado). Las <strong>zonas</strong> de la cancha y el área se configuran tocándolas
+                    directamente en el tablero de Estadísticas (botón “⚙ Configurar”). Se configura una sola vez.
                 </p>
                 <div class="mensaje" id="mensaje-mapeo"></div>
                 <div id="mapeo-container">
@@ -456,7 +457,7 @@
                 return;
             }
             const roles = [['', '—'], ['recuperacion', 'Recuperaciones'], ['perdida', 'Pérdidas'], ['corto', 'Córner corto'], ['libre25', 'Tiro libre 25'], ['libre50', 'Tiro libre 50'], ['tiro', 'Tiro al arco']];
-            const significados = [['', '—'], ['gol', 'Gol'], ['atajado', 'Atajado'], ['desviado', 'Desviado'], ['c1', 'Zona C1'], ['c2', 'Zona C2'], ['c3', 'Zona C3'], ['c4', 'Zona C4'], ['aizq', 'Área: izquierda'], ['acen', 'Área: centro'], ['ader', 'Área: derecha']];
+            const significados = [['', '—'], ['gol', 'Gol'], ['atajado', 'Atajado'], ['desviado', 'Desviado']];
 
             const filasCat = categoriasDetectadas.map((cat, i) => {
                 const m = mapeoActual[cat] || {};

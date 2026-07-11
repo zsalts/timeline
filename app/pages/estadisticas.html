@@ -89,6 +89,16 @@
         .tablero .area-arco { padding: 20px 8px 8px; }
         .tablero .mapa-cap { margin-top: 5px; font-size: 0.52rem; }
 
+        /* Barra de configuración + zonas clickeables (modo config) */
+        .tablero-controls { flex-shrink: 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .btn-edit { background: var(--panel-2); border: 1px solid var(--line-2); color: var(--text); border-radius: 8px; padding: 4px 12px; font-size: 0.72rem; cursor: pointer; font-family: var(--font-mono); width: auto; }
+        .btn-edit:hover { border-color: var(--accent); }
+        .tablero-controls label { font-family: var(--font-mono); font-size: 0.66rem; color: var(--muted); display: inline-flex; align-items: center; gap: 5px; margin: 0; }
+        .tablero-controls select { padding: 3px 6px; font-size: 0.7rem; width: auto; }
+        .edit-hint { font-family: var(--font-mono); font-size: 0.62rem; color: var(--accent); }
+        .tablero.editando .pzona, .tablero.editando .azona { cursor: pointer; outline: 1px dashed rgba(247, 201, 72, 0.5); outline-offset: -2px; }
+        .tablero.editando .pzona:hover, .tablero.editando .azona:hover { outline-color: var(--accent); }
+
         /* --- Marcador comparativo (versión vieja, no usada en el tablero) --- */
         .comp-titulos {
             display: grid; grid-template-columns: 1fr auto 1fr; align-items: baseline; gap: 12px;
@@ -210,9 +220,15 @@
         if (sessionStorage.getItem('userRole') === 'player') {
             window.location.href = "historial.html";
         }
-        import { db, doc, getDoc } from '../assets/js/firebase.js';
+        import { db, doc, getDoc, updateDoc } from '../assets/js/firebase.js';
 
         const clubId = sessionStorage.getItem('clubID');
+        const esAdmin = sessionStorage.getItem('isClubAdmin') === 'true';
+
+        // Estado del tablero: se re-pinta al editar la config en vivo.
+        let estGlobal = null, mapeoGlobal = null, eqG1 = 'Nuestro equipo', eqG2 = 'Rival', editMode = false;
+        const canchaN = () => (mapeoGlobal && mapeoGlobal.tablero && mapeoGlobal.tablero.canchaZonas) || 4;
+        const areaM = () => (mapeoGlobal && mapeoGlobal.tablero && mapeoGlobal.tablero.areaZonas) || 3;
 
         function fmtTiempo(seg) {
             if (!isFinite(seg) || seg < 0) return '—';
@@ -225,12 +241,18 @@
             return (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
         }
 
-        // Detecta la zona de cancha (C1–C4) desde los descriptores de un corte.
-        function detectarZona(ds) {
-            for (const raw of (ds || [])) {
-                const s = norm(raw).replace(/\s+/g, '');
-                const m = s.match(/^(?:c|campo|cancha|zona)?([1-4])$/);
-                if (m) return 'C' + m[1];
+        // Zona de cancha del corte (C1..CN): el mapeo de descriptores manda
+        // (descriptor → 'c1'..'cN'); si no, cae a la detección por nombre.
+        function zonaCancha(c, mapeo, N) {
+            const map = (mapeo && mapeo.descriptores) || {};
+            for (const d of (c.d || [])) {
+                const s = map[d];
+                if (typeof s === 'string' && /^c[1-9]$/.test(s) && +s.slice(1) <= N) return s.toUpperCase();
+            }
+            for (const raw of (c.d || [])) {
+                const t = norm(raw).replace(/\s+/g, '');
+                const m = t.match(/^(?:c|campo|cancha|zona)?([1-9])$/);
+                if (m && +m[1] <= N) return 'C' + m[1];
             }
             return null;
         }
@@ -279,17 +301,6 @@
             return (c.d || []).some(d => map[d] === 'gol' || norm(d) === 'gol');
         }
 
-        // Zona del corte (C1–C4): el mapeo de descriptores manda; si no hay
-        // config, cae a la detección por nombre (C1, Campo 2…).
-        function zonaDeCorte(c, mapeo) {
-            const map = (mapeo && mapeo.descriptores) || {};
-            for (const d of (c.d || [])) {
-                const sig = map[d];
-                if (sig === 'c1' || sig === 'c2' || sig === 'c3' || sig === 'c4') return sig.toUpperCase();
-            }
-            return detectarZona(c.d);
-        }
-
         // Rol/métrica de una categoría: el mapeo manda; si no, se detecta por nombre.
         function rolDe(nombre, mapeo) {
             const m = mapeo && mapeo.categorias && mapeo.categorias[nombre];
@@ -304,12 +315,12 @@
             return '';
         }
 
-        // Zona del área (de dónde tiraron): descriptor mapeado a aizq/acen/ader.
-        function areaZonaDe(c, mapeo) {
+        // Zona del área del corte (A1..AM): descriptor → 'a1'..'aM'.
+        function zonaArea(c, mapeo, M) {
             const map = (mapeo && mapeo.descriptores) || {};
             for (const d of (c.d || [])) {
                 const s = map[d];
-                if (s === 'aizq' || s === 'acen' || s === 'ader') return s;
+                if (typeof s === 'string' && /^a[1-9]$/.test(s) && +s.slice(1) <= M) return s.toUpperCase();
             }
             return null;
         }
@@ -324,18 +335,19 @@
             return null;
         }
 
-        // Marcador comparativo (a favor vs en contra), dirigido por la config del
-        // club (categorías → métrica/lado, descriptores → gol/zona). Sin config,
-        // cae a detección por nombre para que igual funcione.
-        function calcularComparativa(est, mapeo) {
-            const M = () => ({ favor: 0, contra: 0 });
-            const T = () => ({ total: 0, izq: 0, cen: 0, der: 0, sin: 0, gol: 0, atajado: 0, desviado: 0 });
-            const Z = () => ({ total: 0, izq: 0, cen: 0, der: 0, sin: 0 });
+        function zonasCancha(N) { const o = { sin: 0 }; for (let i = 1; i <= N; i++) o['C' + i] = 0; return o; }
+        function zonasArea(M) { const o = { sin: 0 }; for (let i = 1; i <= M; i++) o['A' + i] = 0; return o; }
+
+        // Marcador comparativo + zonas (cancha N, área M), dirigido por la config
+        // del club. Sin config, cae a detección por nombre para que igual funcione.
+        function calcularComparativa(est, mapeo, N, M) {
+            const MM = () => ({ favor: 0, contra: 0 });
+            const T = () => ({ total: 0, gol: 0, atajado: 0, desviado: 0, zonas: zonasArea(M) });
+            const Z = () => ({ total: 0, zonas: zonasArea(M) });
             const mx = {
-                goles: M(), cortos: M(), libres25: M(), libres50: M(),
-                recuperaciones: M(), perdidas: M(),
-                zonasRecu: { C1: 0, C2: 0, C3: 0, C4: 0, sin: 0 },
-                zonasPerd: { C1: 0, C2: 0, C3: 0, C4: 0, sin: 0 },
+                goles: MM(), cortos: MM(), libres25: MM(), libres50: MM(),
+                recuperaciones: MM(), perdidas: MM(),
+                zonasRecu: zonasCancha(N), zonasPerd: zonasCancha(N),
                 tiros: { favor: T(), contra: T() },
                 cortosZona: { favor: Z(), contra: Z() },
                 accFavor: 0, accContra: 0
@@ -353,26 +365,21 @@
                 if (rol === 'corto') {
                     mx.cortos[lado] += n;
                     const z = mx.cortosZona[lado === 'contra' ? 'contra' : 'favor'];
-                    lista.forEach(c => {
-                        z.total++;
-                        const a = areaZonaDe(c, mapeo);
-                        if (a === 'aizq') z.izq++; else if (a === 'acen') z.cen++; else if (a === 'ader') z.der++; else z.sin++;
-                    });
+                    lista.forEach(c => { z.total++; const a = zonaArea(c, mapeo, M); if (a) z.zonas[a]++; else z.zonas.sin++; });
                 }
                 else if (rol === 'libre25') mx.libres25[lado] += n;
                 else if (rol === 'libre50') mx.libres50[lado] += n;
                 else if (rol === 'recuperacion') {
                     mx.recuperaciones[lado] += n;
-                    if (lado === 'favor') lista.forEach(c => { const z = zonaDeCorte(c, mapeo); if (z) mx.zonasRecu[z]++; else mx.zonasRecu.sin++; });
+                    if (lado === 'favor') lista.forEach(c => { const z = zonaCancha(c, mapeo, N); if (z) mx.zonasRecu[z]++; else mx.zonasRecu.sin++; });
                 } else if (rol === 'perdida') {
                     mx.perdidas[lado] += n;
-                    if (lado === 'favor') lista.forEach(c => { const z = zonaDeCorte(c, mapeo); if (z) mx.zonasPerd[z]++; else mx.zonasPerd.sin++; });
+                    if (lado === 'favor') lista.forEach(c => { const z = zonaCancha(c, mapeo, N); if (z) mx.zonasPerd[z]++; else mx.zonasPerd.sin++; });
                 } else if (rol === 'tiro') {
                     const t = mx.tiros[lado === 'contra' ? 'contra' : 'favor'];
                     lista.forEach(c => {
                         t.total++;
-                        const z = areaZonaDe(c, mapeo);
-                        if (z === 'aizq') t.izq++; else if (z === 'acen') t.cen++; else if (z === 'ader') t.der++; else t.sin++;
+                        const a = zonaArea(c, mapeo, M); if (a) t.zonas[a]++; else t.zonas.sin++;
                         const r = resultadoDe(c, mapeo);
                         if (r === 'gol') t.gol++; else if (r === 'atajado') t.atajado++; else if (r === 'desviado') t.desviado++;
                     });
@@ -403,88 +410,98 @@
                 </div>`;
         }
 
-        function pitchZonas(zonas, rgb) {
-            const orden = ['C4', 'C3', 'C2', 'C1'];
-            const max = Math.max(...orden.map(z => zonas[z]), 1);
-            return orden.map(z => {
-                const v = zonas[z];
+        function pitchZonas(zonas, rgb, N) {
+            const vals = []; for (let i = 1; i <= N; i++) vals.push(zonas['C' + i]);
+            const max = Math.max(...vals, 1);
+            let out = '';
+            for (let i = N; i >= 1; i--) {   // CN (ataque) arriba → C1 (fondo) abajo
+                const v = zonas['C' + i];
                 const a = v === 0 ? 0 : (0.14 + 0.6 * (v / max)).toFixed(2);
                 const bg = v === 0 ? 'transparent' : `rgba(${rgb},${a})`;
-                return `<div class="pzona ${v === 0 ? 'zero' : ''}" style="background:${bg}">
-                            <span class="pz-lbl">${z}</span><span class="pz-val">${v}</span>
-                        </div>`;
-            }).join('');
+                out += `<div class="pzona ${v === 0 ? 'zero' : ''}" data-zona="c${i}" style="background:${bg}"><span class="pz-lbl">C${i}</span><span class="pz-val">${v}</span></div>`;
+            }
+            return out;
         }
 
-        function mapaCancha(titulo, total, zonas, rgb, claseTot) {
-            const conZona = zonas.C1 + zonas.C2 + zonas.C3 + zonas.C4;
+        function areaZonasHTML(zonas, rgb, M) {
+            const vals = []; for (let i = 1; i <= M; i++) vals.push(zonas['A' + i]);
+            const max = Math.max(...vals, 1);
+            let out = '';
+            for (let i = 1; i <= M; i++) {
+                const v = zonas['A' + i];
+                const a = v === 0 ? 0 : (0.14 + 0.6 * (v / max)).toFixed(2);
+                const bg = v === 0 ? 'transparent' : `rgba(${rgb},${a})`;
+                out += `<div class="azona" data-zona="a${i}" style="background:${bg}"><span class="az-val">${v}</span><span class="az-lbl">A${i}</span></div>`;
+            }
+            return out;
+        }
+
+        function mapaCancha(titulo, total, zonas, rgb, claseTot, N) {
+            let conZona = 0; for (let i = 1; i <= N; i++) conZona += zonas['C' + i];
             let cap;
             if (total === 0) cap = 'Sin datos · mapeá tu categoría en “Estadísticas del club”';
-            else if (conZona === 0) cap = 'Sin datos de zona · mapeá tus descriptores de zona (C1–C4)';
-            else cap = 'C1 fondo propio → C4 ataque' + (zonas.sin ? ` · ${zonas.sin} sin zona` : '');
+            else if (conZona === 0) cap = editMode ? 'Tocá una zona y poné cómo la llamás' : 'Sin datos de zona · entrá a Configurar';
+            else cap = 'C1 fondo → C' + N + ' ataque' + (zonas.sin ? ` · ${zonas.sin} sin zona` : '');
             return `
                 <div class="card-mapa">
                     <div class="mapa-head"><span class="mapa-label">${titulo}</span><span class="mapa-tot ${claseTot}">${total}</span></div>
-                    <div class="pitch">${pitchZonas(zonas, rgb)}</div>
+                    <div class="pitch" style="grid-template-rows:repeat(${N},1fr)">${pitchZonas(zonas, rgb, N)}</div>
                     <div class="mapa-cap">${cap}</div>
                 </div>`;
         }
 
         // Bloque "Área": semicírculo (la D) con 3 zonas de dónde tiraron +
         // resumen de resultado. Se usa dos veces: tiros nuestros y del rival.
-        function areaTiros(t, subtitulo, rgb, totColor) {
+        function areaTiros(t, subtitulo, rgb, totColor, M) {
             const total = t.total || 0;
-            const max = Math.max(t.izq, t.cen, t.der, 1);
-            const zona = (v, lbl) => {
-                const a = v === 0 ? 0 : (0.14 + 0.6 * (v / max)).toFixed(2);
-                const bg = v === 0 ? 'transparent' : `rgba(${rgb},${a})`;
-                return `<div class="azona" style="background:${bg}"><span class="az-val">${v}</span><span class="az-lbl">${lbl}</span></div>`;
-            };
             const cap = total === 0
-                ? 'Sin datos · mapeá una categoría a “Tiro al arco” en la config'
-                : `${total} tiros · ${t.gol} gol · ${t.atajado} atajado · ${t.desviado} desviado` + (t.sin ? ` · ${t.sin} sin zona` : '');
+                ? 'Sin datos · mapeá una categoría a “Tiro al arco”'
+                : `${total} tiros · ${t.gol} gol · ${t.atajado} at. · ${t.desviado} desv.` + (t.zonas.sin ? ` · ${t.zonas.sin} s/z` : '');
             return `
                 <div class="card-mapa area-card">
                     <div class="mapa-head"><span class="mapa-label">${subtitulo}</span><span class="mapa-tot" style="color:${totColor}">${total}</span></div>
-                    <div class="area-arco">${zona(t.izq, 'IZQ')}${zona(t.cen, 'CEN')}${zona(t.der, 'DER')}</div>
+                    <div class="area-arco" style="grid-template-columns:repeat(${M},1fr)">${areaZonasHTML(t.zonas, rgb, M)}</div>
                     <div class="mapa-cap">${cap}</div>
                 </div>`;
         }
 
-        // Bloque de córners cortos por zona (dónde se consiguen). Misma "D" que
-        // el área; se usa para los córners a favor y en contra.
-        function areaCorner(z, subtitulo, rgb, totColor) {
+        // Córners cortos por zona (dónde se consiguen). Misma "D" que el área.
+        function areaCorner(z, subtitulo, rgb, totColor, M) {
             const total = z.total || 0;
-            const max = Math.max(z.izq, z.cen, z.der, 1);
-            const zona = (v, lbl) => {
-                const a = v === 0 ? 0 : (0.14 + 0.6 * (v / max)).toFixed(2);
-                const bg = v === 0 ? 'transparent' : `rgba(${rgb},${a})`;
-                return `<div class="azona" style="background:${bg}"><span class="az-val">${v}</span><span class="az-lbl">${lbl}</span></div>`;
-            };
             const cap = total === 0
-                ? 'Sin datos · mapeá una categoría a “Córner corto” en la config'
-                : `${total} córners` + (z.sin ? ` · ${z.sin} sin zona` : '');
+                ? 'Sin datos · mapeá una categoría a “Córner corto”'
+                : `${total} córners` + (z.zonas.sin ? ` · ${z.zonas.sin} s/z` : '');
             return `
                 <div class="card-mapa area-card">
                     <div class="mapa-head"><span class="mapa-label">${subtitulo}</span><span class="mapa-tot" style="color:${totColor}">${total}</span></div>
-                    <div class="area-arco">${zona(z.izq, 'IZQ')}${zona(z.cen, 'CEN')}${zona(z.der, 'DER')}</div>
+                    <div class="area-arco" style="grid-template-columns:repeat(${M},1fr)">${areaZonasHTML(z.zonas, rgb, M)}</div>
                     <div class="mapa-cap">${cap}</div>
                 </div>`;
         }
 
-        function renderMetricas(mx, eq1, eq2) {
+        function renderMetricas(mx, N, M) {
             const cont = document.getElementById('metricas');
 
-            // Tira de marcador (compacta): cada métrica a favor · en contra
             const tile = (lbl, fav, con) => `
                 <div class="mtile">
                     <div class="mt-lbl">${lbl}</div>
                     <div class="mt-val"><span class="fav">${fav}</span><span class="sep">·</span><span class="con">${con}</span></div>
                 </div>`;
 
+            const sel = (tipo, opts, val) => `<select onchange="window.__grilla('${tipo}', this.value)">${opts.map(v => `<option value="${v}" ${v === val ? 'selected' : ''}>${v}</option>`).join('')}</select>`;
+            const controls = esAdmin ? `
+                <div class="tablero-controls">
+                    <button class="btn-edit" onclick="window.__toggleEdit()">${editMode ? '✓ Listo' : '⚙ Configurar'}</button>
+                    ${editMode ? `
+                        <label>Cancha ${sel('canchaZonas', [4, 6, 8], N)}</label>
+                        <label>Área ${sel('areaZonas', [3, 5], M)}</label>
+                        <span class="edit-hint">Tocá una zona y poné cómo la llamás en tu plantilla</span>
+                    ` : ''}
+                </div>` : '';
+
             const strip = `
                 <div class="marcador-strip">
-                    <div class="head-lados"><span class="l-fav">${eq1} · a favor</span><span class="l-con">en contra · ${eq2}</span></div>
+                    <div class="head-lados"><span class="l-fav">${eqG1} · a favor</span><span class="l-con">en contra · ${eqG2}</span></div>
                     ${tile('Posesión', mx.posFavor + '%', mx.posContra + '%')}
                     ${tile('Goles', mx.goles.favor, mx.goles.contra)}
                     ${tile('Córners cortos', mx.cortos.favor, mx.cortos.contra)}
@@ -493,20 +510,70 @@
                 </div>`;
 
             // Grilla 3×2: fila de arriba = a favor, fila de abajo = en contra.
-            // Todo pre-seteado; si falta dato, cada gráfica muestra su cartel.
             const tablero = `
-                <div class="tablero">
-                    ${mapaCancha('Recuperaciones · zona', mx.recuperaciones.favor, mx.zonasRecu, '69,214,160', 'recu')}
-                    ${areaTiros(mx.tiros.favor, 'De dónde tiramos', '86,194,230', '#56C2E6')}
-                    ${areaCorner(mx.cortosZona.favor, 'Córners a favor', '95,211,166', 'var(--live)')}
-                    ${mapaCancha('Pérdidas · zona', mx.perdidas.favor, mx.zonasPerd, '255,92,99', 'perd')}
-                    ${areaTiros(mx.tiros.contra, 'De dónde nos tiraron', '255,107,112', 'var(--danger)')}
-                    ${areaCorner(mx.cortosZona.contra, 'Córners en contra', '255,107,112', 'var(--danger)')}
+                <div class="tablero ${editMode ? 'editando' : ''}">
+                    ${mapaCancha('Recuperaciones · zona', mx.recuperaciones.favor, mx.zonasRecu, '69,214,160', 'recu', N)}
+                    ${areaTiros(mx.tiros.favor, 'De dónde tiramos', '86,194,230', '#56C2E6', M)}
+                    ${areaCorner(mx.cortosZona.favor, 'Córners a favor', '95,211,166', 'var(--live)', M)}
+                    ${mapaCancha('Pérdidas · zona', mx.perdidas.favor, mx.zonasPerd, '255,92,99', 'perd', N)}
+                    ${areaTiros(mx.tiros.contra, 'De dónde nos tiraron', '255,107,112', 'var(--danger)', M)}
+                    ${areaCorner(mx.cortosZona.contra, 'Córners en contra', '255,107,112', 'var(--danger)', M)}
                 </div>`;
 
-            cont.innerHTML = strip + tablero;
+            cont.innerHTML = controls + strip + tablero;
             cont.style.display = 'flex';
+            if (editMode) wireEdit();
         }
+
+        // Re-dibuja todo el tablero con la config actual (N/M y descriptores).
+        function pintar() {
+            const N = canchaN(), M = areaM();
+            const mx = calcularComparativa(estGlobal, mapeoGlobal, N, M);
+            document.getElementById('marcador-score').textContent = `${mx.goles.favor} – ${mx.goles.contra}`;
+            renderMetricas(mx, N, M);
+        }
+
+        // En modo config, cada zona es clickeable para setear su descriptor.
+        function wireEdit() {
+            document.querySelectorAll('.tablero [data-zona]').forEach(el => {
+                el.classList.add('editable');
+                el.addEventListener('click', () => editarZona(el.getAttribute('data-zona')));
+            });
+        }
+
+        async function editarZona(zonaVal) {
+            mapeoGlobal = mapeoGlobal || {};
+            mapeoGlobal.descriptores = mapeoGlobal.descriptores || {};
+            const desc = mapeoGlobal.descriptores;
+            const actuales = Object.keys(desc).filter(d => desc[d] === zonaVal);
+            const entrada = prompt(`¿Qué descriptor(es) de tu plantilla van en ${zonaVal.toUpperCase()}? (separá con comas)`, actuales.join(', '));
+            if (entrada === null) return;
+            actuales.forEach(d => delete desc[d]);
+            entrada.split(',').map(s => s.trim()).filter(Boolean).forEach(d => { desc[d] = zonaVal; });
+            await guardar();
+            pintar();
+        }
+
+        async function grilla(tipo, valor) {
+            mapeoGlobal = mapeoGlobal || {};
+            mapeoGlobal.tablero = mapeoGlobal.tablero || {};
+            mapeoGlobal.tablero[tipo] = +valor;
+            await guardar();
+            pintar();
+        }
+
+        async function guardar() {
+            if (!clubId) return;
+            try {
+                await updateDoc(doc(db, 'clubes', clubId), { mapeoEstadisticas: mapeoGlobal });
+            } catch (e) {
+                console.error('No se pudo guardar la config:', e);
+                alert('No se pudo guardar. Solo el admin del club puede editar la configuración.');
+            }
+        }
+
+        window.__toggleEdit = () => { editMode = !editMode; pintar(); };
+        window.__grilla = grilla;
 
         async function cargarPanel() {
             const partidoId = sessionStorage.getItem('partidoSeleccionadoId');
@@ -523,38 +590,32 @@
                 }
 
                 const partido = docSnap.data();
-                const eq1 = partido.mi_equipo || 'Nuestro equipo';
-                const eq2 = partido.rival || 'Rival';
-                document.getElementById('eq-nuestro').textContent = eq1;
-                document.getElementById('eq-rival').textContent = eq2;
+                eqG1 = partido.mi_equipo || 'Nuestro equipo';
+                eqG2 = partido.rival || 'Rival';
+                document.getElementById('eq-nuestro').textContent = eqG1;
+                document.getElementById('eq-rival').textContent = eqG2;
                 document.getElementById('header-sub').textContent =
                     `${partido.torneo || 'Amistoso'} · ${partido.fecha || 'sin fecha'}`;
 
-                const est = partido.estadisticas;
+                estGlobal = partido.estadisticas;
                 const metricasEl = document.getElementById('metricas');
 
-                if (!est || Object.keys(est).length === 0) {
+                if (!estGlobal || Object.keys(estGlobal).length === 0) {
                     metricasEl.innerHTML = '<div class="estado-vacio">Este partido todavía no tiene cortes cargados.</div>';
                     metricasEl.style.display = 'flex';
                     return;
                 }
 
-                // Tablero comparativo (usa el mapeo del club si existe, para el lado)
-                let mapeo = null;
                 try {
                     if (clubId) {
                         const clubSnap = await getDoc(doc(db, "clubes", clubId));
-                        if (clubSnap.exists()) mapeo = clubSnap.data().mapeoEstadisticas || null;
+                        if (clubSnap.exists()) mapeoGlobal = clubSnap.data().mapeoEstadisticas || null;
                     }
                 } catch (e) {
                     console.warn("No se pudo leer el mapeo del club:", e);
                 }
-                const mx = calcularComparativa(est, mapeo);
 
-                // Marcador de goles en el header
-                document.getElementById('marcador-score').textContent = `${mx.goles.favor} – ${mx.goles.contra}`;
-
-                renderMetricas(mx, eq1, eq2);
+                pintar();
 
             } catch (error) {
                 console.error("Error al cargar estadísticas:", error);
