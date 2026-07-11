@@ -93,6 +93,20 @@
         .pzona.zero .pz-val { color: rgba(237, 245, 249, 0.35); font-weight: 500; }
         .mapa-cap { margin-top: 10px; font-family: var(--font-mono); font-size: 0.62rem; letter-spacing: 0.06em; color: var(--faint); text-transform: uppercase; }
 
+        .bloque-titulo { font-size: 1.05rem; font-weight: 700; margin: 24px 0 12px; }
+
+        /* Bloque Área: semicírculo (la "D") con 3 zonas de dónde tiraron */
+        .mapas-area { grid-template-columns: minmax(260px, 460px); }
+        .area-arco {
+            display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;
+            background: linear-gradient(180deg, #0f3b34, #0b2b27);
+            border: 1.5px solid var(--line-2); border-radius: 999px 999px 12px 12px;
+            padding: 30px 10px 10px; aspect-ratio: 5 / 3;
+        }
+        .azona { border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.06); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; }
+        .az-val { font-family: var(--font-mono); font-weight: 700; font-size: 1.4rem; color: #EDF5F9; }
+        .az-lbl { font-family: var(--font-mono); font-size: 0.55rem; letter-spacing: 0.12em; color: rgba(237, 245, 249, 0.5); }
+
         /* --- Distribución por categoría --- */
         .seccion-titulo { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin: 0 0 14px; }
         .seccion-titulo h3 { margin: 0; font-size: 1.05rem; font-weight: 700; }
@@ -252,7 +266,28 @@
             if (s.includes('libre') && s.includes('50')) return 'libre50';
             if (s.includes('recuper')) return 'recuperacion';
             if (s.includes('perd')) return 'perdida';
+            if (s.includes('tiro') || s.includes('shot') || s.includes('remate')) return 'tiro';
             return '';
+        }
+
+        // Zona del área (de dónde tiraron): descriptor mapeado a aizq/acen/ader.
+        function areaZonaDe(c, mapeo) {
+            const map = (mapeo && mapeo.descriptores) || {};
+            for (const d of (c.d || [])) {
+                const s = map[d];
+                if (s === 'aizq' || s === 'acen' || s === 'ader') return s;
+            }
+            return null;
+        }
+
+        // Resultado de un tiro: gol / atajado / desviado (por descriptor).
+        function resultadoDe(c, mapeo) {
+            const map = (mapeo && mapeo.descriptores) || {};
+            for (const d of (c.d || [])) {
+                const s = map[d] || (norm(d) === 'gol' ? 'gol' : '');
+                if (s === 'gol' || s === 'atajado' || s === 'desviado') return s;
+            }
+            return null;
         }
 
         // Marcador comparativo (a favor vs en contra), dirigido por la config del
@@ -265,6 +300,7 @@
                 recuperaciones: M(), perdidas: M(),
                 zonasRecu: { C1: 0, C2: 0, C3: 0, C4: 0, sin: 0 },
                 zonasPerd: { C1: 0, C2: 0, C3: 0, C4: 0, sin: 0 },
+                tiros: { total: 0, izq: 0, cen: 0, der: 0, sin: 0, gol: 0, atajado: 0, desviado: 0 },
                 accFavor: 0, accContra: 0
             };
 
@@ -286,6 +322,14 @@
                 } else if (rol === 'perdida') {
                     mx.perdidas[lado] += n;
                     if (lado === 'favor') lista.forEach(c => { const z = zonaDeCorte(c, mapeo); if (z) mx.zonasPerd[z]++; else mx.zonasPerd.sin++; });
+                } else if (rol === 'tiro') {
+                    lista.forEach(c => {
+                        mx.tiros.total++;
+                        const z = areaZonaDe(c, mapeo);
+                        if (z === 'aizq') mx.tiros.izq++; else if (z === 'acen') mx.tiros.cen++; else if (z === 'ader') mx.tiros.der++; else mx.tiros.sin++;
+                        const r = resultadoDe(c, mapeo);
+                        if (r === 'gol') mx.tiros.gol++; else if (r === 'atajado') mx.tiros.atajado++; else if (r === 'desviado') mx.tiros.desviado++;
+                    });
                 }
             }
             const tot = mx.accFavor + mx.accContra;
@@ -371,13 +415,35 @@
 
         function mapaCancha(titulo, total, zonas, rgb, claseTot) {
             const conZona = zonas.C1 + zonas.C2 + zonas.C3 + zonas.C4;
-            const cap = conZona === 0
-                ? 'Sin datos de zona · mapeá tus descriptores de zona (C1–C4) en la config'
-                : ('C1 fondo propio → C4 ataque' + (zonas.sin ? ` · ${zonas.sin} sin zona` : ''));
+            let cap;
+            if (total === 0) cap = 'Sin datos · mapeá tu categoría en “Estadísticas del club”';
+            else if (conZona === 0) cap = 'Sin datos de zona · mapeá tus descriptores de zona (C1–C4)';
+            else cap = 'C1 fondo propio → C4 ataque' + (zonas.sin ? ` · ${zonas.sin} sin zona` : '');
             return `
                 <div class="card-mapa">
                     <div class="mapa-head"><span class="mapa-label">${titulo}</span><span class="mapa-tot ${claseTot}">${total}</span></div>
                     <div class="pitch">${pitchZonas(zonas, rgb)}</div>
+                    <div class="mapa-cap">${cap}</div>
+                </div>`;
+        }
+
+        // Bloque "Área / zonas de tiro al arco": semicírculo con 3 zonas
+        // (de dónde tiraron) + resumen de resultado.
+        function areaTiros(t) {
+            const total = t.total || 0;
+            const max = Math.max(t.izq, t.cen, t.der, 1);
+            const zona = (v, lbl) => {
+                const a = v === 0 ? 0 : (0.14 + 0.6 * (v / max)).toFixed(2);
+                const bg = v === 0 ? 'transparent' : `rgba(86,194,230,${a})`;
+                return `<div class="azona" style="background:${bg}"><span class="az-val">${v}</span><span class="az-lbl">${lbl}</span></div>`;
+            };
+            const cap = total === 0
+                ? 'Sin datos · mapeá una categoría a “Tiro al arco” en la config'
+                : `${total} tiros · ${t.gol} gol · ${t.atajado} atajado · ${t.desviado} desviado` + (t.sin ? ` · ${t.sin} sin zona` : '');
+            return `
+                <div class="card-mapa area-card">
+                    <div class="mapa-head"><span class="mapa-label">Zonas de tiro al arco · de dónde tiraron</span><span class="mapa-tot" style="color:#56C2E6">${total}</span></div>
+                    <div class="area-arco">${zona(t.izq, 'IZQ')}${zona(t.cen, 'CEN')}${zona(t.der, 'DER')}</div>
                     <div class="mapa-cap">${cap}</div>
                 </div>`;
         }
@@ -395,18 +461,9 @@
             if (poseer(mx.recuperaciones)) filas.push(filaComp('Recuperaciones', mx.recuperaciones.favor, mx.recuperaciones.contra));
             if (poseer(mx.perdidas)) filas.push(filaComp('Pérdidas', mx.perdidas.favor, mx.perdidas.contra));
 
-            // Mapas: aparecen apenas hay recuperaciones/pérdidas mapeadas.
-            // Las zonas se llenan cuando el corte trae descriptor de zona.
-            const mapas = [];
-            if (mx.recuperaciones.favor > 0)
-                mapas.push(mapaCancha('Recuperaciones · por zona', mx.recuperaciones.favor, mx.zonasRecu, '69,214,160', 'recu'));
-            if (mx.perdidas.favor > 0)
-                mapas.push(mapaCancha('Pérdidas · por zona', mx.perdidas.favor, mx.zonasPerd, '255,92,99', 'perd'));
-
-            const hayComparativa = filas.length > 0 || (mx.accFavor + mx.accContra > 0);
-            if (!hayComparativa) { cont.style.display = 'none'; return; }
-
-            cont.innerHTML = `
+            // Tablero PRE-SETEADO: la cancha y el área están siempre. Si falta
+            // configurar/dato, el bloque muestra un cartel en vez de esconderse.
+            const marcador = `
                 <div class="comp-titulos">
                     <span class="t-fav">${eq1} · a favor</span>
                     <span class="t-vs">vs</span>
@@ -422,8 +479,20 @@
                         <div class="v con">${mx.posContra}%</div>
                     </div>
                     ${filas.join('')}
-                </div>
-                ${mapas.length ? `<div class="mapas">${mapas.join('')}</div>` : ''}`;
+                </div>`;
+
+            const cancha = `
+                <h3 class="bloque-titulo">Mapas de cancha</h3>
+                <div class="mapas">
+                    ${mapaCancha('Recuperaciones · por zona', mx.recuperaciones.favor, mx.zonasRecu, '69,214,160', 'recu')}
+                    ${mapaCancha('Pérdidas · por zona', mx.perdidas.favor, mx.zonasPerd, '255,92,99', 'perd')}
+                </div>`;
+
+            const area = `
+                <h3 class="bloque-titulo">Área</h3>
+                <div class="mapas mapas-area">${areaTiros(mx.tiros)}</div>`;
+
+            cont.innerHTML = marcador + cancha + area;
             cont.style.display = 'block';
         }
 

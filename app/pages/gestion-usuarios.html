@@ -455,8 +455,8 @@
                 btn.style.display = 'none';
                 return;
             }
-            const roles = [['', '—'], ['recuperacion', 'Recuperaciones'], ['perdida', 'Pérdidas'], ['corto', 'Córner corto'], ['libre25', 'Tiro libre 25'], ['libre50', 'Tiro libre 50']];
-            const significados = [['', '—'], ['gol', 'Gol'], ['c1', 'Zona C1'], ['c2', 'Zona C2'], ['c3', 'Zona C3'], ['c4', 'Zona C4']];
+            const roles = [['', '—'], ['recuperacion', 'Recuperaciones'], ['perdida', 'Pérdidas'], ['corto', 'Córner corto'], ['libre25', 'Tiro libre 25'], ['libre50', 'Tiro libre 50'], ['tiro', 'Tiro al arco']];
+            const significados = [['', '—'], ['gol', 'Gol'], ['atajado', 'Atajado'], ['desviado', 'Desviado'], ['c1', 'Zona C1'], ['c2', 'Zona C2'], ['c3', 'Zona C3'], ['c4', 'Zona C4'], ['aizq', 'Área: izquierda'], ['acen', 'Área: centro'], ['ader', 'Área: derecha']];
 
             const filasCat = categoriasDetectadas.map((cat, i) => {
                 const m = mapeoActual[cat] || {};
