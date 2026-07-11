@@ -370,7 +370,10 @@
         }
 
         function mapaCancha(titulo, total, zonas, rgb, claseTot) {
-            const cap = `C1 fondo propio → C4 ataque` + (zonas.sin ? ` · ${zonas.sin} sin zona` : '');
+            const conZona = zonas.C1 + zonas.C2 + zonas.C3 + zonas.C4;
+            const cap = conZona === 0
+                ? 'Sin datos de zona · mapeá tus descriptores de zona (C1–C4) en la config'
+                : ('C1 fondo propio → C4 ataque' + (zonas.sin ? ` · ${zonas.sin} sin zona` : ''));
             return `
                 <div class="card-mapa">
                     <div class="mapa-head"><span class="mapa-label">${titulo}</span><span class="mapa-tot ${claseTot}">${total}</span></div>
@@ -392,11 +395,12 @@
             if (poseer(mx.recuperaciones)) filas.push(filaComp('Recuperaciones', mx.recuperaciones.favor, mx.recuperaciones.contra));
             if (poseer(mx.perdidas)) filas.push(filaComp('Pérdidas', mx.perdidas.favor, mx.perdidas.contra));
 
-            // Mapas (solo si el partido trae recuperaciones/pérdidas con zona)
+            // Mapas: aparecen apenas hay recuperaciones/pérdidas mapeadas.
+            // Las zonas se llenan cuando el corte trae descriptor de zona.
             const mapas = [];
-            if (mx.recuperaciones.favor > 0 && (mx.zonasRecu.C1 + mx.zonasRecu.C2 + mx.zonasRecu.C3 + mx.zonasRecu.C4) > 0)
+            if (mx.recuperaciones.favor > 0)
                 mapas.push(mapaCancha('Recuperaciones · por zona', mx.recuperaciones.favor, mx.zonasRecu, '69,214,160', 'recu'));
-            if (mx.perdidas.favor > 0 && (mx.zonasPerd.C1 + mx.zonasPerd.C2 + mx.zonasPerd.C3 + mx.zonasPerd.C4) > 0)
+            if (mx.perdidas.favor > 0)
                 mapas.push(mapaCancha('Pérdidas · por zona', mx.perdidas.favor, mx.zonasPerd, '255,92,99', 'perd'));
 
             const hayComparativa = filas.length > 0 || (mx.accFavor + mx.accContra > 0);
