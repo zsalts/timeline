@@ -43,6 +43,12 @@
         <div id="lista-tc" class="grid-partidos">
             <p style="color: var(--muted);">Cargando partidos…</p>
         </div>
+
+        <div id="seccion-compartidos" style="display: none;">
+            <h3 style="margin: 34px 0 4px;">Compartidos conmigo</h3>
+            <p class="subtitle" style="margin: 0 0 14px;">Videos con cortes que otras cuentas te compartieron.</p>
+            <div id="lista-compartidos" class="grid-partidos"></div>
+        </div>
     </div>
 
     <script type="module">
@@ -208,6 +214,77 @@
             return card;
         }
 
+        // --- Compartidos conmigo (videos con cortes de otras cuentas) ---
+        async function cargarCompartidos() {
+            const seccion = document.getElementById('seccion-compartidos');
+            seccion.style.display = 'none';
+            const miEmail = (sessionStorage.getItem('userEmail') || '').toLowerCase();
+            if (!miEmail) return;
+
+            try {
+                const q = query(collection(db, "compartidos"), where("para_email", "==", miEmail));
+                const snap = await getDocs(q);
+                if (snap.empty) return;
+
+                const items = [];
+                snap.forEach(d => items.push({ id: d.id, ...d.data() }));
+                items.sort((a, b) => new Date(b.creado_el || 0) - new Date(a.creado_el || 0));
+
+                const lista = document.getElementById('lista-compartidos');
+                lista.innerHTML = '';
+                items.forEach(item => lista.appendChild(crearCardCompartido(item)));
+                seccion.style.display = 'block';
+            } catch (e) {
+                console.error("Error al cargar compartidos:", e);
+            }
+        }
+
+        function crearCardCompartido(item) {
+            const card = document.createElement('div');
+            card.className = 'card-stat';
+            const res = TL.timeline.resumen(item.estadisticas);
+
+            card.innerHTML = `
+                <div class="match-top">
+                    <div class="match-torneo">DE: ${item.de_email || 'otra cuenta'}</div>
+                    <div class="match-acciones">
+                        <button class="icon-btn btn-quitar" title="Quitar de mi historial">✕</button>
+                    </div>
+                </div>
+                <div class="match-teams">
+                    <div class="match-eq1">${item.mi_equipo || 'Equipo 1'}</div>
+                    <div class="match-vs">vs</div>
+                    <div class="match-eq2">${item.rival || 'Equipo 2'}</div>
+                </div>
+                <div class="match-meta">
+                    <span class="match-fecha">${item.fecha || 'Sin fecha'}</span>
+                    <span class="match-count"><b>${res.total}</b> cortes · ${res.categorias} cat</span>
+                </div>
+                <div class="tl-slot"></div>
+            `;
+
+            card.querySelector('.tl-slot').appendChild(TL.timeline.crear(item.estadisticas));
+
+            card.onclick = () => {
+                sessionStorage.setItem('compartidoSeleccionadoId', item.id);
+                window.location.href = 'compartido.html';
+            };
+
+            card.querySelector('.btn-quitar').onclick = async (e) => {
+                e.stopPropagation();
+                if (!confirm('¿Quitar este compartido de tu historial?')) return;
+                try {
+                    await deleteDoc(doc(db, "compartidos", item.id));
+                    cargarCompartidos();
+                } catch (err) {
+                    console.error(err);
+                    alert('No se pudo quitar.');
+                }
+            };
+
+            return card;
+        }
+
         // Buscador dinámico
         document.getElementById('buscador').addEventListener('input', (e) => {
             const textoBusqueda = e.target.value.toLowerCase();
@@ -220,7 +297,7 @@
         });
 
         // Iniciamos la carga
-        window.onload = cargarHistorial;
+        window.onload = () => { cargarHistorial(); cargarCompartidos(); };
     </script>
 </body>
 </html>

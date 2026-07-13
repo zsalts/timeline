@@ -122,6 +122,39 @@
         }
         .timestamp-btn:hover { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
 
+        /* Compartir cortes con otra cuenta */
+        .cortes-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 14px; }
+        .cortes-head .cortes-title { margin: 0; }
+        .btn-compartir {
+            background: var(--panel-2); border: 1px solid var(--line-2); color: var(--text);
+            border-radius: 8px; padding: 5px 12px; font-size: 0.75rem; cursor: pointer;
+            font-family: var(--font-mono); width: auto; transition: border-color 0.15s, color 0.15s;
+        }
+        .btn-compartir:hover { border-color: var(--accent); color: var(--accent); }
+
+        .modal-overlay {
+            position: fixed; inset: 0; background: rgba(4, 6, 10, 0.72); z-index: 1000;
+            display: none; justify-content: center; align-items: center; padding: 20px;
+        }
+        .modal-content {
+            background: var(--panel); border: 1px solid var(--line); width: 100%;
+            max-width: 480px; max-height: 85vh; border-radius: var(--radius);
+            padding: 22px; overflow-y: auto; box-shadow: var(--shadow);
+        }
+        .share-lbl {
+            display: block; font-family: var(--font-mono); font-size: 0.66rem;
+            text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 6px;
+        }
+        .share-cats { display: flex; flex-direction: column; gap: 6px; margin: 16px 0; }
+        .share-cat {
+            display: flex; align-items: center; gap: 10px; background: var(--panel-2);
+            border: 1px solid var(--line); border-radius: 8px; padding: 9px 12px; cursor: pointer;
+        }
+        .share-cat input { width: auto; }
+        .share-cat b { font-size: 0.88rem; }
+        .share-cat span { margin-left: auto; font-family: var(--font-mono); font-size: 0.72rem; color: var(--muted); }
+        #msg-share { font-size: 0.85rem; font-weight: 600; margin: 10px 0 0; display: none; }
+
         @media (max-width: 800px) {
             .layout-principal { flex-direction: column; }
             .columna-izquierda, .columna-derecha-wrapper { width: 100%; }
@@ -170,7 +203,10 @@
 
             <div class="columna-derecha-wrapper">
                 <div class="columna-cortes-scroll">
-                    <h3 class="cortes-title">Cortes de análisis</h3>
+                    <div class="cortes-head">
+                        <h3 class="cortes-title">Cortes de análisis</h3>
+                        <button id="btn-compartir" class="btn-compartir">↗ Compartir</button>
+                    </div>
                     <div id="cortes-container">
                         <p style="color: var(--muted);">Cargando cortes…</p>
                     </div>
@@ -180,13 +216,29 @@
         </div>
     </div>
 
+    <!-- MODAL: compartir cortes con otra cuenta -->
+    <div id="modal-compartir" class="modal-overlay">
+        <div class="modal-content">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <h3 style="margin: 0;">Compartir cortes</h3>
+                <button id="btn-cerrar-share" class="btn-ghost" style="width: auto; padding: 6px 14px;">Cerrar</button>
+            </div>
+            <p class="subtitle" style="margin: 4px 0 14px;">Elegí qué categorías compartir y el email de la cuenta que lo recibe. Le aparece en su Historial.</p>
+            <label class="share-lbl" for="share-email">Email de la cuenta</label>
+            <input type="email" id="share-email" placeholder="analista@club.com">
+            <div id="share-cats" class="share-cats"></div>
+            <button id="btn-enviar-share" class="btn-guardar" style="width: 100%; padding: 12px;">Compartir</button>
+            <p id="msg-share"></p>
+        </div>
+    </div>
+
     <!-- Módulos compartidos -->
     <script src="../assets/js/utils/youtube.js"></script>
     <script src="../assets/js/components/cortesRenderer.js"></script>
     <script src="../assets/js/components/timeline.js"></script>
 
     <script type="module">
-        import { db, doc, getDoc, updateDoc } from '../assets/js/firebase.js';
+        import { db, doc, getDoc, updateDoc, collection, addDoc } from '../assets/js/firebase.js';
 
         const uid = sessionStorage.getItem('usuarioUID');
         const clubId = sessionStorage.getItem('clubID');
@@ -197,6 +249,7 @@
 
         let player;
         let videoIdLimpio = '';
+        let partidoActual = null;
         const partidoId = sessionStorage.getItem('partidoSeleccionadoId');
         // Las jugadoras son espectadoras: ven el partido, no el análisis.
         const esJugadora = sessionStorage.getItem('userRole') === 'player';
@@ -245,6 +298,7 @@
 
                 if (snap.exists()) {
                     const partido = snap.data();
+                    partidoActual = partido;
 
                     const eq1 = partido.mi_equipo || 'Nuestro equipo';
                     const eq2 = partido.rival || 'Rival';
@@ -288,6 +342,81 @@
         }
 
         cargarAnalisis();
+
+        // --- Compartir cortes con otra cuenta (por email) ---
+        const modalShare = document.getElementById('modal-compartir');
+
+        document.getElementById('btn-compartir').onclick = () => {
+            const cont = document.getElementById('share-cats');
+            const est = (partidoActual && partidoActual.estadisticas) || {};
+            const cats = Object.keys(est).sort((a, b) => a.localeCompare(b, 'es'));
+            cont.innerHTML = cats.length
+                ? cats.map((c, i) => `
+                    <label class="share-cat">
+                        <input type="checkbox" data-share-cat="${i}" checked>
+                        <b>${c}</b><span>${(est[c] || []).length} cortes</span>
+                    </label>`).join('')
+                : '<p style="color: var(--muted);">Este partido no tiene cortes para compartir.</p>';
+            cont.dataset.cats = JSON.stringify(cats);
+            document.getElementById('msg-share').style.display = 'none';
+            modalShare.style.display = 'flex';
+        };
+
+        document.getElementById('btn-cerrar-share').onclick = () => modalShare.style.display = 'none';
+        modalShare.addEventListener('click', (e) => { if (e.target === modalShare) modalShare.style.display = 'none'; });
+
+        document.getElementById('btn-enviar-share').onclick = async () => {
+            const msg = document.getElementById('msg-share');
+            const mostrar = (t, ok) => {
+                msg.textContent = t;
+                msg.style.color = ok ? 'var(--live)' : 'var(--danger)';
+                msg.style.display = 'block';
+            };
+
+            const email = document.getElementById('share-email').value.trim().toLowerCase();
+            const cont = document.getElementById('share-cats');
+            const cats = JSON.parse(cont.dataset.cats || '[]');
+            const elegidas = cats.filter((c, i) => {
+                const el = cont.querySelector(`[data-share-cat="${i}"]`);
+                return el && el.checked;
+            });
+
+            if (!email || !email.includes('@')) { mostrar('Poné el email de la cuenta que lo recibe.', false); return; }
+            if (!elegidas.length) { mostrar('Elegí al menos una categoría.', false); return; }
+            if (!partidoActual) { mostrar('El partido todavía no terminó de cargar.', false); return; }
+
+            // Se copian solo los cortes elegidos: el receptor no necesita
+            // acceso al partido original (puede ser de otro club).
+            const seleccion = {};
+            elegidas.forEach(c => { seleccion[c] = partidoActual.estadisticas[c]; });
+
+            const btn = document.getElementById('btn-enviar-share');
+            btn.disabled = true;
+            btn.textContent = 'Compartiendo…';
+            try {
+                await addDoc(collection(db, "compartidos"), {
+                    de_uid: uid,
+                    de_email: (sessionStorage.getItem('userEmail') || '').toLowerCase(),
+                    club_origen: clubId,
+                    para_email: email,
+                    mi_equipo: partidoActual.mi_equipo || '',
+                    rival: partidoActual.rival || '',
+                    torneo: partidoActual.torneo || '',
+                    fecha: partidoActual.fecha || '',
+                    youtube_id: partidoActual.youtube_id || partidoActual.video_url || '',
+                    estadisticas: seleccion,
+                    creado_el: new Date().toISOString()
+                });
+                mostrar('Compartido. Le aparece en su Historial cuando entre con esa cuenta.', true);
+                document.getElementById('share-email').value = '';
+            } catch (e) {
+                console.error("Error al compartir:", e);
+                mostrar('No se pudo compartir: ' + e.message, false);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Compartir';
+            }
+        };
     </script>
 </body>
 

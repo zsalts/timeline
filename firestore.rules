@@ -108,6 +108,32 @@ service cloud.firestore {
     }
 
     // ============================================
+    // COLECCIÓN: compartidos (cortes compartidos entre cuentas)
+    // El emisor copia los cortes elegidos en el doc; el receptor se
+    // identifica por el email de su cuenta (token de Auth).
+    // ============================================
+    match /compartidos/{shareId} {
+      // Leer: quien lo envió o la cuenta destinataria
+      allow read: if request.auth != null &&
+        (resource.data.de_uid == request.auth.uid ||
+         resource.data.para_email == request.auth.token.email.lower());
+
+      // Crear: cualquier usuario con cuenta que no sea jugadora,
+      // firmando como emisor
+      allow create: if userExists() &&
+        userDoc().rol != 'player' &&
+        request.resource.data.de_uid == request.auth.uid;
+
+      // Borrar: el emisor o el receptor (lo saca de su historial)
+      allow delete: if request.auth != null &&
+        (resource.data.de_uid == request.auth.uid ||
+         resource.data.para_email == request.auth.token.email.lower());
+
+      // No se edita un compartido: se borra y se vuelve a compartir
+      allow update: if false;
+    }
+
+    // ============================================
     // COLECCIÓN: estadisticas (Analytics)
     // ============================================
     match /estadisticas/{clubId} {
