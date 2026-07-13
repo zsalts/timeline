@@ -71,7 +71,9 @@
         }
 
         // Las jugadoras solo miran: no ven el botón de cargar partido
-        if (sessionStorage.getItem('userRole') === 'player') {
+        // ni las acciones de las cards (editar / borrar / prioritario)
+        const esJugadora = sessionStorage.getItem('userRole') === 'player';
+        if (esJugadora) {
             document.getElementById('btn-nuevo-partido').style.display = 'none';
         }
 
@@ -164,6 +166,8 @@
             // Firma: tira de timeline del partido
             card.querySelector('.tl-slot').appendChild(TL.timeline.crear(partido.estadisticas));
 
+            if (esJugadora) card.querySelector('.match-acciones').style.display = 'none';
+
             card.onclick = () => {
                 sessionStorage.setItem('partidoSeleccionadoId', partido.id);
                 window.location.href = 'video.html';
@@ -195,20 +199,11 @@
                 }
             };
 
-            // Editar torneo / fecha
-            card.querySelector('.btn-editar').onclick = async (e) => {
+            // Editar todo el partido (equipos, torneo, fecha, video, cortes)
+            card.querySelector('.btn-editar').onclick = (e) => {
                 e.stopPropagation();
-                const nuevoTorneo = prompt("Editar torneo:", partido.torneo);
-                if (nuevoTorneo === null) return;
-                const nuevaFecha = prompt("Editar fecha (YYYY-MM-DD):", partido.fecha);
-                if (nuevaFecha === null) return;
-                try {
-                    await updateDoc(doc(db, "partidos", partido.id), { torneo: nuevoTorneo, fecha: nuevaFecha });
-                    cargarHistorial();
-                } catch (error) {
-                    console.error(error);
-                    alert("Error al editar.");
-                }
+                sessionStorage.setItem('partidoAEditarId', partido.id);
+                window.location.href = 'editar.html';
             };
 
             return card;

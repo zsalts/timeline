@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Editar partido - Timeline</title>
-    <link rel="manifest" href="/manifest.json">
+    <link rel="manifest" href="../manifest.json">
     <link rel="icon" type="image/png" href="../assets/image/logo-web.png">
     <link rel="apple-touch-icon" href="../assets/image/logo-web.png">
     <link rel="stylesheet" href="../assets/css/style.css">
@@ -115,11 +115,12 @@
                     // Llenamos los equipos del club (más los del propio partido, por si cambiaron)
                     await poblarEquipos([datos.mi_equipo, datos.rival]);
 
-                    document.getElementById('input-mi-equipo').value = datos.mi_equipo;
-                    document.getElementById('input-rival').value = datos.rival;
-                    document.getElementById('input-fecha').value = datos.fecha;
-                    document.getElementById('input-torneo').value = datos.torneo;
-                    document.getElementById('input-youtube').value = datos.youtube_id;
+                    document.getElementById('input-mi-equipo').value = datos.mi_equipo || '';
+                    document.getElementById('input-rival').value = datos.rival || '';
+                    document.getElementById('input-fecha').value = datos.fecha || '';
+                    document.getElementById('input-torneo').value = datos.torneo || '';
+                    // Partidos viejos pueden tener el video en video_url
+                    document.getElementById('input-youtube').value = datos.youtube_id || datos.video_url || '';
                     estadisticasViejas = datos.estadisticas;
                 }
             } catch (error) {
@@ -157,12 +158,15 @@
 
             const file = document.getElementById('input-xml').files[0];
 
+            const idYoutube = document.getElementById('input-youtube').value;
             const datosActualizados = {
                 mi_equipo: document.getElementById('input-mi-equipo').value,
                 rival: document.getElementById('input-rival').value,
                 fecha: document.getElementById('input-fecha').value,
                 torneo: document.getElementById('input-torneo').value,
-                youtube_id: document.getElementById('input-youtube').value,
+                // Ambos campos en sincronía (las páginas leen uno u otro)
+                youtube_id: idYoutube,
+                video_url: idYoutube,
                 modificado_el: new Date()
             };
 
