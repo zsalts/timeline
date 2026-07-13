@@ -462,6 +462,7 @@
             else if (s.includes('corto') || /\bcc\b/.test(s)) rol = 'corto';
             else if (s.includes('libre') && s.includes('25')) rol = 'libre25';
             else if (s.includes('libre') && s.includes('50')) rol = 'libre50';
+            else if (s.includes('ingreso') && s.includes('25')) rol = 'ingreso25';
             else if (s.includes('tiro') || s.includes('remate') || s.includes('shot')) rol = 'tiro';
             const lado = /(contra|rival|recib)/.test(s) ? 'rival' : 'auto';
             return { lado, rol };
@@ -474,6 +475,8 @@
             if (/^gol\b/.test(s)) return 'gol';   // GOL, GOL JUGADA, GOL CORTO, GOL PENAL…
             if (s === 'atajado' || s === 'atajada') return 'atajado';
             if (s === 'afuera' || s === 'desviado' || s === 'desviada') return 'desviado';
+            // 1C..4C → cuarto del partido
+            if ((m = s.match(/^([1-4])\s*c$/))) return 'q' + m[1];
             // ZONA 1..9 → área 3×3 en orden de lectura (fila por fila)
             if ((m = s.match(/^zona\s*([1-9])$/))) { const n = +m[1]; return `a${Math.ceil(n / 3)}_${((n - 1) % 3) + 1}`; }
             // CAMPO n → fila de la cancha (se combina con izq/cen/der del corte)
@@ -647,7 +650,7 @@
             renderMapeo();
         }
 
-        const ROLES_CAT = [['', '—'], ['recuperacion', 'Recuperaciones'], ['perdida', 'Pérdidas'], ['corto', 'Córner corto'], ['libre25', 'Tiro libre 25'], ['libre50', 'Tiro libre 50'], ['tiro', 'Tiro al arco']];
+        const ROLES_CAT = [['', '—'], ['recuperacion', 'Recuperaciones'], ['perdida', 'Pérdidas'], ['corto', 'Córner corto'], ['libre25', 'Tiro libre 25'], ['libre50', 'Tiro libre 50'], ['tiro', 'Tiro al arco'], ['ingreso25', 'Ingresos 25y']];
 
         // Todas las opciones de significado de un descriptor: resultado de tiro,
         // fila/columna de cancha (combinables) y celdas del área 3×3.
@@ -659,6 +662,7 @@
             for (let f = 1; f <= 3; f++) for (let l = 1; l <= 3; l++) ops.push([`a${f}_${l}`, `Área · fila ${f} ${LADOS[l - 1]}`]);
             for (let f = 1; f <= 3; f++) ops.push([`ar${f}`, `Área · fila ${f} (entera)`]);
             LADOS.forEach((l, i) => ops.push([`ac${i + 1}`, `Área · ${l} (columna)`]));
+            for (let q = 1; q <= 4; q++) ops.push([`q${q}`, `Cuarto ${q}`]);
             return ops;
         }
 

@@ -73,6 +73,11 @@
         .mt-val .con { color: var(--muted); }
         .mt-val .sep { color: var(--faint); margin: 0 4px; }
 
+        .cuartos-strip {
+            flex-shrink: 0; display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px;
+        }
+
         .tablero {
             flex: 1; min-height: 0; display: grid;
             grid-template-columns: repeat(3, 1fr); grid-template-rows: 1fr 1fr; gap: 10px;
@@ -315,10 +320,25 @@
             if (s.includes('corto') || /\bcc\b/.test(s)) return 'corto';
             if (s.includes('libre') && s.includes('25')) return 'libre25';
             if (s.includes('libre') && s.includes('50')) return 'libre50';
+            if (s.includes('ingreso') && s.includes('25')) return 'ingreso25';
             if (s.includes('recuper')) return 'recuperacion';
             if (s.includes('perd')) return 'perdida';
             if (s.includes('tiro') || s.includes('shot') || s.includes('remate')) return 'tiro';
             return '';
+        }
+
+        // Cuarto del corte (q1..q4): descriptor mapeado, o nombre tipo "1C".
+        function cuartoDe(c, mapeo) {
+            const map = (mapeo && mapeo.descriptores) || {};
+            for (const d of (c.d || [])) {
+                const s = map[d];
+                if (typeof s === 'string' && /^q[1-4]$/.test(s)) return s;
+            }
+            for (const raw of (c.d || [])) {
+                const m = norm(raw).replace(/\s+/g, '').match(/^([1-4])c$/);
+                if (m) return 'q' + m[1];
+            }
+            return null;
         }
 
         // Celda del área del corte. Acepta celda exacta (a<f>_<l>) o el combo
@@ -360,12 +380,14 @@
             const MM = () => ({ favor: 0, contra: 0 });
             const T = () => ({ total: 0, gol: 0, atajado: 0, desviado: 0, zonas: celdasArea(AR, AC) });
             const Z = () => ({ total: 0, zonas: celdasArea(AR, AC) });
+            const Q = () => ({ acc: MM(), goles: MM() });
             const mx = {
                 goles: MM(), cortos: MM(), libres25: MM(), libres50: MM(),
-                recuperaciones: MM(), perdidas: MM(),
+                recuperaciones: MM(), perdidas: MM(), ingresos25: MM(),
                 zonasRecu: celdasCancha(CR, CC), zonasPerd: celdasCancha(CR, CC),
                 tiros: { favor: T(), contra: T() },
                 cortosZona: { favor: Z(), contra: Z() },
+                cuartos: { q1: Q(), q2: Q(), q3: Q(), q4: Q() },
                 accFavor: 0, accContra: 0
             };
 
@@ -377,6 +399,15 @@
 
                 mx.goles[lado] += lista.filter(c => esGol(c, mapeo)).length;
 
+                // Desglose por cuarto (si el corte trae el tag 1C–4C)
+                lista.forEach(c => {
+                    const q = cuartoDe(c, mapeo);
+                    if (q) {
+                        mx.cuartos[q].acc[lado]++;
+                        if (esGol(c, mapeo)) mx.cuartos[q].goles[lado]++;
+                    }
+                });
+
                 const rol = rolDe(nombre, mapeo);
                 if (rol === 'corto') {
                     mx.cortos[lado] += n;
@@ -385,6 +416,7 @@
                 }
                 else if (rol === 'libre25') mx.libres25[lado] += n;
                 else if (rol === 'libre50') mx.libres50[lado] += n;
+                else if (rol === 'ingreso25') mx.ingresos25[lado] += n;
                 else if (rol === 'recuperacion') {
                     mx.recuperaciones[lado] += n;
                     if (lado === 'favor') lista.forEach(c => { const z = celdaCancha(c, mapeo, CC); if (z && z in mx.zonasRecu) mx.zonasRecu[z]++; else mx.zonasRecu.sin++; });
@@ -527,7 +559,28 @@
                     ${tile('Córners cortos', mx.cortos.favor, mx.cortos.contra)}
                     ${tile('Libres de 25', mx.libres25.favor, mx.libres25.contra)}
                     ${tile('Libres de 50', mx.libres50.favor, mx.libres50.contra)}
+                    ${tile('Ingresos 25y', mx.ingresos25.favor, mx.ingresos25.contra)}
                 </div>`;
+
+            // Desglose por cuarto: aparece solo si los cortes traen el tag 1C–4C
+            const qs = ['q1', 'q2', 'q3', 'q4'];
+            const hayCuartos = qs.some(q => mx.cuartos[q].acc.favor + mx.cuartos[q].acc.contra > 0);
+            const cuartosStrip = hayCuartos ? `
+                <div class="cuartos-strip">
+                    ${qs.map((q, i) => {
+                        const c = mx.cuartos[q];
+                        const tot = c.acc.favor + c.acc.contra;
+                        if (!tot) return `<div class="mtile">
+                            <div class="mt-lbl">${i + 1}C</div>
+                            <div class="mt-val"><span class="con">—</span></div>
+                        </div>`;
+                        const pos = Math.round((c.acc.favor / tot) * 100);
+                        return `<div class="mtile">
+                            <div class="mt-lbl">${i + 1}C · goles ${c.goles.favor}–${c.goles.contra}</div>
+                            <div class="mt-val"><span class="fav">${pos}%</span><span class="sep">·</span><span class="con">${100 - pos}%</span></div>
+                        </div>`;
+                    }).join('')}
+                </div>` : '';
 
             // Grilla 3×2: fila de arriba = a favor, fila de abajo = en contra.
             const tablero = `
@@ -540,7 +593,7 @@
                     ${areaCorner(mx.cortosZona.contra, 'Córners en contra', '255,107,112', 'var(--danger)', AR, AC)}
                 </div>`;
 
-            cont.innerHTML = controls + strip + tablero;
+            cont.innerHTML = controls + strip + cuartosStrip + tablero;
             cont.style.display = 'flex';
             if (editMode) wireEdit();
         }
