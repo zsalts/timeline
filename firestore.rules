@@ -28,6 +28,34 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/clubes/$(clubId)).data;
     }
 
+    // ¿El único cambio en el club es el contador de partidos, moviéndose ±1?
+    // Permite que cualquier miembro (no jugadora) mantenga el contador que usa
+    // el tope del plan Free, sin poder tocar ningún otro campo del club.
+    function soloContadorPartidos(clubId) {
+      return userExists() &&
+             userDoc().club_id == clubId &&
+             userDoc().rol != 'player' &&
+             request.resource.data.diff(resource.data).affectedKeys().hasOnly(['partidos_count']) &&
+             (request.resource.data.partidos_count == resource.data.get('partidos_count', 0) + 1 ||
+              request.resource.data.partidos_count == resource.data.get('partidos_count', 0) - 1);
+    }
+
+    // Tope de partidos según el plan. Pro/Ultra: sin límite. Free: el contador
+    // del club (tras el incremento atómico del batch de creación) no puede pasar
+    // 10. Exige que la creación incremente el contador en 1, así no se puede
+    // crear un partido "suelto" salteando el tope.
+    function dentroDelTopePartidos(clubId) {
+      return clubDoc(clubId).get('plan', 'free') != 'free' ||
+             (getAfter(/databases/$(database)/documents/clubes/$(clubId)).data.partidos_count == clubDoc(clubId).get('partidos_count', 0) + 1 &&
+              getAfter(/databases/$(database)/documents/clubes/$(clubId)).data.partidos_count <= 10);
+    }
+
+    // ¿El usuario es del cuerpo técnico? (entrenador o admin del club).
+    // Los ejercicios y entrenamientos son solo para ellos.
+    function esEntrenador() {
+      return userExists() && (userDoc().rol == 'trainer' || userDoc().rol == 'club-admin');
+    }
+
     // ============================================
     // COLECCIÓN: clubes
     // ============================================
@@ -40,6 +68,11 @@ service cloud.firestore {
       // Escribir: super-admin (crear/editar) o admin del club
       allow write: if isSuper() ||
         (request.auth != null && request.auth.uid == resource.data.admin_uid);
+
+      // Además: cualquier miembro (no jugadora) puede mover SOLO el contador
+      // de partidos ±1 (lo mantiene el batch de crear/borrar partido). Esta
+      // regla se OR-ea con la de arriba, sin ampliar nada más del club.
+      allow update: if soloContadorPartidos(clubId);
     }
 
     // ============================================
@@ -76,10 +109,13 @@ service cloud.firestore {
       allow read: if isSuper() ||
         (userExists() && userDoc().club_id == resource.data.club_id);
 
-      // Crear: usuario del club que NO sea jugadora (las jugadoras solo miran)
+      // Crear: usuario del club que NO sea jugadora (las jugadoras solo miran).
+      // Free tope 10 partidos: la creación debe venir en un batch que también
+      // incremente clubes/{club}.partidos_count (ver dentroDelTopePartidos).
       allow create: if userExists() &&
         userDoc().rol != 'player' &&
-        request.resource.data.club_id == userDoc().club_id;
+        request.resource.data.club_id == userDoc().club_id &&
+        dentroDelTopePartidos(request.resource.data.club_id);
 
       // Actualizar: miembro del mismo club que no sea jugadora (notas, cortes, datos).
       // No se permite mover el partido a otro club.
@@ -131,6 +167,54 @@ service cloud.firestore {
 
       // No se edita un compartido: se borra y se vuelve a compartir
       allow update: if false;
+    }
+
+    // ============================================
+    // COLECCIÓN: entrenamientos (sesiones — plan Ultra)
+    // ============================================
+    match /entrenamientos/{entId} {
+      // Leer: solo el cuerpo técnico del club (entrenador o admin)
+      allow read: if isSuper() ||
+        (esEntrenador() && userDoc().club_id == resource.data.club_id);
+
+      // Crear: entrenador/admin del club, y el club debe ser Ultra.
+      allow create: if esEntrenador() &&
+        request.resource.data.club_id == userDoc().club_id &&
+        clubDoc(userDoc().club_id).get('plan', 'free') == 'ultra';
+
+      // Actualizar: entrenador/admin del mismo club (Ultra), sin cambiar de club
+      allow update: if esEntrenador() &&
+        resource.data.club_id == userDoc().club_id &&
+        request.resource.data.club_id == userDoc().club_id &&
+        clubDoc(userDoc().club_id).get('plan', 'free') == 'ultra';
+
+      // Borrar: entrenador/admin del mismo club
+      allow delete: if esEntrenador() &&
+        userDoc().club_id == resource.data.club_id;
+    }
+
+    // ============================================
+    // COLECCIÓN: ejercicios (editor de cancha — plan Ultra)
+    // ============================================
+    match /ejercicios/{ejId} {
+      // Leer: solo el cuerpo técnico del club (entrenador o admin)
+      allow read: if isSuper() ||
+        (esEntrenador() && userDoc().club_id == resource.data.club_id);
+
+      // Crear: entrenador/admin del club, y el club debe ser Ultra.
+      allow create: if esEntrenador() &&
+        request.resource.data.club_id == userDoc().club_id &&
+        clubDoc(userDoc().club_id).get('plan', 'free') == 'ultra';
+
+      // Actualizar: entrenador/admin del mismo club (Ultra), sin cambiar de club
+      allow update: if esEntrenador() &&
+        resource.data.club_id == userDoc().club_id &&
+        request.resource.data.club_id == userDoc().club_id &&
+        clubDoc(userDoc().club_id).get('plan', 'free') == 'ultra';
+
+      // Borrar: entrenador/admin del mismo club (aunque haya bajado de plan)
+      allow delete: if esEntrenador() &&
+        userDoc().club_id == resource.data.club_id;
     }
 
     // ============================================

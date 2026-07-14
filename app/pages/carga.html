@@ -26,6 +26,8 @@
             </div>
         </div>
 
+        <div id="aviso-limite" style="display:none; margin-bottom:16px; padding:12px 14px; border-radius:8px; font-size:0.9rem; font-weight:600;"></div>
+
         <div class="card-stat" style="display: block; cursor: default;">
             <form id="form-carga" style="display: flex; flex-direction: column; gap: 18px;">
 
@@ -78,10 +80,12 @@
 
     <!-- Módulo compartido de parseo de archivos (.lgm / .xml) -->
     <script src="../assets/js/utils/parsers.js"></script>
+    <!-- Planes de suscripción (límite de partidos según plan del club) -->
+    <script src="../assets/js/utils/planes.js"></script>
 
     <!-- Guardado en Firestore (nube, multi-tenant por club_id) -->
     <script type="module">
-        import { db, collection, addDoc, doc, getDoc } from '../assets/js/firebase.js';
+        import { db, collection, addDoc, doc, getDoc, getDocs, query, where, writeBatch, increment } from '../assets/js/firebase.js';
 
         const uid = sessionStorage.getItem('usuarioUID');
         const clubId = sessionStorage.getItem('clubID');
@@ -125,8 +129,69 @@
             }
         })();
 
+        // ---- Límite de partidos según el plan del club ----
+        // El plan Free tope de 10 partidos (total). Pro/Ultra: ilimitado.
+        const limitePartidos = TL.planes.limiteActual('partidos');
+        const aviso = document.getElementById('aviso-limite');
+
+        async function contarPartidos() {
+            const snap = await getDocs(query(collection(db, "partidos"), where("club_id", "==", clubId)));
+            return snap.size;
+        }
+
+        function pintarAviso(texto, tipo) {
+            // tipo: 'info' (quedan cupos) | 'bloqueo' (llegó al tope)
+            aviso.style.display = 'block';
+            aviso.textContent = texto;
+            if (tipo === 'bloqueo') {
+                aviso.style.background = 'var(--danger-dim)';
+                aviso.style.color = '#ffb3b6';
+                aviso.style.border = '1px solid rgba(255, 92, 99, 0.35)';
+            } else {
+                aviso.style.background = 'var(--panel-2)';
+                aviso.style.color = 'var(--muted)';
+                aviso.style.border = '1px solid var(--line)';
+            }
+        }
+
+        function bloquearFormulario() {
+            btn.disabled = true;
+            btn.textContent = "Límite alcanzado";
+        }
+
+        // Solo mostramos aviso/bloqueo cuando hay tope (plan Free).
+        if (limitePartidos !== Infinity) {
+            (async function chequearLimite() {
+                try {
+                    const usados = await contarPartidos();
+                    if (usados >= limitePartidos) {
+                        pintarAviso(`Llegaste al límite del plan Free (${limitePartidos} partidos). Pasá a Pro para cargar partidos ilimitados.`, 'bloqueo');
+                        bloquearFormulario();
+                    } else {
+                        pintarAviso(`Plan Free: ${usados} de ${limitePartidos} partidos usados.`, 'info');
+                    }
+                } catch (e) {
+                    console.error("No se pudo verificar el límite de partidos:", e);
+                }
+            })();
+        }
+
         form.addEventListener('submit', async function (e) {
             e.preventDefault();
+
+            // Reverificar el tope justo antes de guardar (evita saltarlo).
+            if (limitePartidos !== Infinity) {
+                try {
+                    const usados = await contarPartidos();
+                    if (usados >= limitePartidos) {
+                        pintarAviso(`Llegaste al límite del plan Free (${limitePartidos} partidos). Pasá a Pro para cargar partidos ilimitados.`, 'bloqueo');
+                        bloquearFormulario();
+                        return;
+                    }
+                } catch (e) {
+                    console.error("No se pudo verificar el límite de partidos:", e);
+                }
+            }
 
             const file = document.getElementById('input-xml').files[0];
 
@@ -152,7 +217,16 @@
 
             const guardarEnBaseDeDatos = async (datos) => {
                 try {
-                    await addDoc(collection(db, "partidos"), datos);
+                    // Escritura atómica: se crea el partido y se incrementa el
+                    // contador del club en la misma operación. La regla de
+                    // Firestore lee ese contador para hacer cumplir el tope del
+                    // plan Free (ver firestore.rules). Si no van juntos, la regla
+                    // no puede contar partidos y el tope sería solo del cliente.
+                    const batch = writeBatch(db);
+                    const nuevoRef = doc(collection(db, "partidos"));
+                    batch.set(nuevoRef, datos);
+                    batch.update(doc(db, "clubes", clubId), { partidos_count: increment(1) });
+                    await batch.commit();
                     mensaje.style.color = "var(--live)";
                     mensaje.textContent = "¡Éxito! Redirigiendo al historial...";
                     setTimeout(() => {

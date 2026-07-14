@@ -10,6 +10,10 @@
     <link rel="apple-touch-icon" href="../assets/image/logo-web.png">
     <link rel="stylesheet" href="../assets/css/style.css">
     <script src="../assets/js/utils/tema.js"></script>
+    <!-- planes.js antes de ui.js para gatear el export según el plan -->
+    <script src="../assets/js/utils/planes.js"></script>
+    <!-- html2canvas: exportar el tablero como imagen (función Pro) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
         /* Tablero de una sola pantalla (sin scroll) */
         body.app-shell { overflow: hidden; }
@@ -216,6 +220,100 @@
         <div id="metricas" class="metricas" style="display:none;"></div>
     </div>
 
+    <!-- Exportar reporte (función Pro): baja el tablero como imagen PNG -->
+    <button id="btn-export-rep" style="display:none; position:fixed; top:14px; right:18px; z-index:50;
+        width:auto; padding:9px 16px; background:var(--accent); color:var(--accent-ink); border:none;
+        border-radius:var(--radius-sm); font-weight:700; font-family:inherit; cursor:pointer; box-shadow:0 4px 14px rgba(0,0,0,0.3);">
+        ⬇ Exportar
+    </button>
+
+    <!-- Resumen automático (función Ultra): genera un texto con los números del partido -->
+    <button id="btn-resumen" style="display:none; position:fixed; top:14px; right:140px; z-index:50;
+        width:auto; padding:9px 16px; background:var(--panel-2); color:var(--text); border:1px solid var(--line);
+        border-radius:var(--radius-sm); font-weight:700; font-family:inherit; cursor:pointer; box-shadow:0 4px 14px rgba(0,0,0,0.3);">
+        📝 Resumen
+    </button>
+
+    <div id="modal-resumen" style="display:none; position:fixed; inset:0; z-index:60; background:rgba(0,0,0,0.55);
+        align-items:center; justify-content:center; padding:20px;">
+        <div style="background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); max-width:560px; width:100%; padding:22px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                <h3 style="margin:0;">Resumen del partido</h3>
+                <button id="btn-cerrar-resumen" class="btn-ghost" style="width:auto; padding:6px 14px;">Cerrar</button>
+            </div>
+            <p style="color:var(--muted); font-size:0.82rem; margin:0 0 12px;">Generado a partir de los cortes cargados. Revisalo antes de mandarlo.</p>
+            <div id="resumen-texto" style="background:var(--panel-2); border:1px solid var(--line); border-radius:10px; padding:14px; line-height:1.6; color:var(--text); font-size:0.95rem;"></div>
+            <div style="display:flex; gap:10px; margin-top:14px;">
+                <button id="btn-copiar-resumen" class="btn-primary" style="width:auto; padding:9px 18px;">Copiar texto</button>
+                <span id="copiado-ok" style="color:var(--live); font-weight:600; align-self:center; display:none;">¡Copiado!</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Gate del export por plan (Pro+). Captura el tablero con html2canvas.
+        (function () {
+            const btn = document.getElementById('btn-export-rep');
+            if (!window.TL || !TL.planes.puedeActual('export_reportes')) return;
+            btn.style.display = 'inline-flex';
+            // Marca del club para el encabezado del reporte (logo + nombre)
+            let club = {};
+            try { club = JSON.parse(sessionStorage.getItem('configClub') || '{}'); } catch (e) { }
+
+            function crearBanner() {
+                const b = document.createElement('div');
+                b.id = '__brand-export';
+                b.style.cssText = 'display:flex; align-items:center; gap:12px; padding:6px 2px 14px; margin-bottom:10px; border-bottom:1px solid var(--line);';
+                const fecha = new Date().toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' });
+                b.innerHTML = `
+                    ${club.logo ? `<img src="${club.logo}" style="width:36px; height:36px; object-fit:contain; background:#fff; border-radius:8px; padding:3px;">` : ''}
+                    <div style="text-align:left;">
+                        <div style="font-weight:800; font-size:1.02rem; color:var(--text); line-height:1.1;">${club.nombre || 'Timeline'}</div>
+                        <div style="font-size:0.72rem; color:var(--muted); font-family:var(--font-mono); letter-spacing:0.04em;">REPORTE DE ANÁLISIS · ${fecha}</div>
+                    </div>`;
+                return b;
+            }
+
+            btn.addEventListener('click', async () => {
+                if (typeof html2canvas === 'undefined') {
+                    alert('No se pudo cargar el exportador de imágenes. Revisá tu conexión e intentá de nuevo.');
+                    return;
+                }
+                const cont = document.querySelector('.container-dashboard');
+                const orig = btn.textContent;
+                btn.disabled = true; btn.textContent = 'Generando…';
+                // Temporalmente permitir que el tablero crezca (no recortar) y
+                // anteponer el encabezado con la marca del club.
+                const prevHeight = cont.style.height, prevOverflow = cont.style.overflow;
+                const banner = crearBanner();
+                cont.style.height = 'auto';
+                cont.style.overflow = 'visible';
+                cont.insertBefore(banner, cont.firstChild);
+                try {
+                    const canvas = await html2canvas(cont, {
+                        backgroundColor: '#0B0E13',
+                        scale: 2,
+                        ignoreElements: (el) => el.id === 'btn-export-rep' || (el.classList && el.classList.contains('tablero-controls'))
+                    });
+                    const eq1 = (document.getElementById('eq-nuestro') || {}).textContent || 'equipo';
+                    const eq2 = (document.getElementById('eq-rival') || {}).textContent || 'rival';
+                    const a = document.createElement('a');
+                    a.download = `reporte-${eq1}-vs-${eq2}.png`.replace(/\s+/g, '_');
+                    a.href = canvas.toDataURL('image/png');
+                    a.click();
+                } catch (e) {
+                    console.error('Error al exportar el reporte:', e);
+                    alert('No se pudo generar la imagen del reporte.');
+                } finally {
+                    banner.remove();
+                    cont.style.height = prevHeight;
+                    cont.style.overflow = prevOverflow;
+                    btn.disabled = false; btn.textContent = orig;
+                }
+            });
+        })();
+    </script>
+
     <script type="module">
         const uid = sessionStorage.getItem('usuarioUID');
         if (!uid) {
@@ -232,6 +330,7 @@
 
         // Estado del tablero: se re-pinta al editar la config en vivo.
         let estGlobal = null, mapeoGlobal = null, eqG1 = 'Nuestro equipo', eqG2 = 'Rival', editMode = false;
+        let mxGlobal = null;   // últimas métricas calculadas (para el resumen automático)
         const tb = (k, def) => (mapeoGlobal && mapeoGlobal.tablero && mapeoGlobal.tablero[k]) || def;
         const cFilas = () => tb('canchaFilas', 4), cCols = () => tb('canchaCols', 3);
         const aFilas = () => tb('areaFilas', 3), aCols = () => tb('areaCols', 3);
@@ -626,9 +725,86 @@
         function pintar() {
             const CR = cFilas(), CC = cCols(), AR = aFilas(), AC = aCols();
             const mx = calcularComparativa(estGlobal, mapeoGlobal, CR, CC, AR, AC);
+            mxGlobal = mx;
             document.getElementById('marcador-score').textContent = `${mx.goles.favor} – ${mx.goles.contra}`;
             renderMetricas(mx, CR, CC, AR, AC);
         }
+
+        // ---- Resumen automático del partido (función Ultra) ----
+        // Arma un texto en lenguaje natural con los números del tablero.
+        // Solo incluye frases para las que hay datos (no afirma nada sin dato).
+        function generarResumen(mx, eq1, eq2) {
+            const L = [];
+            const gf = mx.goles.favor, gc = mx.goles.contra;
+            if (gf > gc) L.push(`Victoria de ${eq1} ${gf}–${gc} ante ${eq2}.`);
+            else if (gf < gc) L.push(`Derrota de ${eq1} ${gf}–${gc} ante ${eq2}.`);
+            else L.push(`Empate ${gf}–${gc} entre ${eq1} y ${eq2}.`);
+
+            const tot = mx.accFavor + mx.accContra;
+            if (tot > 0) L.push(`Posesión ${mx.posFavor}% a favor (${mx.posContra}% del rival), sobre ${tot} acciones registradas.`);
+
+            if (mx.recuperaciones.favor || mx.perdidas.favor)
+                L.push(`Recuperamos ${mx.recuperaciones.favor} pelota(s) y perdimos ${mx.perdidas.favor}.`);
+
+            const tf = mx.tiros.favor, tc = mx.tiros.contra;
+            if (tf.total || tc.total) {
+                let s = `Generamos ${tf.total} tiro(s) al arco`;
+                if (tf.total) s += ` (${tf.gol} gol, ${tf.atajado} atajado, ${tf.desviado} desviado)`;
+                s += `; el rival ${tc.total}.`;
+                L.push(s);
+                if (tf.total) L.push(`Efectividad de tiro: ${Math.round((tf.gol / tf.total) * 100)}% (${tf.gol}/${tf.total}).`);
+            }
+
+            if (mx.cortos.favor || mx.cortos.contra)
+                L.push(`Córners cortos: ${mx.cortos.favor} a favor, ${mx.cortos.contra} en contra.`);
+
+            if (mx.ingresos25.favor || mx.ingresos25.contra)
+                L.push(`Ingresos a 25y: ${mx.ingresos25.favor} nuestros, ${mx.ingresos25.contra} del rival.`);
+
+            const qs = ['q1', 'q2', 'q3', 'q4'];
+            if (qs.some(q => mx.cuartos[q].acc.favor + mx.cuartos[q].acc.contra > 0)) {
+                let best = -1, bestPos = -1;
+                qs.forEach((q, i) => {
+                    const c = mx.cuartos[q], t = c.acc.favor + c.acc.contra;
+                    if (t) { const p = c.acc.favor / t; if (p > bestPos) { bestPos = p; best = i; } }
+                });
+                if (best >= 0) L.push(`El cuarto de mayor dominio fue el ${best + 1}º (posesión ${Math.round(bestPos * 100)}%).`);
+            }
+            return L.join(' ');
+        }
+
+        // Wiring del botón/modal de resumen (solo si el plan lo permite)
+        (function wireResumen() {
+            const btn = document.getElementById('btn-resumen');
+            if (!window.TL || !TL.planes.puedeActual('resumen_auto')) return;
+            btn.style.display = 'inline-flex';
+            const modal = document.getElementById('modal-resumen');
+            const cerrar = () => { modal.style.display = 'none'; };
+            btn.addEventListener('click', () => {
+                if (!mxGlobal || (mxGlobal.accFavor + mxGlobal.accContra) === 0) {
+                    alert('Todavía no hay datos cargados para resumir este partido.');
+                    return;
+                }
+                document.getElementById('resumen-texto').textContent = generarResumen(mxGlobal, eqG1, eqG2);
+                document.getElementById('copiado-ok').style.display = 'none';
+                modal.style.display = 'flex';
+            });
+            document.getElementById('btn-cerrar-resumen').addEventListener('click', cerrar);
+            modal.addEventListener('click', (e) => { if (e.target === modal) cerrar(); });
+            document.getElementById('btn-copiar-resumen').addEventListener('click', async () => {
+                const txt = document.getElementById('resumen-texto').textContent;
+                try {
+                    await navigator.clipboard.writeText(txt);
+                } catch (e) {
+                    // Fallback si el navegador bloquea el portapapeles
+                    const ta = document.createElement('textarea');
+                    ta.value = txt; document.body.appendChild(ta); ta.select();
+                    try { document.execCommand('copy'); } catch (e2) { }
+                    ta.remove();
+                }
+                document.getElementById('copiado-ok').style.display = 'inline';
+            });
+        })();
 
         // En modo config, cada zona es clickeable para setear su descriptor.
         function wireEdit() {

@@ -30,6 +30,20 @@
     const esClubAdmin = sessionStorage.getItem('isClubAdmin') === 'true';
     // Las jugadoras son espectadoras: ven los partidos pero no cargan
     const esJugadora = sessionStorage.getItem('userRole') === 'player';
+    // Los ejercicios/entrenamientos son solo del cuerpo técnico (entrenador o admin)
+    const rolActual = sessionStorage.getItem('userRole');
+    const esEntrenador = rolActual === 'trainer' || rolActual === 'club-admin';
+    // Editor de cancha (armar ejercicios) es una función del plan Ultra.
+    // Se resuelve con TL.planes si está cargado; si no, se mira el plan directo.
+    let puedeEjercicios = false;
+    try {
+        if (window.TL && window.TL.planes) {
+            puedeEjercicios = window.TL.planes.puedeActual('editor_cancha');
+        } else {
+            const cfg = JSON.parse(sessionStorage.getItem('configClub') || '{}');
+            puedeEjercicios = (cfg.plan || 'free').toLowerCase() === 'ultra';
+        }
+    } catch (e) { /* sin config: sin acceso */ }
     // "Contexto de partido": al abrir un partido aparecen Video y Estadísticas
     const hayPartido = !!sessionStorage.getItem('partidoSeleccionadoId');
 
@@ -40,6 +54,12 @@
     if (!esJugadora) {
         links.push({ id: 'carga', href: `${toPage}carga.html`, label: 'Cargar partido' });
         links.push({ id: 'comparar', href: `${toPage}comparar.html`, label: 'Comparar' });
+        // Entrenamientos y Ejercicios (editor de cancha): plan Ultra y solo
+        // el cuerpo técnico (entrenador o admin del club).
+        if (puedeEjercicios && esEntrenador) {
+            links.push({ id: 'entrenamientos', href: `${toPage}entrenamientos.html`, label: 'Entrenamientos' });
+            links.push({ id: 'ejercicios', href: `${toPage}ejercicios.html`, label: 'Ejercicios' });
+        }
     }
 
     if (hayPartido) {

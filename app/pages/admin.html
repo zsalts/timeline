@@ -6,6 +6,7 @@
     <title>Administración - Timeline</title>
     <link rel="icon" type="image/png" href="../assets/image/logo-web.png">
     <link rel="stylesheet" href="../assets/css/style.css">
+    <script src="../assets/js/utils/planes.js"></script>
     <style>
         body {
             padding: 36px 24px 60px;
@@ -165,12 +166,22 @@
                         </div>
                     </div>
 
-                    <div class="form-group">
-                        <label>Logo del Club (PNG/JPG — se redimensiona automáticamente)</label>
-                        <input type="file" id="club-logo" accept="image/png, image/jpeg">
-                        <div style="margin-top:10px;">
-                            <img id="club-logo-preview" alt="Previsualización del logo"
-                                style="display:none; max-width:120px; max-height:120px; border:1px solid #ddd; border-radius:8px; padding:4px; background:#fff;">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Plan de suscripción</label>
+                            <select id="club-plan">
+                                <option value="free" selected>Free — 10 partidos, para probar</option>
+                                <option value="pro">Pro — partidos ilimitados + tablero completo</option>
+                                <option value="ultra">Ultra — todo Pro + entrenamientos y editor de cancha</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Logo del Club (PNG/JPG — se redimensiona automáticamente)</label>
+                            <input type="file" id="club-logo" accept="image/png, image/jpeg">
+                            <div style="margin-top:10px;">
+                                <img id="club-logo-preview" alt="Previsualización del logo"
+                                    style="display:none; max-width:120px; max-height:120px; border:1px solid #ddd; border-radius:8px; padding:4px; background:#fff;">
+                            </div>
                         </div>
                     </div>
 
@@ -341,6 +352,7 @@
                 const clubNombre = document.getElementById('club-nombre').value.trim();
                 const adminEmail = document.getElementById('club-admin-email').value.trim();
                 const adminPassword = document.getElementById('club-admin-password').value;
+                const clubPlan = document.getElementById('club-plan').value || 'free';
                 const logoFile = document.getElementById('club-logo').files[0];
                 const mensajeDiv = document.getElementById('mensaje-crear');
 
@@ -382,6 +394,8 @@
                         nombre: clubNombre,
                         logo: logoDataUrl || '',
                         admin_uid: adminUid,
+                        plan: clubPlan,
+                        partidos_count: 0,        // contador para el tope del plan Free
                         usuarios_activos: 2,
                         fecha_creacion: new Date(),
                         estado: 'activo',
@@ -400,6 +414,7 @@
                     // Crear documento de facturación
                     await setDoc(doc(db, "facturacion", clubId), {
                         admin_uid: adminUid,
+                        plan: clubPlan,
                         usuarios_base: 2,
                         usuarios_adicionales: [],
                         precio_por_usuario: 50,
@@ -415,6 +430,7 @@
                     document.getElementById('club-nombre').value = '';
                     document.getElementById('club-admin-email').value = '';
                     document.getElementById('club-admin-password').value = '';
+                    document.getElementById('club-plan').value = 'free';
                     document.getElementById('club-logo').value = '';
                     document.getElementById('club-logo-preview').style.display = 'none';
 
@@ -487,7 +503,7 @@
                             <div class="club-info" style="display:flex; gap:12px; align-items:center;">
                                 ${club.logo ? `<img src="${club.logo}" alt="logo" style="width:48px; height:48px; object-fit:contain; border:1px solid var(--line); border-radius:8px; background:#fff; padding:2px;">` : ''}
                                 <div>
-                                    <h3>${esc(club.nombre)}</h3>
+                                    <h3>${esc(club.nombre)} <span style="font-size:0.72rem; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; color:var(--accent-ink); background:var(--accent); padding:2px 8px; border-radius:999px; vertical-align:middle;">${TL.planes.info(club.plan).nombre}</span></h3>
                                     <p><strong>ID:</strong> ${clubId}</p>
                                     <p><strong>Usuarios:</strong> ${club.usuarios_activos || usuarios.length || 2} · <strong>Estado:</strong> ${activo ? 'Activo' : 'De baja'}</p>
                                 </div>
@@ -506,6 +522,14 @@
                                 <div class="form-group">
                                     <label>Nombre del equipo</label>
                                     <input type="text" id="edit-nombre-${clubId}" value="${esc(club.nombre)}">
+                                </div>
+                                <div class="form-group">
+                                    <label>Plan de suscripción</label>
+                                    <select id="edit-plan-${clubId}">
+                                        <option value="free" ${TL.planes.normalizar(club.plan) === 'free' ? 'selected' : ''}>Free — 10 partidos, para probar</option>
+                                        <option value="pro" ${TL.planes.normalizar(club.plan) === 'pro' ? 'selected' : ''}>Pro — partidos ilimitados + tablero completo</option>
+                                        <option value="ultra" ${TL.planes.normalizar(club.plan) === 'ultra' ? 'selected' : ''}>Ultra — todo Pro + entrenamientos y editor de cancha</option>
+                                    </select>
                                 </div>
                                 <div class="form-group">
                                     <label>Logo del club (dejá vacío para conservar el actual)</label>
@@ -560,16 +584,19 @@
         // Guardar cambios de nombre / colores / logo del club
         window.guardarClub = async (clubId) => {
             const nombre = document.getElementById(`edit-nombre-${clubId}`).value.trim();
+            const plan = document.getElementById(`edit-plan-${clubId}`).value || 'free';
             const logoFile = document.getElementById(`edit-logo-${clubId}`).files[0];
             const msg = document.getElementById(`msg-${clubId}`);
             if (!nombre) { showMessage(msg, 'El nombre no puede estar vacío', 'error'); return; }
             try {
-                const cambios = { nombre };
+                const cambios = { nombre, plan };
                 // Solo actualizamos el logo si se subió uno nuevo
                 if (logoFile) {
                     cambios.logo = await procesarLogo(logoFile);
                 }
                 await updateDoc(doc(db, 'clubes', clubId), cambios);
+                // Mantener el plan sincronizado en facturación (base del cobro)
+                try { await updateDoc(doc(db, 'facturacion', clubId), { plan }); } catch (e) { /* facturación puede no existir en clubes viejos */ }
                 showMessage(msg, 'Cambios guardados', 'exito');
                 setTimeout(loadClubs, 1200);
             } catch (error) {

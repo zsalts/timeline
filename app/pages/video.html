@@ -234,6 +234,7 @@
 
     <!-- Módulos compartidos -->
     <script src="../assets/js/utils/youtube.js"></script>
+    <script src="../assets/js/utils/planes.js"></script>
     <script src="../assets/js/components/cortesRenderer.js"></script>
     <script src="../assets/js/components/timeline.js"></script>
 
@@ -345,8 +346,19 @@
 
         // --- Compartir cortes con otra cuenta (por email) ---
         const modalShare = document.getElementById('modal-compartir');
+        const btnCompartir = document.getElementById('btn-compartir');
 
-        document.getElementById('btn-compartir').onclick = () => {
+        // Compartir es una función del plan Pro/Ultra. En Free se muestra
+        // bloqueada con un aviso de upgrade en vez de abrir el modal.
+        if (!TL.planes.puedeActual('compartir')) {
+            btnCompartir.textContent = '🔒 Compartir';
+            btnCompartir.title = 'Compartir cortes está disponible en el plan Pro.';
+            btnCompartir.style.opacity = '0.6';
+            btnCompartir.onclick = () => {
+                alert('Compartir cortes con otra cuenta es una función del plan Pro. Hablá con el administrador del club para mejorar el plan.');
+            };
+        } else {
+        btnCompartir.onclick = () => {
             const cont = document.getElementById('share-cats');
             const est = (partidoActual && partidoActual.estadisticas) || {};
             const cats = Object.keys(est).sort((a, b) => a.localeCompare(b, 'es'));
@@ -361,6 +373,7 @@
             document.getElementById('msg-share').style.display = 'none';
             modalShare.style.display = 'flex';
         };
+        }
 
         document.getElementById('btn-cerrar-share').onclick = () => modalShare.style.display = 'none';
         modalShare.addEventListener('click', (e) => { if (e.target === modalShare) modalShare.style.display = 'none'; });

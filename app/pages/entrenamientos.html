@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Entrenamientos - Timeline</title>
+    <link rel="manifest" href="/manifest.json">
+    <link rel="icon" type="image/png" href="../assets/image/logo-web.png">
+    <link rel="apple-touch-icon" href="../assets/image/logo-web.png">
+    <link rel="stylesheet" href="../assets/css/style.css">
+    <script src="../assets/js/utils/tema.js"></script>
+    <!-- planes.js antes de ui.js para que el sidebar sepa el plan -->
+    <script src="../assets/js/utils/planes.js"></script>
+    <style>
+        .ent-wrap { max-width: 1040px; }
+
+        .form-card {
+            background: var(--panel); border: 1px solid var(--line);
+            border-radius: var(--radius); padding: 18px 20px; margin-bottom: 26px;
+        }
+        .form-card h3 { margin: 0 0 14px; }
+        .form-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+        .form-grid label { display: block; margin-bottom: 6px; }
+        .form-grid .full { grid-column: 1 / -1; }
+
+        .foco-chip {
+            display: inline-block; font-family: var(--font-mono); font-size: 0.6rem;
+            text-transform: uppercase; letter-spacing: 0.08em; padding: 2px 8px;
+            border-radius: 999px; background: var(--accent-dim); color: var(--accent-hi);
+            border: 1px solid var(--accent-line);
+        }
+
+        .ent-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+        .ent-card {
+            background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+            padding: 16px; cursor: pointer; transition: border-color 0.12s, transform 0.1s;
+        }
+        .ent-card:hover { border-color: var(--accent-line); transform: translateY(-2px); }
+        .ent-card.sel { border-color: var(--accent); }
+        .ent-card .fecha { font-family: var(--font-mono); font-size: 0.66rem; letter-spacing: 0.1em; color: var(--muted); text-transform: uppercase; }
+        .ent-card h4 { margin: 4px 0 8px; color: var(--text); font-size: 1.05rem; }
+        .ent-card .notas { color: var(--muted); font-size: 0.84rem; margin-top: 8px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+        .ent-card .row { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; }
+        .ent-card .btn-del { width: auto; padding: 4px 10px; font-size: 0.78rem; }
+
+        /* Detalle de sesión */
+        #detalle { display: none; margin-top: 30px; scroll-margin-top: 20px; }
+        .detalle-head { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
+        .ej-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 14px; }
+        .ej-card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; cursor: pointer; transition: border-color 0.12s, transform 0.1s; }
+        .ej-card:hover { border-color: var(--accent-line); transform: translateY(-2px); }
+        .ej-card h5 { margin: 0 0 4px; color: var(--text); font-size: 0.95rem; }
+        .ej-card .meta { color: var(--muted); font-size: 0.78rem; }
+        .mini-pitch { width: 100%; aspect-ratio: 1000/600; border-radius: 8px; overflow: hidden; border: 1px solid var(--line); margin-bottom: 8px; position: relative; }
+        .mini-pitch svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+        #upgrade-screen { display: none; text-align: center; padding: 60px 20px; }
+        #upgrade-screen .lock { font-size: 3rem; }
+        #upgrade-screen h2 { margin: 14px 0 8px; }
+        #upgrade-screen p { color: var(--muted); max-width: 460px; margin: 0 auto; }
+
+        @media (max-width: 640px) { .form-grid { grid-template-columns: 1fr; } }
+    </style>
+</head>
+
+<body>
+
+    <div id="sidebar-root" data-active="entrenamientos"></div>
+    <script src="../assets/js/components/ui.js"></script>
+
+    <div class="container-dashboard ent-wrap">
+
+        <div id="upgrade-screen">
+            <div class="lock">🔒</div>
+            <h2>Entrenamientos</h2>
+            <p>Cargar sesiones de entrenamiento y armar sus ejercicios es una función del plan <strong>Ultra</strong>.
+               Hablá con el administrador del club para mejorar el plan.</p>
+        </div>
+
+        <div id="main" style="display:none;">
+            <div class="header-stats" style="border:none; margin-bottom:18px;">
+                <div>
+                    <div class="eyebrow">Ultra</div>
+                    <h2>Entrenamientos</h2>
+                    <p class="subtitle">Registrá las sesiones de la semana y armales los ejercicios en la cancha.</p>
+                </div>
+            </div>
+
+            <!-- Nuevo entrenamiento -->
+            <div class="form-card">
+                <h3 id="form-title">Nuevo entrenamiento</h3>
+                <div class="form-grid">
+                    <div>
+                        <label>Fecha</label>
+                        <input type="date" id="in-fecha">
+                    </div>
+                    <div>
+                        <label>Título</label>
+                        <input type="text" id="in-titulo" placeholder="Ej: Salida de presión">
+                    </div>
+                    <div>
+                        <label>Foco</label>
+                        <select id="in-foco">
+                            <option value="Físico">Físico</option>
+                            <option value="Técnico">Técnico</option>
+                            <option value="Táctico" selected>Táctico</option>
+                            <option value="Pelota parada">Pelota parada</option>
+                            <option value="Partido reducido">Partido reducido</option>
+                            <option value="Otro">Otro</option>
+                        </select>
+                    </div>
+                    <div class="full">
+                        <label>Notas — opcional</label>
+                        <textarea id="in-notas" rows="2" placeholder="Objetivos, duración, materiales…"></textarea>
+                    </div>
+                </div>
+                <div style="display:flex; gap:10px; align-items:center; margin-top:14px;">
+                    <button class="btn-primary" id="btn-guardar" style="width:auto; padding:11px 22px;">Guardar entrenamiento</button>
+                    <button class="btn-ghost" id="btn-cancelar" style="width:auto; padding:11px 22px; display:none;">Cancelar edición</button>
+                    <span id="msg-estado" style="font-weight:600;"></span>
+                </div>
+            </div>
+
+            <h3 style="margin:0 0 14px;">Sesiones del club</h3>
+            <div class="ent-grid" id="ent-grid">
+                <p style="color:var(--muted);">Cargando…</p>
+            </div>
+
+            <!-- Detalle de una sesión: sus ejercicios -->
+            <div id="detalle">
+                <div class="detalle-head">
+                    <div>
+                        <div class="eyebrow" id="det-eyebrow">Sesión</div>
+                        <h3 id="det-titulo" style="margin:4px 0 0;"></h3>
+                    </div>
+                    <a id="det-nuevo-ej" class="btn-primary" style="width:auto; padding:10px 18px; text-decoration:none; display:inline-flex; align-items:center;">+ Nuevo ejercicio</a>
+                </div>
+                <div class="ej-grid" id="ej-grid">
+                    <p style="color:var(--muted);">Cargando ejercicios…</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import {
+            db, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, where
+        } from '../assets/js/firebase.js';
+
+        const uid = sessionStorage.getItem('usuarioUID');
+        const clubId = sessionStorage.getItem('clubID');
+        const rol = sessionStorage.getItem('userRole');
+        if (!uid || !clubId) window.location.href = "login.html";
+
+        // Acceso: plan Ultra + solo entrenadores (y admin del club)
+        const esEntrenador = rol === 'trainer' || rol === 'club-admin';
+        const up = document.getElementById('upgrade-screen');
+        if (!TL.planes.puedeActual('editor_cancha')) {
+            up.style.display = 'block';
+        } else if (!esEntrenador) {
+            up.querySelector('h2').textContent = 'Solo para entrenadores';
+            up.querySelector('p').innerHTML = 'Los entrenamientos son del <strong>cuerpo técnico</strong>. Tu usuario no tiene acceso.';
+            up.style.display = 'block';
+        } else {
+            document.getElementById('main').style.display = 'block';
+            iniciar();
+        }
+
+        function iniciar() {
+            const msg = document.getElementById('msg-estado');
+            let editandoId = null;
+            let ejerciciosClub = [];   // cache de todos los ejercicios del club
+
+            // Fecha por defecto: hoy
+            document.getElementById('in-fecha').value = new Date().toISOString().slice(0, 10);
+
+            function mostrarMsg(t, ok) {
+                msg.textContent = t;
+                msg.style.color = ok ? 'var(--live)' : 'var(--danger)';
+                setTimeout(() => { msg.textContent = ''; }, 3000);
+            }
+
+            function fechaLinda(iso) {
+                if (!iso) return 's/f';
+                const [a, m, d] = iso.split('-');
+                return `${d}/${m}/${a}`;
+            }
+
+            // Mini-cancha para el preview de cada ejercicio
+            function svgMini(nCampos) {
+                const grid = { 1: [1, 1], 2: [2, 1], 4: [2, 2], 6: [3, 2] }[nCampos] || [1, 1];
+                const [cols, rows] = grid;
+                let div = '';
+                for (let c = 1; c < cols; c++) div += `<line x1="${1000 / cols * c}" y1="0" x2="${1000 / cols * c}" y2="600" stroke="rgba(255,255,255,0.5)" stroke-width="2" stroke-dasharray="10 8"/>`;
+                for (let r = 1; r < rows; r++) div += `<line x1="0" y1="${600 / rows * r}" x2="1000" y2="${600 / rows * r}" stroke="rgba(255,255,255,0.5)" stroke-width="2" stroke-dasharray="10 8"/>`;
+                const lc = 'rgba(255,255,255,0.4)';
+                return `<svg viewBox="0 0 1000 600" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect width="1000" height="600" fill="#153524"/>
+                    <rect x="14" y="14" width="972" height="572" fill="none" stroke="${lc}" stroke-width="2"/>
+                    <line x1="500" y1="14" x2="500" y2="586" stroke="${lc}" stroke-width="2"/>
+                    <line x1="258" y1="14" x2="258" y2="586" stroke="${lc}" stroke-width="2"/>
+                    <line x1="742" y1="14" x2="742" y2="586" stroke="${lc}" stroke-width="2"/>
+                    <path d="M 14 125 A 156 156 0 0 1 170 281 L 170 319 A 156 156 0 0 1 14 475" fill="none" stroke="${lc}" stroke-width="2"/>
+                    <path d="M 986 125 A 156 156 0 0 0 830 281 L 830 319 A 156 156 0 0 0 986 475" fill="none" stroke="${lc}" stroke-width="2"/>
+                    ${div}</svg>`;
+            }
+            function miniObjetos(objs) {
+                return (objs || []).filter(o => o.tipo !== 'flecha').map(o => {
+                    const col = o.tipo === 'rival' ? '#56C2E6' : (o.tipo === 'pelota' ? '#fff' : (o.tipo === 'cono' ? '#FFB454' : '#F7C948'));
+                    const sz = o.tipo === 'pelota' ? 4 : 7;
+                    return `<span style="position:absolute; left:${o.x}%; top:${o.y}%; width:${sz}px; height:${sz}px; background:${col}; border-radius:50%; transform:translate(-50%,-50%);"></span>`;
+                }).join('');
+            }
+
+            // ---------- Guardar / editar entrenamiento ----------
+            function limpiarForm() {
+                editandoId = null;
+                document.getElementById('in-fecha').value = new Date().toISOString().slice(0, 10);
+                document.getElementById('in-titulo').value = '';
+                document.getElementById('in-foco').value = 'Táctico';
+                document.getElementById('in-notas').value = '';
+                document.getElementById('form-title').textContent = 'Nuevo entrenamiento';
+                document.getElementById('btn-guardar').textContent = 'Guardar entrenamiento';
+                document.getElementById('btn-cancelar').style.display = 'none';
+            }
+
+            document.getElementById('btn-cancelar').addEventListener('click', limpiarForm);
+
+            document.getElementById('btn-guardar').addEventListener('click', async () => {
+                const titulo = document.getElementById('in-titulo').value.trim();
+                if (!titulo) { mostrarMsg('Poné un título a la sesión.', false); return; }
+                const btn = document.getElementById('btn-guardar');
+                btn.disabled = true; btn.textContent = 'Guardando…';
+
+                const datos = {
+                    club_id: clubId,
+                    creado_por: uid,
+                    fecha: document.getElementById('in-fecha').value || '',
+                    titulo,
+                    foco: document.getElementById('in-foco').value,
+                    notas: document.getElementById('in-notas').value.trim(),
+                    actualizado_el: new Date().toISOString()
+                };
+
+                try {
+                    if (editandoId) {
+                        await updateDoc(doc(db, 'entrenamientos', editandoId), datos);
+                    } else {
+                        datos.creado_el = new Date().toISOString();
+                        await addDoc(collection(db, 'entrenamientos'), datos);
+                    }
+                    mostrarMsg('Entrenamiento guardado.', true);
+                    limpiarForm();
+                    cargarEntrenamientos();
+                } catch (e) {
+                    console.error('Error al guardar entrenamiento:', e);
+                    mostrarMsg('No se pudo guardar. Revisá la consola.', false);
+                } finally {
+                    btn.disabled = false;
+                    btn.textContent = editandoId ? 'Guardar cambios' : 'Guardar entrenamiento';
+                }
+            });
+
+            function editarEntrenamiento(it) {
+                editandoId = it.id;
+                document.getElementById('in-fecha').value = it.fecha || '';
+                document.getElementById('in-titulo').value = it.titulo || '';
+                document.getElementById('in-foco').value = it.foco || 'Táctico';
+                document.getElementById('in-notas').value = it.notas || '';
+                document.getElementById('form-title').textContent = 'Editar entrenamiento';
+                document.getElementById('btn-guardar').textContent = 'Guardar cambios';
+                document.getElementById('btn-cancelar').style.display = 'inline-block';
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+
+            // ---------- Listar entrenamientos ----------
+            async function cargarEntrenamientos() {
+                const grid = document.getElementById('ent-grid');
+                try {
+                    // Traigo sesiones y ejercicios del club en paralelo
+                    const [entSnap, ejSnap] = await Promise.all([
+                        getDocs(query(collection(db, 'entrenamientos'), where('club_id', '==', clubId))),
+                        getDocs(query(collection(db, 'ejercicios'), where('club_id', '==', clubId)))
+                    ]);
+                    ejerciciosClub = [];
+                    ejSnap.forEach(s => ejerciciosClub.push({ id: s.id, ...s.data() }));
+
+                    if (entSnap.empty) {
+                        grid.innerHTML = '<p style="color:var(--muted);">Todavía no cargaste ninguna sesión de entrenamiento.</p>';
+                        return;
+                    }
+                    const items = [];
+                    entSnap.forEach(s => items.push({ id: s.id, ...s.data() }));
+                    items.sort((a, b) => (b.fecha || '').localeCompare(a.fecha || ''));
+
+                    grid.innerHTML = '';
+                    items.forEach(it => {
+                        const nEj = ejerciciosClub.filter(e => e.entrenamiento_id === it.id).length;
+                        const card = document.createElement('div');
+                        card.className = 'ent-card';
+                        card.innerHTML = `
+                            <div class="fecha">${fechaLinda(it.fecha)}</div>
+                            <h4></h4>
+                            <span class="foco-chip"></span>
+                            <div class="notas"></div>
+                            <div class="row">
+                                <span style="color:var(--accent); font-size:0.82rem; font-weight:600;">${nEj} ejercicio(s) · ver</span>
+                                <span>
+                                    <button class="btn-ghost btn-del" data-act="editar" style="padding:4px 10px; font-size:0.78rem;">Editar</button>
+                                    <button class="btn-danger btn-del" data-act="borrar">Borrar</button>
+                                </span>
+                            </div>`;
+                        card.querySelector('h4').textContent = it.titulo || 'Sin título';
+                        card.querySelector('.foco-chip').textContent = it.foco || '—';
+                        card.querySelector('.notas').textContent = it.notas || '';
+                        card.addEventListener('click', (e) => {
+                            if (e.target.closest('[data-act]')) return;
+                            document.querySelectorAll('.ent-card').forEach(c => c.classList.remove('sel'));
+                            card.classList.add('sel');
+                            abrirDetalle(it);
+                        });
+                        card.querySelector('[data-act="editar"]').addEventListener('click', (e) => { e.stopPropagation(); editarEntrenamiento(it); });
+                        card.querySelector('[data-act="borrar"]').addEventListener('click', async (e) => {
+                            e.stopPropagation();
+                            if (!confirm(`¿Borrar el entrenamiento "${it.titulo || 'sin título'}"? Los ejercicios asociados no se borran.`)) return;
+                            try {
+                                await deleteDoc(doc(db, 'entrenamientos', it.id));
+                                if (editandoId === it.id) limpiarForm();
+                                document.getElementById('detalle').style.display = 'none';
+                                cargarEntrenamientos();
+                            } catch (err) {
+                                console.error('Error al borrar entrenamiento:', err);
+                                alert('No se pudo borrar el entrenamiento.');
+                            }
+                        });
+                        grid.appendChild(card);
+                    });
+                } catch (e) {
+                    console.error('Error al cargar entrenamientos:', e);
+                    grid.innerHTML = '<p style="color:var(--danger);">No se pudieron cargar los entrenamientos.</p>';
+                }
+            }
+
+            // ---------- Detalle: ejercicios de la sesión ----------
+            function abrirDetalle(it) {
+                const det = document.getElementById('detalle');
+                det.style.display = 'block';
+                document.getElementById('det-eyebrow').textContent = `${fechaLinda(it.fecha)} · ${it.foco || ''}`;
+                document.getElementById('det-titulo').textContent = it.titulo || 'Sesión';
+                // Link a crear un ejercicio nuevo ya asociado a esta sesión
+                const nuevo = document.getElementById('det-nuevo-ej');
+                nuevo.href = `ejercicios.html?entrenamiento=${encodeURIComponent(it.id)}&nombre=${encodeURIComponent(it.titulo || '')}`;
+
+                const grid = document.getElementById('ej-grid');
+                const ejs = ejerciciosClub.filter(e => e.entrenamiento_id === it.id);
+                if (!ejs.length) {
+                    grid.innerHTML = '<p style="color:var(--muted);">Esta sesión todavía no tiene ejercicios. Tocá “+ Nuevo ejercicio”.</p>';
+                    det.scrollIntoView({ behavior: 'smooth' });
+                    return;
+                }
+                grid.innerHTML = '';
+                ejs.forEach(ej => {
+                    const nObj = (ej.objetos || []).length;
+                    const card = document.createElement('a');
+                    card.className = 'ej-card';
+                    card.style.textDecoration = 'none';
+                    card.href = `ejercicios.html?ej=${encodeURIComponent(ej.id)}`;
+                    card.innerHTML = `
+                        <div class="mini-pitch">${svgMini(ej.campos || 1)}${miniObjetos(ej.objetos)}</div>
+                        <h5></h5>
+                        <div class="meta">${ej.campos || 1} campo(s) · ${nObj} objeto(s)${ej.youtube_id ? ' · 🎬' : ''}</div>`;
+                    card.querySelector('h5').textContent = ej.nombre || 'Sin nombre';
+                    grid.appendChild(card);
+                });
+                det.scrollIntoView({ behavior: 'smooth' });
+            }
+
+            // Arranque
+            cargarEntrenamientos();
+        }
+    </script>
+</body>
+
+</html>

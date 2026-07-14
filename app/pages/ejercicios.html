@@ -1,0 +1,908 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ejercicios - Timeline</title>
+    <link rel="manifest" href="/manifest.json">
+    <link rel="icon" type="image/png" href="../assets/image/logo-web.png">
+    <link rel="apple-touch-icon" href="../assets/image/logo-web.png">
+    <link rel="stylesheet" href="../assets/css/style.css">
+    <script src="../assets/js/utils/tema.js"></script>
+    <!-- Exportar/compartir el ejercicio como imagen o PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <!-- planes.js antes de ui.js para que el sidebar sepa el plan -->
+    <script src="../assets/js/utils/planes.js"></script>
+    <style>
+        .editor-wrap { max-width: 1040px; }
+
+        /* Barra de herramientas */
+        .toolbar {
+            display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+            background: var(--panel); border: 1px solid var(--line);
+            border-radius: var(--radius); padding: 12px 14px; margin-bottom: 16px;
+        }
+        .tool-group { display: flex; align-items: center; gap: 8px; }
+        .tool-group + .tool-group { border-left: 1px solid var(--line); padding-left: 12px; }
+        .tool-lbl { font-family: var(--font-mono); font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); }
+
+        .chip {
+            display: inline-flex; align-items: center; gap: 7px;
+            background: var(--panel-2); border: 1px solid var(--line); color: var(--text);
+            border-radius: 999px; padding: 7px 13px; cursor: pointer; font-size: 0.86rem;
+            font-family: inherit; font-weight: 600; transition: border-color 0.12s, background 0.12s;
+        }
+        .chip:hover { border-color: var(--line-2); }
+        .chip.activo { border-color: var(--accent); background: var(--accent-dim); color: var(--accent-hi); }
+        .chip .dot { width: 15px; height: 15px; border-radius: 50%; display: inline-block; }
+        .chip .cono { width: 0; height: 0; border-left: 8px solid transparent; border-right: 8px solid transparent; border-bottom: 14px solid var(--cono); border-radius: 0; }
+
+        .swatch {
+            width: 24px; height: 24px; border-radius: 50%; padding: 0; cursor: pointer;
+            border: 2px solid var(--line); background: var(--panel-2); color: var(--muted);
+            font-size: 0.7rem; font-weight: 700; font-family: inherit; line-height: 1;
+        }
+        .swatch.activo { border-color: var(--text); box-shadow: 0 0 0 2px var(--ink), 0 0 0 4px var(--text); }
+
+        select.campos-sel { width: auto; min-width: 120px; padding: 7px 10px; }
+
+        /* Cancha */
+        .pitch-wrap {
+            position: relative; width: 100%; max-width: 920px; margin: 0 auto;
+            aspect-ratio: 1000 / 600; border-radius: var(--radius); overflow: hidden;
+            border: 1px solid var(--line-2); touch-action: none; user-select: none;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+        }
+        .pitch-wrap svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+        .objetos-layer { position: absolute; inset: 0; }
+
+        .obj {
+            position: absolute; transform: translate(-50%, -50%);
+            cursor: grab; touch-action: none;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .obj:active { cursor: grabbing; }
+        .obj.jug {
+            width: 30px; height: 30px; border-radius: 50%;
+            font-weight: 800; font-size: 0.82rem; color: #10130a;
+            border: 2px solid rgba(0,0,0,0.35); box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+        }
+        .obj.jug.rival { color: #06181f; }
+        .obj.pelota { width: 15px; height: 15px; border-radius: 50%; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.5); }
+        .obj.cono { width: 0; height: 0; border-left: 9px solid transparent; border-right: 9px solid transparent; border-bottom: 17px solid var(--cono); filter: drop-shadow(0 2px 3px rgba(0,0,0,0.5)); }
+        /* En modo borrar, resaltar que al tocar se elimina */
+        .modo-borrar .obj { cursor: not-allowed; }
+        .modo-borrar .obj:hover { outline: 2px solid var(--danger); outline-offset: 2px; }
+
+        :root { --cono: #FFB454; }
+
+        .pitch-hint { text-align: center; color: var(--faint); font-size: 0.8rem; margin-top: 8px; }
+
+        /* Meta + acciones */
+        .meta-grid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 14px; margin-top: 20px; }
+        .meta-grid .full { grid-column: 1 / -1; }
+        .meta-grid label { display: block; margin-bottom: 6px; }
+        .acciones { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; align-items: center; }
+
+        /* Lista de ejercicios guardados */
+        .saved-head { display: flex; justify-content: space-between; align-items: baseline; margin: 34px 0 14px; }
+        .saved-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; }
+        .saved-card {
+            background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+            padding: 14px; cursor: pointer; transition: border-color 0.12s, transform 0.1s;
+        }
+        .saved-card:hover { border-color: var(--accent-line); transform: translateY(-2px); }
+        .saved-card h4 { margin: 0 0 6px; color: var(--text); font-size: 1rem; }
+        .saved-card .meta { color: var(--muted); font-size: 0.8rem; }
+        .saved-card .row { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
+        .saved-card .btn-del { width: auto; padding: 4px 10px; font-size: 0.78rem; }
+        .mini-pitch { width: 100%; aspect-ratio: 1000/600; border-radius: 8px; overflow: hidden; border: 1px solid var(--line); margin-bottom: 10px; position: relative; }
+
+        /* Pantalla de upgrade (plan que no es Ultra) */
+        #upgrade-screen { display: none; text-align: center; padding: 60px 20px; }
+        #upgrade-screen .lock { font-size: 3rem; }
+        #upgrade-screen h2 { margin: 14px 0 8px; }
+        #upgrade-screen p { color: var(--muted); max-width: 460px; margin: 0 auto; }
+
+        @media (max-width: 640px) {
+            .meta-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="sidebar-root" data-active="ejercicios"></div>
+    <script src="../assets/js/components/ui.js"></script>
+
+    <div class="container-dashboard editor-wrap">
+
+        <!-- Pantalla de upgrade si el club no es Ultra -->
+        <div id="upgrade-screen">
+            <div class="lock">🔒</div>
+            <h2>Editor de cancha</h2>
+            <p>Armar ejercicios con cancha, conos, pelotas y jugadoras es una función del plan <strong>Ultra</strong>.
+               Hablá con el administrador del club para mejorar el plan.</p>
+        </div>
+
+        <!-- Editor (solo Ultra) -->
+        <div id="editor" style="display:none;">
+            <div class="header-stats" style="border:none; margin-bottom:18px;">
+                <div>
+                    <div class="eyebrow">Ultra · Entrenamientos</div>
+                    <h2>Editor de cancha</h2>
+                    <p class="subtitle">Elegí cuántos campos necesitás y ubicá conos, pelotas y jugadoras para armar el ejercicio.</p>
+                </div>
+            </div>
+
+            <div id="ent-banner" style="display:none; margin-bottom:14px; padding:10px 14px; border-radius:10px; background:var(--accent-dim); border:1px solid var(--accent-line); color:var(--accent-hi); font-size:0.88rem; font-weight:600;"></div>
+
+            <div class="toolbar">
+                <div class="tool-group">
+                    <span class="tool-lbl">Campos</span>
+                    <select id="sel-campos" class="campos-sel">
+                        <option value="1">Cancha entera</option>
+                        <option value="media">Media cancha</option>
+                        <option value="25">Los 25</option>
+                    </select>
+                </div>
+                <div class="tool-group">
+                    <span class="tool-lbl">Agregar</span>
+                    <button class="chip" data-tool="jugadora"><span class="dot" style="background:var(--accent)"></span>Jugadora</button>
+                    <button class="chip" data-tool="rival"><span class="dot" style="background:#56C2E6"></span>Rival</button>
+                    <button class="chip" data-tool="pelota"><span class="dot" style="background:#fff"></span>Pelota</button>
+                    <button class="chip" data-tool="cono"><span class="cono"></span>Cono</button>
+                </div>
+                <div class="tool-group">
+                    <span class="tool-lbl">Líneas</span>
+                    <button class="chip" data-tool="carrera">→ Carrera</button>
+                    <button class="chip" data-tool="pase">⇢ Pase</button>
+                    <button class="chip" data-tool="conduccion">∿ Conducción</button>
+                </div>
+                <div class="tool-group">
+                    <span class="tool-lbl">Color</span>
+                    <button class="swatch activo" data-color="" title="Automático (por tipo)">A</button>
+                    <button class="swatch" data-color="#F7C948" style="background:#F7C948" title="Amarillo"></button>
+                    <button class="swatch" data-color="#56C2E6" style="background:#56C2E6" title="Celeste"></button>
+                    <button class="swatch" data-color="#FF5C63" style="background:#FF5C63" title="Rojo"></button>
+                    <button class="swatch" data-color="#5FD3A6" style="background:#5FD3A6" title="Verde"></button>
+                    <button class="swatch" data-color="#EAEEF4" style="background:#EAEEF4" title="Blanco"></button>
+                    <button class="swatch" data-color="#C58BF2" style="background:#C58BF2" title="Violeta"></button>
+                </div>
+                <div class="tool-group">
+                    <span class="tool-lbl">Modo</span>
+                    <button class="chip activo" data-tool="mover">✋ Mover</button>
+                    <button class="chip" data-tool="borrar">✕ Borrar</button>
+                    <button class="chip" id="btn-vaciar">🗑 Vaciar</button>
+                </div>
+            </div>
+
+            <div class="pitch-wrap" id="pitch">
+                <!-- SVG de cancha se inyecta acá -->
+                <div class="objetos-layer" id="obj-layer"></div>
+            </div>
+            <p class="pitch-hint" id="pitch-hint">Tocá la cancha para colocar el objeto elegido · arrastralo para moverlo.</p>
+
+            <div class="meta-grid">
+                <div>
+                    <label>Nombre del ejercicio</label>
+                    <input type="text" id="in-nombre" placeholder="Ej: Salida de presión 3v2">
+                </div>
+                <div>
+                    <label>Video (ID o link de YouTube) — opcional</label>
+                    <input type="text" id="in-video" placeholder="Ej: M7lc1UVf-VE">
+                </div>
+                <div class="full">
+                    <label>Notas / consignas — opcional</label>
+                    <textarea id="in-notas" rows="2" placeholder="Objetivo del ejercicio, variantes, duración…"></textarea>
+                </div>
+            </div>
+
+            <div class="acciones">
+                <button class="btn-primary" id="btn-guardar" style="width:auto; padding:12px 22px;">Guardar ejercicio</button>
+                <button class="btn-ghost" id="btn-nuevo" style="width:auto; padding:12px 22px;">Nuevo (limpiar)</button>
+                <button class="btn-ghost" id="btn-pdf" style="width:auto; padding:12px 22px;">⬇ PDF</button>
+                <button class="btn-ghost" id="btn-compartir" style="width:auto; padding:12px 22px;">↗ Compartir</button>
+                <span id="msg-estado" style="font-weight:600;"></span>
+            </div>
+
+            <div class="saved-head">
+                <h3 style="margin:0;">Ejercicios del club</h3>
+            </div>
+            <div class="saved-grid" id="saved-grid">
+                <p style="color:var(--muted);">Cargando…</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="../assets/js/utils/youtube.js"></script>
+    <script type="module">
+        import {
+            db, collection, addDoc, getDocs, doc, getDoc, updateDoc, deleteDoc, query, where
+        } from '../assets/js/firebase.js';
+
+        const uid = sessionStorage.getItem('usuarioUID');
+        const clubId = sessionStorage.getItem('clubID');
+        const rol = sessionStorage.getItem('userRole');
+        if (!uid || !clubId) window.location.href = "login.html";
+
+        // Acceso: plan Ultra + solo entrenadores (y admin del club).
+        const esEntrenador = rol === 'trainer' || rol === 'club-admin';
+        const up = document.getElementById('upgrade-screen');
+        if (!TL.planes.puedeActual('editor_cancha')) {
+            up.style.display = 'block';
+        } else if (!esEntrenador) {
+            up.querySelector('h2').textContent = 'Solo para entrenadores';
+            up.querySelector('p').innerHTML = 'Los ejercicios y el editor de cancha son del <strong>cuerpo técnico</strong>. Tu usuario no tiene acceso.';
+            up.style.display = 'block';
+        } else {
+            document.getElementById('editor').style.display = 'block';
+            iniciarEditor();
+        }
+
+        function iniciarEditor() {
+            const pitch = document.getElementById('pitch');
+            const layer = document.getElementById('obj-layer');
+            const selCampos = document.getElementById('sel-campos');
+            const hint = document.getElementById('pitch-hint');
+            const msg = document.getElementById('msg-estado');
+
+            // Colores por tipo de objeto
+            const COLOR = { jugadora: '#F7C948', rival: '#56C2E6' };
+            const COLOR_LINEA = '#EAEEF4';
+            // Color elegido en la paleta ('' = automático, según el tipo)
+            let colorActual = '';
+
+            // Capa de flechas (recorridos): SVG entre la cancha y los objetos.
+            // No captura eventos (pointer-events:none); el borrado se hace por
+            // cercanía matemática desde el pointerdown de la cancha.
+            // Herramientas de línea (todas dibujan flechas; difieren por el estilo)
+            const TOOLS_LINEA = ['carrera', 'pase', 'conduccion'];
+            const NS = 'http://www.w3.org/2000/svg';
+            const arrowsSvg = document.createElementNS(NS, 'svg');
+            arrowsSvg.setAttribute('viewBox', '0 0 1000 600');
+            arrowsSvg.setAttribute('preserveAspectRatio', 'none');
+            arrowsSvg.style.cssText = 'position:absolute; inset:0; width:100%; height:100%; pointer-events:none;';
+            pitch.insertBefore(arrowsSvg, layer);
+
+            let objetos = [];          // { id, tipo, x, y, num? }
+            let herramienta = 'mover';  // mover | borrar | jugadora | rival | pelota | cono | carrera | pase | conduccion
+            let campos = '1';           // '1' | 'media' | '25'
+            let vbH = 600;              // alto del viewBox de la capa de flechas (varía según la vista)
+            let editandoId = null;      // id del doc si estoy editando uno existente
+            let seq = 0;                // id local incremental de objetos
+
+            // Contexto de sesión (viene por URL): ?entrenamiento=ID&nombre=...
+            // El ejercicio nuevo se asocia a esa sesión. Es "pegajoso": al hacer
+            // "Nuevo (limpiar)" se conserva para poder cargar varios seguidos.
+            const params = new URLSearchParams(location.search);
+            const ctxEntId = params.get('entrenamiento') || null;
+            const ctxEntNombre = params.get('nombre') || '';
+            let entrenamientoId = ctxEntId;      // sesión del ejercicio actual
+            let entrenamientoNombre = ctxEntNombre;
+
+            function pintarBanner() {
+                const b = document.getElementById('ent-banner');
+                if (entrenamientoId) {
+                    b.style.display = 'block';
+                    b.innerHTML = `🏋 Ejercicio de la sesión${entrenamientoNombre ? ': <strong>' + entrenamientoNombre + '</strong>' : ''} · <a href="entrenamientos.html" style="color:inherit; text-decoration:underline;">volver a entrenamientos</a>`;
+                } else {
+                    b.style.display = 'none';
+                }
+            }
+
+            // ---------- Dibujo de la cancha (SVG) ----------
+            // Vista de ataque con el arco ABAJO (se ataca hacia arriba). Sirve
+            // para "media cancha" (profundidad 45,7 m) y "los 25" (22,9 m).
+            // Ancho fijo 1000 (=55 m), alto proporcional a la profundidad.
+            const ALTO_VB = { '1': 600, 'media': Math.round(45.7 * 1000 / 55), '25': Math.round(22.9 * 1000 / 55) };
+            function svgZoom(profM, mini) {
+                const s = 1000 / 55;                 // px por metro
+                const H = Math.round(profM * s);
+                const mg = 10, yb = H - mg;           // línea de fondo (abajo)
+                const R = Math.round(14.63 * s);      // radio de la D
+                const R2 = Math.round(19.63 * s);     // línea punteada a 5 m
+                const gx = Math.round(1.83 * s);      // medio arco (3,66/2)
+                const p1 = 500 - gx, p2 = 500 + gx;   // postes
+                const lw = mini ? 1.5 : 2.5, lc = 'rgba(255,255,255,0.42)';
+                // Línea de 23 m: solo en media cancha (en "los 25" es el borde de arriba)
+                const y23 = yb - Math.round(22.9 * s);
+                const l23 = profM > 23 ? `<line x1="${mg}" y1="${y23}" x2="${1000 - mg}" y2="${y23}" stroke="${lc}" stroke-width="${lw}"/>` : '';
+                return `
+                <svg class="field-svg" viewBox="0 0 1000 ${H}" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+                    <defs>
+                        <linearGradient id="turf" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0" stop-color="#173d2c"/>
+                            <stop offset="1" stop-color="#123023"/>
+                        </linearGradient>
+                    </defs>
+                    <rect x="0" y="0" width="1000" height="${H}" fill="url(#turf)"/>
+                    <rect x="${mg}" y="${mg}" width="${1000 - 2 * mg}" height="${H - 2 * mg}" fill="none" stroke="${lc}" stroke-width="${lw}"/>
+                    ${l23}
+                    <!-- círculo de tiro (la "D"), abierto hacia arriba -->
+                    <path d="M ${p1 - R} ${yb} A ${R} ${R} 0 0 1 ${p1} ${yb - R} L ${p2} ${yb - R} A ${R} ${R} 0 0 1 ${p2 + R} ${yb}" fill="none" stroke="${lc}" stroke-width="${lw}"/>
+                    <!-- línea punteada a 5 m -->
+                    <path d="M ${p1 - R2} ${yb} A ${R2} ${R2} 0 0 1 ${p1} ${yb - R2} L ${p2} ${yb - R2} A ${R2} ${R2} 0 0 1 ${p2 + R2} ${yb}" fill="none" stroke="${lc}" stroke-width="${lw * 0.8}" stroke-dasharray="2 13"/>
+                    <!-- penal (6,4 m) + arco -->
+                    <circle cx="500" cy="${yb - Math.round(6.4 * s)}" r="3" fill="${lc}"/>
+                    <rect x="${p1}" y="${yb - 2}" width="${p2 - p1}" height="8" fill="none" stroke="${lc}" stroke-width="${lw}"/>
+                </svg>`;
+            }
+
+            function svgCancha(nCampos, mini) {
+                if (nCampos === 'media') return svgZoom(45.7, mini);
+                if (nCampos === '25') return svgZoom(22.9, mini);
+                const grid = { 1: [1, 1], 2: [2, 1], 4: [2, 2], 6: [3, 2] }[nCampos] || [1, 1];
+                const [cols, rows] = grid;
+                let divisores = '';
+                for (let c = 1; c < cols; c++) {
+                    const x = (1000 / cols) * c;
+                    divisores += `<line x1="${x}" y1="0" x2="${x}" y2="600" stroke="rgba(255,255,255,0.55)" stroke-width="2" stroke-dasharray="10 8"/>`;
+                }
+                for (let r = 1; r < rows; r++) {
+                    const y = (600 / rows) * r;
+                    divisores += `<line x1="0" y1="${y}" x2="1000" y2="${y}" stroke="rgba(255,255,255,0.55)" stroke-width="2" stroke-dasharray="10 8"/>`;
+                }
+                const lw = mini ? 1.5 : 2.5;
+                const lc = 'rgba(255,255,255,0.42)';
+                return `
+                <svg class="field-svg" viewBox="0 0 1000 600" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+                    <defs>
+                        <linearGradient id="turf" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0" stop-color="#173d2c"/>
+                            <stop offset="1" stop-color="#123023"/>
+                        </linearGradient>
+                    </defs>
+                    <rect x="0" y="0" width="1000" height="600" fill="url(#turf)"/>
+                    <!-- Cancha de hockey sobre césped (FIH 91,4×55 m) escalada al
+                         viewBox. Longitud útil x∈[14,986] (972≈91,4m), ancho
+                         y∈[14,586] (572≈55m). Arco 3,66m → 38px (postes en y=281/319).
+                         D 14,63m → 156px; línea punteada a 5m → 209px; 23m → x=258/742;
+                         penal a 6,40m → x=82/904. -->
+                    <rect x="14" y="14" width="972" height="572" fill="none" stroke="${lc}" stroke-width="${lw}"/>
+                    <!-- línea central y líneas de 23 metros (25 yardas) -->
+                    <line x1="500" y1="14" x2="500" y2="586" stroke="${lc}" stroke-width="${lw}"/>
+                    <line x1="258" y1="14" x2="258" y2="586" stroke="${lc}" stroke-width="${lw}"/>
+                    <line x1="742" y1="14" x2="742" y2="586" stroke="${lc}" stroke-width="${lw}"/>
+                    <!-- círculos de tiro (la "D"): 2 cuartos de círculo + tramo recto -->
+                    <path d="M 14 125 A 156 156 0 0 1 170 281 L 170 319 A 156 156 0 0 1 14 475" fill="none" stroke="${lc}" stroke-width="${lw}"/>
+                    <path d="M 986 125 A 156 156 0 0 0 830 281 L 830 319 A 156 156 0 0 0 986 475" fill="none" stroke="${lc}" stroke-width="${lw}"/>
+                    <!-- línea punteada a 5 m de la D -->
+                    <path d="M 14 72 A 209 209 0 0 1 223 281 L 223 319 A 209 209 0 0 1 14 528" fill="none" stroke="${lc}" stroke-width="${lw * 0.8}" stroke-dasharray="2 13"/>
+                    <path d="M 986 72 A 209 209 0 0 0 777 281 L 777 319 A 209 209 0 0 0 986 528" fill="none" stroke="${lc}" stroke-width="${lw * 0.8}" stroke-dasharray="2 13"/>
+                    <!-- puntos de penal (6,40 m) -->
+                    <circle cx="82" cy="300" r="3" fill="${lc}"/>
+                    <circle cx="904" cy="300" r="3" fill="${lc}"/>
+                    <!-- arcos (3,66 m) -->
+                    <rect x="6" y="281" width="8" height="38" fill="none" stroke="${lc}" stroke-width="${lw}"/>
+                    <rect x="986" y="281" width="8" height="38" fill="none" stroke="${lc}" stroke-width="${lw}"/>
+                    <!-- divisores de campos (para ejercicios de varias zonas) -->
+                    ${divisores}
+                </svg>`;
+            }
+
+            function pintarCancha() {
+                // Reemplazar solo la cancha (no la capa de flechas ni los objetos)
+                const viejo = pitch.querySelector('svg.field-svg');
+                if (viejo) viejo.remove();
+                // Cada vista tiene su alto de viewBox; la capa de flechas lo
+                // sigue para no deformarse.
+                vbH = ALTO_VB[campos] || 600;
+                pitch.style.aspectRatio = `1000 / ${vbH}`;
+                arrowsSvg.setAttribute('viewBox', `0 0 1000 ${vbH}`);
+                renderFlechas();
+                pitch.insertAdjacentHTML('afterbegin', svgCancha(campos, false));
+            }
+
+            // ---------- Objetos ----------
+            function crearElemento(o) {
+                const el = document.createElement('div');
+                el.dataset.id = o.id;
+                el.style.left = o.x + '%';
+                el.style.top = o.y + '%';
+                if (o.tipo === 'jugadora' || o.tipo === 'rival') {
+                    el.className = 'obj jug' + (o.tipo === 'rival' ? ' rival' : '');
+                    el.style.background = o.color || COLOR[o.tipo];
+                    el.textContent = o.num;
+                    el.title = 'Doble clic para cambiar el número';
+                    // Doble clic: editar el número (o dorsal) de la jugadora
+                    el.addEventListener('dblclick', (e) => {
+                        e.stopPropagation();
+                        const nuevo = prompt('Número de la jugadora:', o.num);
+                        if (nuevo !== null && nuevo.trim() !== '') {
+                            o.num = nuevo.trim();
+                            el.textContent = o.num;
+                        }
+                    });
+                } else if (o.tipo === 'pelota') {
+                    el.className = 'obj pelota';
+                } else if (o.tipo === 'cono') {
+                    el.className = 'obj cono';
+                    if (o.color) el.style.borderBottomColor = o.color;
+                }
+                el.addEventListener('pointerdown', (e) => onObjPointerDown(e, o, el));
+                return el;
+            }
+
+            function renderObjetos() {
+                layer.innerHTML = '';
+                objetos.filter(o => o.tipo !== 'flecha').forEach(o => layer.appendChild(crearElemento(o)));
+                renderFlechas();
+            }
+
+            // Las flechas guardan sus puntos en `pts` (% de la cancha), lo que
+            // permite líneas curvas a mano alzada. Las viejas (x1/y1/x2/y2) se
+            // tratan como una recta de dos puntos.
+            function ptosDe(o) {
+                const pts = (o.pts && o.pts.length) ? o.pts
+                    : [{ x: o.x1, y: o.y1 }, { x: o.x2, y: o.y2 }];
+                return pts.map(p => ({ X: p.x * 10, Y: (p.y / 100) * vbH }));
+            }
+
+            // Curva suave que pasa por los puntos (Béziers cuadráticas por los
+            // puntos medios). Con 2 puntos es una recta.
+            function pathSuave(P) {
+                if (P.length < 2) return '';
+                if (P.length === 2) return `M ${P[0].X.toFixed(1)} ${P[0].Y.toFixed(1)} L ${P[1].X.toFixed(1)} ${P[1].Y.toFixed(1)}`;
+                let d = `M ${P[0].X.toFixed(1)} ${P[0].Y.toFixed(1)}`;
+                for (let i = 1; i < P.length - 1; i++) {
+                    const mx = (P[i].X + P[i + 1].X) / 2, my = (P[i].Y + P[i + 1].Y) / 2;
+                    d += ` Q ${P[i].X.toFixed(1)} ${P[i].Y.toFixed(1)} ${mx.toFixed(1)} ${my.toFixed(1)}`;
+                }
+                const u = P[P.length - 1];
+                return d + ` L ${u.X.toFixed(1)} ${u.Y.toFixed(1)}`;
+            }
+
+            // Camino ondulado (conducción) recorriendo la polilínea por longitud
+            // de arco; recto en el tramo final para que la punta quede limpia.
+            function pathOnduladoPts(P) {
+                if (P.length < 2) return '';
+                const seg = [];
+                let total = 0;
+                for (let i = 1; i < P.length; i++) {
+                    const dx = P[i].X - P[i - 1].X, dy = P[i].Y - P[i - 1].Y, l = Math.hypot(dx, dy);
+                    seg.push({ l, dx, dy, x0: P[i - 1].X, y0: P[i - 1].Y });
+                    total += l;
+                }
+                const fin = P[P.length - 1];
+                if (total < 3) return `M ${P[0].X.toFixed(1)} ${P[0].Y.toFixed(1)} L ${fin.X.toFixed(1)} ${fin.Y.toFixed(1)}`;
+                const amp = 8, wl = 24, recto = 14;
+                const n = Math.max(2, Math.round(total / 4));
+                let d = '';
+                for (let k = 0; k <= n; k++) {
+                    const t = (k / n) * total;
+                    let acc = 0, si = 0;
+                    while (si < seg.length - 1 && acc + seg[si].l < t) { acc += seg[si].l; si++; }
+                    const s = seg[si], lt = s.l ? (t - acc) / s.l : 0;
+                    const bx = s.x0 + s.dx * lt, by = s.y0 + s.dy * lt;
+                    const tl = Math.hypot(s.dx, s.dy) || 1, ux = s.dx / tl, uy = s.dy / tl;
+                    const off = (t > total - recto) ? 0 : Math.sin((t / wl) * Math.PI * 2) * amp;
+                    d += (k === 0 ? 'M ' : ' L ') + `${(bx - uy * off).toFixed(1)} ${(by + ux * off).toFixed(1)}`;
+                }
+                return d + ` L ${fin.X.toFixed(1)} ${fin.Y.toFixed(1)}`;
+            }
+
+            function renderFlechas() {
+                const flechas = objetos.filter(o => o.tipo === 'flecha');
+                // Una punta de flecha por color usado (así hereda el color de la línea)
+                const markerId = c => 'ah' + c.replace('#', '');
+                const colores = [...new Set(flechas.map(o => o.color || COLOR_LINEA))];
+                const defs = '<defs>' + colores.map(c =>
+                    `<marker id="${markerId(c)}" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="${c}"/></marker>`
+                ).join('') + '</defs>';
+                const lineas = flechas.map(o => {
+                    const P = ptosDe(o);
+                    const sub = o.sub || 'carrera';
+                    const d = sub === 'conduccion' ? pathOnduladoPts(P) : pathSuave(P);
+                    const dash = sub === 'pase' ? ' stroke-dasharray="11 9"' : '';
+                    const col = o.color || COLOR_LINEA;
+                    return `<path d="${d}" fill="none" stroke="${col}" stroke-width="4"${dash} marker-end="url(#${markerId(col)})"/>`;
+                }).join('');
+                arrowsSvg.innerHTML = defs + lineas;
+            }
+
+            // Distancia (en %) de un punto al segmento (para borrar por cercanía)
+            function distAlSegmento(px, py, x1, y1, x2, y2) {
+                const dx = x2 - x1, dy = y2 - y1;
+                const largo2 = dx * dx + dy * dy;
+                let t = largo2 ? ((px - x1) * dx + (py - y1) * dy) / largo2 : 0;
+                t = Math.max(0, Math.min(1, t));
+                const cx = x1 + t * dx, cy = y1 + t * dy;
+                return Math.hypot(px - cx, py - cy);
+            }
+
+            // Distancia mínima de un punto a la polilínea de una flecha
+            function distAFlecha(px, py, o) {
+                const pts = (o.pts && o.pts.length) ? o.pts : [{ x: o.x1, y: o.y1 }, { x: o.x2, y: o.y2 }];
+                let best = Infinity;
+                for (let i = 1; i < pts.length; i++) {
+                    const d = distAlSegmento(px, py, pts[i - 1].x, pts[i - 1].y, pts[i].x, pts[i].y);
+                    if (d < best) best = d;
+                }
+                return best;
+            }
+
+            function posDesdeEvento(e) {
+                const r = pitch.getBoundingClientRect();
+                let x = (e.clientX - r.left) / r.width * 100;
+                let y = (e.clientY - r.top) / r.height * 100;
+                return { x: Math.max(0, Math.min(100, x)), y: Math.max(0, Math.min(100, y)) };
+            }
+
+            function proximoNumero(tipo) {
+                const nums = objetos.filter(o => o.tipo === tipo)
+                    .map(o => parseInt(o.num, 10)).filter(n => !isNaN(n));
+                return (nums.length ? Math.max(...nums) : 0) + 1;
+            }
+
+            // Pointerdown sobre la cancha: coloca objeto, dibuja flecha o borra
+            // flecha, según la herramienta activa.
+            let dibujoFlecha = null;
+            pitch.addEventListener('pointerdown', (e) => {
+                // Colocar un objeto puntual
+                if (['jugadora', 'rival', 'pelota', 'cono'].includes(herramienta)) {
+                    if (e.target.closest('.obj')) return;   // lo maneja onObjPointerDown
+                    const { x, y } = posDesdeEvento(e);
+                    const o = { id: ++seq, tipo: herramienta, x, y };
+                    if (colorActual) o.color = colorActual;
+                    if (herramienta === 'jugadora' || herramienta === 'rival') o.num = proximoNumero(herramienta);
+                    objetos.push(o);
+                    layer.appendChild(crearElemento(o));
+                    return;
+                }
+                // Empezar a dibujar una línea a mano alzada (carrera / pase /
+                // conducción). Los puntos se capturan al arrastrar → permite curvas.
+                if (TOOLS_LINEA.includes(herramienta)) {
+                    if (e.target.closest('.obj')) return;
+                    const { x, y } = posDesdeEvento(e);
+                    dibujoFlecha = { id: ++seq, tipo: 'flecha', sub: herramienta, ...(colorActual ? { color: colorActual } : {}), pts: [{ x, y }] };
+                    objetos.push(dibujoFlecha);
+                    window.addEventListener('pointermove', flechaMove);
+                    window.addEventListener('pointerup', flechaUp);
+                    renderFlechas();
+                    return;
+                }
+                // Borrar la flecha más cercana al click (los objetos puntuales se
+                // borran desde onObjPointerDown)
+                if (herramienta === 'borrar') {
+                    if (e.target.closest('.obj')) return;
+                    const { x, y } = posDesdeEvento(e);
+                    let best = null, bestD = Infinity;
+                    objetos.filter(o => o.tipo === 'flecha').forEach(o => {
+                        const d = distAFlecha(x, y, o);
+                        if (d < bestD) { bestD = d; best = o; }
+                    });
+                    if (best && bestD < 3) {
+                        objetos = objetos.filter(o => o.id !== best.id);
+                        renderFlechas();
+                    }
+                }
+            });
+
+            function flechaMove(e) {
+                if (!dibujoFlecha) return;
+                const { x, y } = posDesdeEvento(e);
+                const pts = dibujoFlecha.pts, ult = pts[pts.length - 1];
+                // Sumar el punto solo si se movió lo suficiente (suaviza y acota)
+                if (Math.hypot(x - ult.x, y - ult.y) >= 0.6) {
+                    pts.push({ x, y });
+                    renderFlechas();
+                }
+            }
+            function flechaUp() {
+                window.removeEventListener('pointermove', flechaMove);
+                window.removeEventListener('pointerup', flechaUp);
+                if (dibujoFlecha) {
+                    // Descartar líneas demasiado cortas (clicks accidentales)
+                    const pts = dibujoFlecha.pts;
+                    let largo = 0;
+                    for (let i = 1; i < pts.length; i++) largo += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+                    if (pts.length < 2 || largo < 2) objetos = objetos.filter(o => o.id !== dibujoFlecha.id);
+                    dibujoFlecha = null;
+                    renderFlechas();
+                }
+            }
+
+            // Arrastrar / borrar un objeto
+            let drag = null;
+            function onObjPointerDown(e, o, el) {
+                e.stopPropagation();
+                if (herramienta === 'borrar') {
+                    objetos = objetos.filter(x => x.id !== o.id);
+                    el.remove();
+                    return;
+                }
+                drag = { o, el };
+                el.setPointerCapture(e.pointerId);
+                el.addEventListener('pointermove', onObjPointerMove);
+                el.addEventListener('pointerup', onObjPointerUp);
+            }
+            function onObjPointerMove(e) {
+                if (!drag) return;
+                const { x, y } = posDesdeEvento(e);
+                drag.o.x = x; drag.o.y = y;
+                drag.el.style.left = x + '%';
+                drag.el.style.top = y + '%';
+            }
+            function onObjPointerUp(e) {
+                if (!drag) return;
+                drag.el.removeEventListener('pointermove', onObjPointerMove);
+                drag.el.removeEventListener('pointerup', onObjPointerUp);
+                drag = null;
+            }
+
+            // ---------- Herramientas ----------
+            document.querySelectorAll('.chip[data-tool]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    herramienta = btn.dataset.tool;
+                    document.querySelectorAll('.chip[data-tool]').forEach(b => b.classList.toggle('activo', b === btn));
+                    pitch.parentElement.classList.toggle('modo-borrar', false);
+                    pitch.classList.toggle('modo-borrar', herramienta === 'borrar');
+                    hint.textContent = herramienta === 'borrar'
+                        ? 'Tocá un objeto o una flecha para eliminarla.'
+                        : (herramienta === 'mover'
+                            ? 'Arrastrá los objetos para reubicarlos · doble clic en una jugadora para cambiar su número.'
+                            : (TOOLS_LINEA.includes(herramienta)
+                                ? 'Arrastrá para dibujar la línea; seguí el trazo para curvarla (carrera sólida · pase punteado · conducción ondulada).'
+                                : 'Tocá la cancha para colocar el objeto elegido · arrastralo para moverlo.'));
+                });
+            });
+
+            // Paleta de color: fija el color de lo próximo que coloques o dibujes
+            document.querySelectorAll('.swatch').forEach(sw => {
+                sw.addEventListener('click', () => {
+                    colorActual = sw.dataset.color || '';
+                    document.querySelectorAll('.swatch').forEach(s => s.classList.toggle('activo', s === sw));
+                });
+            });
+
+            // Captura la cancha (con objetos y líneas) como canvas
+            async function capturarCancha() {
+                return await html2canvas(pitch, { backgroundColor: '#123023', scale: 2 });
+            }
+            function nombreEjercicio() {
+                return (document.getElementById('in-nombre').value.trim() || 'Ejercicio');
+            }
+            async function conBoton(btn, fn) {
+                const orig = btn.textContent;
+                btn.disabled = true; btn.textContent = 'Generando…';
+                try { await fn(); } finally { btn.disabled = false; btn.textContent = orig; }
+            }
+
+            // Exportar a PDF (imagen de la cancha + nombre + notas)
+            document.getElementById('btn-pdf').addEventListener('click', () => {
+                if (typeof html2canvas === 'undefined' || !window.jspdf) {
+                    alert('No se pudo cargar el exportador de PDF. Revisá tu conexión e intentá de nuevo.');
+                    return;
+                }
+                conBoton(document.getElementById('btn-pdf'), async () => {
+                    try {
+                        const canvas = await capturarCancha();
+                        const img = canvas.toDataURL('image/png');
+                        const { jsPDF } = window.jspdf;
+                        const nombre = nombreEjercicio();
+                        const notas = document.getElementById('in-notas').value.trim();
+                        const apaisado = canvas.width >= canvas.height;
+                        const pdf = new jsPDF({ orientation: apaisado ? 'l' : 'p', unit: 'mm', format: 'a4' });
+                        const pw = pdf.internal.pageSize.getWidth(), ph = pdf.internal.pageSize.getHeight(), mg = 12;
+                        pdf.setFontSize(16); pdf.text(nombre, mg, mg + 4);
+                        const maxW = pw - mg * 2, availH = ph - (mg + 10) - mg - (notas ? 22 : 0);
+                        let w = maxW, h = w * canvas.height / canvas.width;
+                        if (h > availH) { h = availH; w = h * canvas.width / canvas.height; }
+                        pdf.addImage(img, 'PNG', (pw - w) / 2, mg + 10, w, h);
+                        if (notas) { pdf.setFontSize(11); pdf.text(pdf.splitTextToSize('Notas: ' + notas, maxW), mg, mg + 10 + h + 8); }
+                        pdf.save(`ejercicio-${nombre}.pdf`.replace(/\s+/g, '_'));
+                    } catch (e) { console.error('Error al generar PDF:', e); alert('No se pudo generar el PDF.'); }
+                });
+            });
+
+            // Compartir la cancha como imagen (Web Share API, con fallback a descarga)
+            document.getElementById('btn-compartir').addEventListener('click', () => {
+                if (typeof html2canvas === 'undefined') { alert('No se pudo cargar el exportador de imagen.'); return; }
+                conBoton(document.getElementById('btn-compartir'), async () => {
+                    try {
+                        const canvas = await capturarCancha();
+                        const nombre = nombreEjercicio();
+                        const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
+                        const file = new File([blob], `ejercicio-${nombre}.png`.replace(/\s+/g, '_'), { type: 'image/png' });
+                        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                            await navigator.share({ files: [file], title: nombre, text: 'Ejercicio: ' + nombre });
+                        } else {
+                            const a = document.createElement('a');
+                            a.download = file.name; a.href = URL.createObjectURL(blob); a.click();
+                            URL.revokeObjectURL(a.href);
+                            alert('Tu dispositivo no permite compartir directo. Descargamos la imagen para que la compartas.');
+                        }
+                    } catch (e) {
+                        if (e && e.name === 'AbortError') return;   // el usuario canceló
+                        console.error('Error al compartir:', e); alert('No se pudo compartir el ejercicio.');
+                    }
+                });
+            });
+
+            document.getElementById('btn-vaciar').addEventListener('click', () => {
+                if (!objetos.length) return;
+                if (confirm('¿Vaciar la cancha? Se quitan todos los objetos.')) {
+                    objetos = [];
+                    renderObjetos();
+                }
+            });
+
+            selCampos.addEventListener('change', () => {
+                campos = selCampos.value || '1';
+                pintarCancha();
+            });
+
+            // ---------- Guardar / cargar / nuevo ----------
+            function limpiarEditor() {
+                editandoId = null;
+                objetos = [];
+                seq = 0;
+                campos = '1';
+                selCampos.value = '1';
+                document.getElementById('in-nombre').value = '';
+                document.getElementById('in-video').value = '';
+                document.getElementById('in-notas').value = '';
+                // Conservar la sesión de contexto (si se entró desde un entrenamiento)
+                entrenamientoId = ctxEntId;
+                entrenamientoNombre = ctxEntNombre;
+                pintarBanner();
+                pintarCancha();
+                renderObjetos();
+                document.getElementById('btn-guardar').textContent = 'Guardar ejercicio';
+            }
+
+            document.getElementById('btn-nuevo').addEventListener('click', limpiarEditor);
+
+            function mostrarMsg(t, ok) {
+                msg.textContent = t;
+                msg.style.color = ok ? 'var(--live)' : 'var(--danger)';
+                setTimeout(() => { msg.textContent = ''; }, 3000);
+            }
+
+            document.getElementById('btn-guardar').addEventListener('click', async () => {
+                const nombre = document.getElementById('in-nombre').value.trim();
+                if (!nombre) { mostrarMsg('Poné un nombre al ejercicio.', false); return; }
+                const btn = document.getElementById('btn-guardar');
+                btn.disabled = true; btn.textContent = 'Guardando…';
+
+                const datos = {
+                    club_id: clubId,
+                    creado_por: uid,
+                    nombre,
+                    notas: document.getElementById('in-notas').value.trim(),
+                    youtube_id: TL.youtube.extraerId(document.getElementById('in-video').value.trim()),
+                    campos,
+                    objetos: objetos.map(o => o.tipo === 'flecha'
+                        ? {
+                            tipo: 'flecha', sub: o.sub || 'carrera',
+                            ...(o.color ? { color: o.color } : {}),
+                            pts: (o.pts && o.pts.length ? o.pts : [{ x: o.x1, y: o.y1 }, { x: o.x2, y: o.y2 }])
+                                .map(p => ({ x: +(+p.x).toFixed(1), y: +(+p.y).toFixed(1) }))
+                        }
+                        : { tipo: o.tipo, x: o.x, y: o.y, ...(o.num ? { num: o.num } : {}), ...(o.color ? { color: o.color } : {}) }),
+                    entrenamiento_id: entrenamientoId || null,
+                    entrenamiento_nombre: entrenamientoId ? (entrenamientoNombre || '') : '',
+                    actualizado_el: new Date().toISOString()
+                };
+
+                try {
+                    if (editandoId) {
+                        await updateDoc(doc(db, 'ejercicios', editandoId), datos);
+                    } else {
+                        datos.creado_el = new Date().toISOString();
+                        const ref = await addDoc(collection(db, 'ejercicios'), datos);
+                        editandoId = ref.id;
+                    }
+                    mostrarMsg('Ejercicio guardado.', true);
+                    cargarEjercicios();
+                    btn.textContent = 'Guardar cambios';
+                } catch (e) {
+                    console.error('Error al guardar ejercicio:', e);
+                    mostrarMsg('No se pudo guardar. Revisá la consola.', false);
+                    btn.textContent = editandoId ? 'Guardar cambios' : 'Guardar ejercicio';
+                } finally {
+                    btn.disabled = false;
+                }
+            });
+
+            function cargarEnEditor(id, d) {
+                editandoId = id;
+                campos = String(d.campos || '1');
+                selCampos.value = campos;
+                objetos = (d.objetos || []).map(o => ({ id: ++seq, ...o }));
+                document.getElementById('in-nombre').value = d.nombre || '';
+                document.getElementById('in-video').value = d.youtube_id || '';
+                document.getElementById('in-notas').value = d.notas || '';
+                // El ejercicio adopta su propia sesión asociada (si tiene)
+                entrenamientoId = d.entrenamiento_id || null;
+                entrenamientoNombre = d.entrenamiento_nombre || '';
+                pintarBanner();
+                pintarCancha();
+                renderObjetos();
+                document.getElementById('btn-guardar').textContent = 'Guardar cambios';
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+
+            async function abrirEjercicioPorId(id) {
+                try {
+                    const snap = await getDoc(doc(db, 'ejercicios', id));
+                    if (snap.exists()) cargarEnEditor(id, snap.data());
+                } catch (e) {
+                    console.error('No se pudo abrir el ejercicio:', e);
+                }
+            }
+
+            // ---------- Lista de ejercicios guardados ----------
+            function miniObjetos(objs) {
+                // Puntitos escalados dentro del mini-preview (las flechas se omiten)
+                return (objs || []).filter(o => o.tipo !== 'flecha').map(o => {
+                    const col = o.tipo === 'rival' ? '#56C2E6' : (o.tipo === 'pelota' ? '#fff' : (o.tipo === 'cono' ? '#FFB454' : '#F7C948'));
+                    const sz = o.tipo === 'pelota' ? 4 : 7;
+                    return `<span style="position:absolute; left:${o.x}%; top:${o.y}%; width:${sz}px; height:${sz}px; background:${col}; border-radius:50%; transform:translate(-50%,-50%);"></span>`;
+                }).join('');
+            }
+
+            async function cargarEjercicios() {
+                const grid = document.getElementById('saved-grid');
+                try {
+                    const snap = await getDocs(query(collection(db, 'ejercicios'), where('club_id', '==', clubId)));
+                    if (snap.empty) {
+                        grid.innerHTML = '<p style="color:var(--muted);">Todavía no hay ejercicios guardados.</p>';
+                        return;
+                    }
+                    const items = [];
+                    snap.forEach(s => items.push({ id: s.id, ...s.data() }));
+                    items.sort((a, b) => (b.actualizado_el || '').localeCompare(a.actualizado_el || ''));
+
+                    grid.innerHTML = '';
+                    items.forEach(it => {
+                        const card = document.createElement('div');
+                        card.className = 'saved-card';
+                        const nObj = (it.objetos || []).length;
+                        card.innerHTML = `
+                            <div class="mini-pitch">${svgCancha(it.campos || 1, true)}${miniObjetos(it.objetos)}</div>
+                            <h4></h4>
+                            <div class="meta">${it.campos || 1} campo(s) · ${nObj} objeto(s)${it.youtube_id ? ' · 🎬' : ''}</div>
+                            <div class="row">
+                                <span style="color:var(--accent); font-size:0.82rem; font-weight:600;">Abrir ✎</span>
+                                <button class="btn-danger btn-del">Borrar</button>
+                            </div>`;
+                        card.querySelector('h4').textContent = it.nombre || 'Sin nombre';
+                        card.addEventListener('click', (e) => {
+                            if (e.target.closest('.btn-del')) return;
+                            cargarEnEditor(it.id, it);
+                        });
+                        card.querySelector('.btn-del').addEventListener('click', async (e) => {
+                            e.stopPropagation();
+                            if (!confirm(`¿Borrar el ejercicio "${it.nombre || 'sin nombre'}"?`)) return;
+                            try {
+                                await deleteDoc(doc(db, 'ejercicios', it.id));
+                                if (editandoId === it.id) limpiarEditor();
+                                cargarEjercicios();
+                            } catch (err) {
+                                console.error('Error al borrar ejercicio:', err);
+                                alert('No se pudo borrar el ejercicio.');
+                            }
+                        });
+                        grid.appendChild(card);
+                    });
+                } catch (e) {
+                    console.error('Error al cargar ejercicios:', e);
+                    grid.innerHTML = '<p style="color:var(--danger);">No se pudieron cargar los ejercicios.</p>';
+                }
+            }
+
+            // Arranque
+            pintarBanner();
+            pintarCancha();
+            cargarEjercicios();
+            const ejId = params.get('ej');
+            if (ejId) abrirEjercicioPorId(ejId);
+        }
+    </script>
+</body>
+
+</html>

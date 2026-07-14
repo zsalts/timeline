@@ -52,7 +52,7 @@
     </div>
 
     <script type="module">
-        import { db, collection, query, where, getDocs, doc, deleteDoc, updateDoc } from '../assets/js/firebase.js';
+        import { db, collection, query, where, getDocs, doc, deleteDoc, updateDoc, writeBatch, increment } from '../assets/js/firebase.js';
 
         // 1. Verificación de seguridad
         const uid = sessionStorage.getItem('usuarioUID');
@@ -190,7 +190,12 @@
                 e.stopPropagation();
                 if (confirm(`¿Borrar partido contra ${equipo2}?`)) {
                     try {
-                        await deleteDoc(doc(db, "partidos", partido.id));
+                        // Atómico: borra el partido y baja el contador del club
+                        // (usado por el tope del plan Free). Ver firestore.rules.
+                        const batch = writeBatch(db);
+                        batch.delete(doc(db, "partidos", partido.id));
+                        batch.update(doc(db, "clubes", miClubId), { partidos_count: increment(-1) });
+                        await batch.commit();
                         cargarHistorial();
                     } catch (error) {
                         console.error(error);

@@ -273,6 +273,7 @@
 <body>
     <div id="sidebar-root" data-active="usuarios"></div>
     <script src="../assets/js/components/ui.js"></script>
+    <script src="../assets/js/utils/planes.js"></script>
 
     <div class="container">
         <div class="header">
@@ -311,7 +312,7 @@
             </div>
 
             <!-- Importar plantilla de Nacsport -->
-            <div class="card">
+            <div class="card" id="card-import">
                 <h2>Importar plantilla de Nacsport</h2>
                 <p style="color: var(--muted); margin-bottom: 15px; font-size: 0.9rem;">
                     Subí tu plantilla de botones (<strong>.maccat</strong>) y la traducimos sola: detectamos tus categorías
@@ -430,7 +431,24 @@
             setupAddTeam();
             loadMapeo();
             setupMapeo();
-            setupImport();
+            // Auto-import de plantilla .maccat es una función del plan Pro/Ultra.
+            if (TL.planes.puedeActual('auto_import')) {
+                setupImport();
+            } else {
+                bloquearImport();
+            }
+        }
+
+        // Reemplaza la card de importación por un aviso de upgrade (plan Free).
+        function bloquearImport() {
+            const card = document.getElementById('card-import');
+            if (!card) return;
+            card.innerHTML = `
+                <h2>Importar plantilla de Nacsport 🔒</h2>
+                <p style="color: var(--muted); font-size: 0.9rem;">
+                    El auto-import de tu plantilla (<strong>.maccat</strong>) de Nacsport está disponible en el
+                    plan <strong>Pro</strong>. Con el plan actual podés configurar el mapeo a mano acá abajo.
+                </p>`;
         }
 
         // ---- Importar plantilla de Nacsport (.maccat) ----
