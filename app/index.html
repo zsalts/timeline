@@ -371,14 +371,15 @@
             line-height: 1;
         }
         .plan .precio small { font-size: 1rem; font-weight: 600; font-stretch: 100%; color: var(--neblina); letter-spacing: 0; }
-        .plan ul { list-style: none; padding: 0; margin: 24px 0 26px; display: flex; flex-direction: column; gap: 11px; }
+        .plan .plan-desc { color: var(--neblina); font-size: 0.9rem; line-height: 1.6; margin: 14px 0 0; }
+        .plan ul { list-style: none; padding: 0; margin: 20px 0 26px; display: flex; flex-direction: column; gap: 11px; }
         .plan li { color: var(--neblina); font-size: 0.95rem; padding-left: 22px; position: relative; }
         .plan li::before { content: ""; position: absolute; left: 0; top: 0.52em; width: 10px; height: 1.5px; background: var(--ambar); }
         .plan li b { color: var(--tiza); font-weight: 600; }
         .nota-precio { color: var(--bruma); font-size: 0.82rem; margin-top: 16px; max-width: 560px; line-height: 1.6; }
 
         @media (min-width: 760px) {
-            .planes { grid-template-columns: 1.25fr 1fr; align-items: start; }
+            .planes { grid-template-columns: repeat(3, 1fr); align-items: start; max-width: 1000px; }
         }
 
         /* CTA final + footer */
@@ -540,37 +541,61 @@
         <div class="wrap">
             <div class="sec-head">
                 <div class="eyebrow">Precios</div>
-                <h2 class="display">Un plan por club, simple.</h2>
-                <p>Sin instalación, sin servidores propios, sin permanencia.</p>
+                <h2 class="display">Elegí tu plan.</h2>
+                <p>Empezá gratis y subí de nivel cuando lo necesites. Sin instalación ni permanencia.</p>
             </div>
             <div class="planes">
-                <div class="plan destacado">
-                    <div class="plan-nombre">Plan Club</div>
-                    <div class="precio">USD 150 <small>/ mes</small></div>
+                <div class="plan">
+                    <div class="plan-nombre">Free</div>
+                    <div class="precio">ARS 0 <small>/ mes</small></div>
+                    <p class="plan-desc">Para conocer Timeline sin poner un peso. Cargás tus primeros partidos,
+                        hacés cortes y ves cómo trabaja la plataforma con tu propio video.</p>
                     <ul>
-                        <li><b>2 usuarios incluidos</b>: entrenador + analista</li>
-                        <li><b>Partidos y cortes ilimitados</b></li>
-                        <li>Comparador de partidos y estadísticas automáticas</li>
-                        <li>Administrador del club para gestionar usuarios y equipos</li>
-                        <li>Logo y espacio propio de tu club</li>
-                        <li>Soporte directo</li>
+                        <li>Hasta <b>10 partidos</b> en total (no por mes: es el tope de la cuenta)</li>
+                        <li>Línea de tiempo automática y cortes por categoría en cada partido</li>
+                        <li>Estadísticas automáticas básicas de cada partido</li>
+                        <li>Cuando llegás al límite, pasás a Pro y seguís donde estabas</li>
                     </ul>
                     <a class="btn-cta grande"
-                        href="mailto:mateotesta2016@gmail.com?subject=Quiero%20Timeline%20para%20mi%20club">Quiero Timeline
-                        para mi club</a>
+                        href="mailto:mateotesta2016@gmail.com?subject=Quiero%20empezar%20con%20Timeline%20Free">Empezar
+                        gratis</a>
+                </div>
+                <div class="plan destacado">
+                    <div class="plan-nombre">Pro</div>
+                    <div class="precio">ARS 30.000 <small>/ mes</small></div>
+                    <p class="plan-desc">Para el analista o entrenador que trabaja todas las semanas con video.
+                        Sin límites de partidos ni de cortes: cargás toda la temporada.</p>
+                    <ul>
+                        <li><b>Partidos ilimitados</b>: toda la temporada, propia y de rivales</li>
+                        <li><b>Cortes y colecciones ilimitadas</b> para armar clips por tema o jugador</li>
+                        <li>Comparador de partidos y estadísticas completas (zonas, resultados, cuartos)</li>
+                        <li>Compartir videos con cortes elegidos a otras cuentas por email</li>
+                        <li>Soporte directo por cualquier duda o problema</li>
+                    </ul>
+                    <a class="btn-cta grande"
+                        href="mailto:mateotesta2016@gmail.com?subject=Quiero%20Timeline%20Pro">Quiero Pro</a>
                 </div>
                 <div class="plan">
-                    <div class="plan-nombre">Usuario adicional</div>
-                    <div class="precio">USD 50 <small>/ mes</small></div>
+                    <div class="plan-nombre">Ultra</div>
+                    <div class="precio">ARS 60.000 <small>/ mes</small></div>
+                    <p class="plan-desc">Para el cuerpo técnico que además de analizar partidos planifica y revisa
+                        sus entrenamientos dentro de la misma plataforma.</p>
                     <ul>
-                        <li>Sumá más entrenadores o analistas cuando quieras</li>
-                        <li>Lo gestiona el propio administrador del club</li>
-                        <li>Mismo acceso completo a los partidos del club</li>
+                        <li><b>Todo lo de Pro</b>, sin ningún límite</li>
+                        <li><b>Entrenamientos</b>: cargá y analizá videos de práctica, no solo partidos</li>
+                        <li><b>Editor de cancha</b> con conos y pelotas para dibujar ejercicios y jugadas</li>
+                        <li><b>Esquemas tácticos animados</b>: armá bloqueos y jugadas con los jugadores en la
+                            cancha, movelos paso a paso y guardá la animación como GIF para compartir</li>
+                        <li>La preparación completa del equipo en un solo lugar</li>
                     </ul>
+                    <a class="btn-cta grande"
+                        href="mailto:mateotesta2016@gmail.com?subject=Quiero%20Timeline%20Ultra">Quiero Ultra</a>
                 </div>
             </div>
-            <p class="nota-precio">Precios en dólares (USD) por mes. Escribinos para poner en marcha tu club:
-                creamos el espacio, los usuarios iniciales y te acompañamos en la primera carga.</p>
+            <p class="nota-precio">Precios en pesos argentinos (ARS) por mes. El cobro se realiza con
+                <b>Mercado Pago</b> y podés cancelar cuando quieras: no hay permanencia ni costos de alta.
+                El plan Free no requiere tarjeta. ¿Dudas sobre qué plan te conviene? Escribinos y te ayudamos
+                a elegir según cómo trabaja tu equipo.</p>
         </div>
     </section>
 
