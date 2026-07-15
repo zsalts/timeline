@@ -254,9 +254,9 @@
 
             <div class="aviso-permanente">
                 ⚠️ Se eliminan de forma permanente el club, sus usuarios, partidos, cortes, entrenamientos,
-                ejercicios y facturación en la base de datos. Las <strong>cuentas de acceso (Auth)</strong> de
-                los usuarios no se borran desde acá: si querés liberar esos correos, borralos también en la
-                consola de Firebase Authentication.
+                ejercicios y facturación. También se borran las <strong>cuentas de acceso (Auth)</strong> de
+                los usuarios mediante la función server-side. Si esa función no está desplegada, el club igual
+                se borra y te avisamos para sacar las cuentas a mano en Firebase → Authentication.
             </div>
 
             <div class="form-group">
@@ -279,7 +279,7 @@
     </div>
 
     <script type="module">
-        import { auth, db, signOut, onAuthStateChanged, doc, getDoc, setDoc, updateDoc, deleteDoc, writeBatch, getDocs, collection, query, where, signInWithEmailAndPassword, isMasterAdmin } from '../assets/js/firebase.js';
+        import { auth, db, functions, httpsCallable, signOut, onAuthStateChanged, doc, getDoc, setDoc, updateDoc, deleteDoc, writeBatch, getDocs, collection, query, where, signInWithEmailAndPassword, isMasterAdmin } from '../assets/js/firebase.js';
 
         // API key de Firebase (usada para crear usuarios vía REST sin desloguear al admin)
         const API_KEY = "AIzaSyAm7hCCz4pIHb9DER9AhVYZEON_3pt7ChU";
@@ -890,6 +890,10 @@
                     entrenamientos: await contarPorClub('entrenamientos', clubId)
                 };
 
+                // Los IDs de los docs de usuarios SON los UIDs de Auth (así se
+                // crean). Los guardamos para borrar sus cuentas de Auth después.
+                const uidsAuth = [...datos.usuarios];
+
                 // Armar la lista de referencias a borrar
                 const refs = [];
                 datos.usuarios.forEach(id => refs.push(doc(db, 'usuarios', id)));
@@ -908,9 +912,31 @@
                     await batch.commit();
                 }
 
+                // Borrar las cuentas de acceso (Auth) vía Cloud Function.
+                // Si la función no está desplegada (o el proyecto no está en
+                // Blaze), el club igual quedó borrado: solo avisamos que las
+                // cuentas hay que sacarlas a mano desde Firebase Authentication.
+                let avisoAuth = '';
+                if (uidsAuth.length) {
+                    try {
+                        btnConfirmarEliminar.textContent = 'Borrando cuentas…';
+                        const eliminarCuentasAuth = httpsCallable(functions, 'eliminarCuentasAuth');
+                        const r = await eliminarCuentasAuth({ uids: uidsAuth });
+                        const borradas = (r.data && r.data.borradas) || 0;
+                        const fallidas = (r.data && r.data.errores && r.data.errores.length) || 0;
+                        avisoAuth = `\n\n${borradas} cuenta(s) de acceso eliminada(s)` +
+                            (fallidas ? ` (${fallidas} no se pudieron borrar).` : '.');
+                    } catch (e) {
+                        console.warn('No se pudieron borrar las cuentas de Auth automáticamente:', e);
+                        avisoAuth = '\n\n⚠️ Las cuentas de acceso NO se borraron automáticamente ' +
+                            '(la función server-side no está disponible). Borralas a mano en ' +
+                            'Firebase → Authentication.';
+                    }
+                }
+
                 cerrarModalEliminar();
                 await loadClubs();
-                alert('Club eliminado permanentemente.');
+                alert('Club eliminado permanentemente.' + avisoAuth);
             } catch (e) {
                 console.error('Error al eliminar el club:', e);
                 showMessage(msgEliminar, 'Error al eliminar: ' + (e.message || e), 'error');
