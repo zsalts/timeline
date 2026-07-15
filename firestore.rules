@@ -65,9 +65,18 @@ service cloud.firestore {
         (request.auth != null && request.auth.uid == resource.data.admin_uid) ||
         (userExists() && userDoc().club_id == clubId);
 
-      // Escribir: super-admin (crear/editar) o admin del club
-      allow write: if isSuper() ||
+      // Editar / borrar: super-admin o admin del club
+      allow update, delete: if isSuper() ||
         (request.auth != null && request.auth.uid == resource.data.admin_uid);
+
+      // Crear: super-admin, o auto-registro público (cualquier usuario
+      // autenticado creando SU club en plan Free, con él mismo como admin).
+      // No puede autoasignarse Pro/Ultra: eso lo mueve el super-admin.
+      allow create: if isSuper() ||
+        (request.auth != null &&
+         request.resource.data.admin_uid == request.auth.uid &&
+         request.resource.data.get('plan', 'free') == 'free' &&
+         request.resource.data.get('estado', 'activo') == 'activo');
 
       // Además: cualquier miembro (no jugadora) puede mover SOLO el contador
       // de partidos ±1 (lo mantiene el batch de crear/borrar partido). Esta
@@ -84,11 +93,17 @@ service cloud.firestore {
         (request.auth != null && request.auth.uid == userId) ||
         (userExists() && userDoc().club_id == resource.data.club_id);
 
-      // Crear: super-admin, o club-admin creando en su club
+      // Crear: super-admin; club-admin creando en su club; o auto-registro
+      // (el usuario recién creado hace SU propio doc como club-admin del club
+      // que acaba de crear — se valida que sea admin_uid de ese club).
       allow create: if isSuper() ||
         (userExists() &&
          userDoc().rol == 'club-admin' &&
-         request.resource.data.club_id == userDoc().club_id);
+         request.resource.data.club_id == userDoc().club_id) ||
+        (request.auth != null &&
+         request.auth.uid == userId &&
+         request.resource.data.rol == 'club-admin' &&
+         clubDoc(request.resource.data.club_id).admin_uid == request.auth.uid);
 
       // Actualizar: super-admin, propietario, o club-admin del mismo club
       allow update: if isSuper() ||
@@ -97,8 +112,9 @@ service cloud.firestore {
          userDoc().rol == 'club-admin' &&
          resource.data.club_id == userDoc().club_id);
 
-      // Eliminar: no permitido (solo desactivar)
-      allow delete: if false;
+      // Eliminar: solo el super-admin (borrado permanente de un club completo).
+      // El flujo normal es "dar de baja" (estado: inactivo), no borrar.
+      allow delete: if isSuper();
     }
 
     // ============================================
@@ -124,10 +140,11 @@ service cloud.firestore {
         resource.data.club_id == userDoc().club_id &&
         request.resource.data.club_id == userDoc().club_id;
 
-      // Eliminar: club-admin del mismo club
-      allow delete: if userExists() &&
-        userDoc().club_id == resource.data.club_id &&
-        userDoc().rol == 'club-admin';
+      // Eliminar: club-admin del mismo club, o super-admin (borrado del club)
+      allow delete: if isSuper() ||
+        (userExists() &&
+         userDoc().club_id == resource.data.club_id &&
+         userDoc().rol == 'club-admin');
     }
 
     // ============================================
@@ -160,10 +177,11 @@ service cloud.firestore {
         userDoc().rol != 'player' &&
         request.resource.data.de_uid == request.auth.uid;
 
-      // Borrar: el emisor o el receptor (lo saca de su historial)
-      allow delete: if request.auth != null &&
-        (resource.data.de_uid == request.auth.uid ||
-         resource.data.para_email == request.auth.token.email.lower());
+      // Borrar: el emisor, el receptor, o el super-admin (borrado del club)
+      allow delete: if isSuper() ||
+        (request.auth != null &&
+         (resource.data.de_uid == request.auth.uid ||
+          resource.data.para_email == request.auth.token.email.lower()));
 
       // No se edita un compartido: se borra y se vuelve a compartir
       allow update: if false;
@@ -188,9 +206,9 @@ service cloud.firestore {
         request.resource.data.club_id == userDoc().club_id &&
         clubDoc(userDoc().club_id).get('plan', 'free') == 'ultra';
 
-      // Borrar: entrenador/admin del mismo club
-      allow delete: if esEntrenador() &&
-        userDoc().club_id == resource.data.club_id;
+      // Borrar: entrenador/admin del mismo club, o super-admin (borrado del club)
+      allow delete: if isSuper() ||
+        (esEntrenador() && userDoc().club_id == resource.data.club_id);
     }
 
     // ============================================
@@ -212,9 +230,10 @@ service cloud.firestore {
         request.resource.data.club_id == userDoc().club_id &&
         clubDoc(userDoc().club_id).get('plan', 'free') == 'ultra';
 
-      // Borrar: entrenador/admin del mismo club (aunque haya bajado de plan)
-      allow delete: if esEntrenador() &&
-        userDoc().club_id == resource.data.club_id;
+      // Borrar: entrenador/admin del mismo club (aunque haya bajado de plan),
+      // o super-admin (borrado del club)
+      allow delete: if isSuper() ||
+        (esEntrenador() && userDoc().club_id == resource.data.club_id);
     }
 
     // ============================================

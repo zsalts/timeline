@@ -111,6 +111,46 @@
             margin: 80px auto 0;
         }
         .unauthorized h2 { color: var(--danger); }
+
+        /* --- Modal de borrado permanente --- */
+        .modal-overlay {
+            position: fixed; inset: 0; background: rgba(4, 6, 10, 0.78);
+            z-index: 1000; display: none; justify-content: center; align-items: center; padding: 20px;
+        }
+        .modal-overlay.abierto { display: flex; }
+        .modal-danger {
+            background: var(--panel); border: 1px solid rgba(255, 92, 99, 0.4);
+            width: 100%; max-width: 520px; border-radius: var(--radius);
+            padding: 26px; box-shadow: var(--shadow); max-height: 90vh; overflow-y: auto;
+        }
+        .modal-danger h2 { color: var(--danger); margin: 0 0 6px; }
+        .modal-danger .sub { color: var(--muted); font-size: 0.9rem; margin: 0 0 18px; }
+        .borrado-resumen {
+            background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--radius-sm);
+            padding: 12px 14px; margin-bottom: 16px; font-size: 0.88rem; color: var(--text);
+        }
+        .borrado-resumen ul { margin: 8px 0 0; padding-left: 18px; color: var(--muted); }
+        .borrado-resumen li { margin-bottom: 3px; }
+        .aviso-permanente {
+            background: var(--danger-dim); border: 1px solid rgba(255, 92, 99, 0.35);
+            border-radius: var(--radius-sm); padding: 10px 12px; margin-bottom: 16px;
+            color: #ffb3b6; font-size: 0.84rem; line-height: 1.5;
+        }
+        .modal-danger .check-row { display: flex; gap: 9px; align-items: flex-start; margin: 14px 0; }
+        .modal-danger .check-row input { width: auto; margin-top: 2px; }
+        .modal-danger .check-row label { text-transform: none; letter-spacing: 0; font-family: inherit; color: var(--text); font-size: 0.88rem; margin: 0; font-weight: 400; }
+        .modal-acciones { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+        .btn-cancelar {
+            background: var(--panel-2); color: var(--text); border: 1px solid var(--line-2);
+            padding: 10px 18px; border-radius: var(--radius-sm); cursor: pointer; font-weight: 600;
+            width: auto; font-family: inherit;
+        }
+        .btn-eliminar-def {
+            background: var(--danger); color: #fff; border: none;
+            padding: 10px 18px; border-radius: var(--radius-sm); cursor: pointer; font-weight: 700;
+            width: auto; font-family: inherit;
+        }
+        .btn-eliminar-def:disabled { opacity: 0.45; cursor: not-allowed; }
     </style>
 </head>
 <body>
@@ -202,8 +242,44 @@
         </div>
     </div>
 
+    <!-- MODAL: eliminar club permanentemente (varias validaciones) -->
+    <div id="modal-eliminar" class="modal-overlay">
+        <div class="modal-danger">
+            <h2>Eliminar club permanentemente</h2>
+            <p class="sub">Esta acción <strong>no se puede deshacer</strong>. Se borran todos los datos del club.</p>
+
+            <div class="borrado-resumen" id="borrado-resumen">
+                Calculando qué se va a borrar…
+            </div>
+
+            <div class="aviso-permanente">
+                ⚠️ Se eliminan de forma permanente el club, sus usuarios, partidos, cortes, entrenamientos,
+                ejercicios y facturación en la base de datos. Las <strong>cuentas de acceso (Auth)</strong> de
+                los usuarios no se borran desde acá: si querés liberar esos correos, borralos también en la
+                consola de Firebase Authentication.
+            </div>
+
+            <div class="form-group">
+                <label>Para confirmar, escribí el ID del club: <span id="confirm-club-id" style="color:var(--danger); text-transform:none; letter-spacing:0;"></span></label>
+                <input type="text" id="input-confirm-id" placeholder="Escribí el ID exacto" autocomplete="off">
+            </div>
+
+            <div class="check-row">
+                <input type="checkbox" id="check-permanente">
+                <label for="check-permanente">Entiendo que esta acción es permanente y borra todos los datos del club.</label>
+            </div>
+
+            <div class="mensaje" id="msg-eliminar" style="margin-top:6px;"></div>
+
+            <div class="modal-acciones">
+                <button class="btn-cancelar" id="btn-cancelar-eliminar">Cancelar</button>
+                <button class="btn-eliminar-def" id="btn-confirmar-eliminar" disabled>Eliminar definitivamente</button>
+            </div>
+        </div>
+    </div>
+
     <script type="module">
-        import { auth, db, signOut, onAuthStateChanged, doc, getDoc, setDoc, updateDoc, getDocs, collection, query, where, signInWithEmailAndPassword, isMasterAdmin } from '../assets/js/firebase.js';
+        import { auth, db, signOut, onAuthStateChanged, doc, getDoc, setDoc, updateDoc, deleteDoc, writeBatch, getDocs, collection, query, where, signInWithEmailAndPassword, isMasterAdmin } from '../assets/js/firebase.js';
 
         // API key de Firebase (usada para crear usuarios vía REST sin desloguear al admin)
         const API_KEY = "AIzaSyAm7hCCz4pIHb9DER9AhVYZEON_3pt7ChU";
@@ -508,9 +584,14 @@
                                     <p><strong>Usuarios:</strong> ${club.usuarios_activos || usuarios.length || 2} · <strong>Estado:</strong> ${activo ? 'Activo' : 'De baja'}</p>
                                 </div>
                             </div>
-                            <button class="${activo ? 'btn-danger' : 'btn-primary'}" style="width:auto; padding:8px 14px; font-size:0.9rem;" onclick="toggleEstadoClub('${clubId}', ${activo})">
-                                ${activo ? 'Dar de baja' : 'Reactivar'}
-                            </button>
+                            <div style="display:flex; flex-direction:column; gap:8px; align-items:flex-end;">
+                                <button class="${activo ? 'btn-danger' : 'btn-primary'}" style="width:auto; padding:8px 14px; font-size:0.9rem;" onclick="toggleEstadoClub('${clubId}', ${activo})">
+                                    ${activo ? 'Dar de baja' : 'Reactivar'}
+                                </button>
+                                ${activo
+                                    ? ''
+                                    : `<button class="btn-danger" style="width:auto; padding:8px 14px; font-size:0.85rem; background:transparent; color:#ffb3b6; border:1px solid rgba(255,92,99,0.45);" onclick="abrirModalEliminar('${clubId}')" title="Borra el club y todos sus datos para siempre">🗑 Eliminar permanentemente</button>`}
+                            </div>
                         </div>
 
                         <details style="width:100%;">
@@ -701,6 +782,142 @@
                 showMessage(msg, 'Error: ' + error.message, 'error');
             }
         };
+
+        // ============================================
+        // BORRADO PERMANENTE DE UN CLUB (varias validaciones)
+        // ============================================
+        let clubAEliminar = null;
+        let clubAEliminar_datos = null;
+
+        const modalEliminar = document.getElementById('modal-eliminar');
+        const inputConfirmId = document.getElementById('input-confirm-id');
+        const checkPermanente = document.getElementById('check-permanente');
+        const btnConfirmarEliminar = document.getElementById('btn-confirmar-eliminar');
+        const msgEliminar = document.getElementById('msg-eliminar');
+
+        // Habilita el botón solo si el ID escrito coincide EXACTO y el check está tildado
+        function revalidarModal() {
+            const ok = clubAEliminar &&
+                inputConfirmId.value.trim() === clubAEliminar &&
+                checkPermanente.checked;
+            btnConfirmarEliminar.disabled = !ok;
+        }
+        inputConfirmId.addEventListener('input', revalidarModal);
+        checkPermanente.addEventListener('change', revalidarModal);
+
+        function cerrarModalEliminar() {
+            modalEliminar.classList.remove('abierto');
+            clubAEliminar = null;
+            clubAEliminar_datos = null;
+            inputConfirmId.value = '';
+            checkPermanente.checked = false;
+            msgEliminar.style.display = 'none';
+            btnConfirmarEliminar.disabled = true;
+            btnConfirmarEliminar.textContent = 'Eliminar definitivamente';
+        }
+        document.getElementById('btn-cancelar-eliminar').addEventListener('click', cerrarModalEliminar);
+        modalEliminar.addEventListener('click', (e) => { if (e.target === modalEliminar) cerrarModalEliminar(); });
+
+        // Cuenta los documentos de una colección que pertenecen al club
+        async function contarPorClub(coleccion, clubId) {
+            const snap = await getDocs(query(collection(db, coleccion), where('club_id', '==', clubId)));
+            return snap.docs.map(d => d.id);
+        }
+
+        // Abrir el modal: valida que el club esté de baja y muestra el resumen
+        window.abrirModalEliminar = async (clubId) => {
+            // VALIDACIÓN 1: el club tiene que estar dado de baja primero
+            const clubSnap = await getDoc(doc(db, 'clubes', clubId));
+            if (!clubSnap.exists()) { alert('Ese club ya no existe.'); loadClubs(); return; }
+            if ((clubSnap.data().estado || 'activo') === 'activo') {
+                alert('Primero dá de baja el club. Solo se pueden eliminar clubes que ya están de baja.');
+                return;
+            }
+
+            clubAEliminar = clubId;
+            clubAEliminar_datos = null;   // se recalcula abajo para ESTE club
+            document.getElementById('confirm-club-id').textContent = clubId;
+            document.getElementById('borrado-resumen').innerHTML = 'Calculando qué se va a borrar…';
+            modalEliminar.classList.add('abierto');
+            revalidarModal();
+
+            // Resumen de lo que se va a borrar (conteos)
+            try {
+                const [usuarios, partidos, ejercicios, entrenamientos] = await Promise.all([
+                    contarPorClub('usuarios', clubId),
+                    contarPorClub('partidos', clubId),
+                    contarPorClub('ejercicios', clubId),
+                    contarPorClub('entrenamientos', clubId)
+                ]);
+                clubAEliminar_datos = { usuarios, partidos, ejercicios, entrenamientos };
+                document.getElementById('borrado-resumen').innerHTML = `
+                    <strong>${esc(clubSnap.data().nombre)}</strong> (${clubId}) — se borrará:
+                    <ul>
+                        <li>${usuarios.length} usuario(s) del club</li>
+                        <li>${partidos.length} partido(s) y sus cortes</li>
+                        <li>${entrenamientos.length} entrenamiento(s)</li>
+                        <li>${ejercicios.length} ejercicio(s) de cancha</li>
+                        <li>Facturación y estadísticas del club</li>
+                    </ul>`;
+            } catch (e) {
+                console.error('Error al contar datos del club:', e);
+                document.getElementById('borrado-resumen').innerHTML =
+                    '<span style="color:var(--danger);">No se pudo calcular el detalle, pero igual se borrará todo el club si confirmás.</span>';
+            }
+        };
+
+        // Ejecutar el borrado permanente
+        btnConfirmarEliminar.addEventListener('click', async () => {
+            if (!clubAEliminar) return;
+            // VALIDACIÓN 2 y 3 (redundante con el estado del botón, por las dudas)
+            if (inputConfirmId.value.trim() !== clubAEliminar) {
+                showMessage(msgEliminar, 'El ID no coincide.', 'error'); return;
+            }
+            if (!checkPermanente.checked) {
+                showMessage(msgEliminar, 'Confirmá que entendés que es permanente.', 'error'); return;
+            }
+
+            const clubId = clubAEliminar;
+            btnConfirmarEliminar.disabled = true;
+            btnConfirmarEliminar.textContent = 'Eliminando…';
+
+            try {
+                // Reunir todos los ids a borrar (usa lo ya contado si está)
+                const datos = clubAEliminar_datos || {
+                    usuarios: await contarPorClub('usuarios', clubId),
+                    partidos: await contarPorClub('partidos', clubId),
+                    ejercicios: await contarPorClub('ejercicios', clubId),
+                    entrenamientos: await contarPorClub('entrenamientos', clubId)
+                };
+
+                // Armar la lista de referencias a borrar
+                const refs = [];
+                datos.usuarios.forEach(id => refs.push(doc(db, 'usuarios', id)));
+                datos.partidos.forEach(id => refs.push(doc(db, 'partidos', id)));
+                datos.ejercicios.forEach(id => refs.push(doc(db, 'ejercicios', id)));
+                datos.entrenamientos.forEach(id => refs.push(doc(db, 'entrenamientos', id)));
+                refs.push(doc(db, 'facturacion', clubId));
+                refs.push(doc(db, 'estadisticas', clubId));
+                // El doc del club va último, así si algo falla antes no queda huérfano el club
+                refs.push(doc(db, 'clubes', clubId));
+
+                // Borrar en lotes (writeBatch soporta hasta 500 ops)
+                for (let i = 0; i < refs.length; i += 400) {
+                    const batch = writeBatch(db);
+                    refs.slice(i, i + 400).forEach(r => batch.delete(r));
+                    await batch.commit();
+                }
+
+                cerrarModalEliminar();
+                await loadClubs();
+                alert('Club eliminado permanentemente.');
+            } catch (e) {
+                console.error('Error al eliminar el club:', e);
+                showMessage(msgEliminar, 'Error al eliminar: ' + (e.message || e), 'error');
+                btnConfirmarEliminar.disabled = false;
+                btnConfirmarEliminar.textContent = 'Eliminar definitivamente';
+            }
+        });
 
         function showMessage(element, text, type) {
             element.textContent = text;

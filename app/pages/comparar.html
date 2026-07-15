@@ -564,14 +564,16 @@
             [...categorias].sort().forEach(cat => {
                 const catDetails = document.createElement('details');
                 catDetails.className = 'cat-details';
-                catDetails.open = true;
+                // Colapsadas por defecto: el analista abre solo la categoría que
+                // quiere comparar, en vez de ver toda la plantilla desplegada.
+                catDetails.open = false;
                 const catSummary = document.createElement('summary');
-                catSummary.innerHTML = `📁 ${cat}`;
                 catDetails.appendChild(catSummary);
 
                 // Unión de descriptores de esta categoría entre todos los videos
                 const descriptores = new Set();
                 grupos.forEach(g => { if (g[cat]) Object.keys(g[cat]).forEach(d => descriptores.add(d)); });
+                catSummary.innerHTML = `📁 ${cat} <span style="color:var(--faint); font-size:0.8rem; font-weight:500;">(${descriptores.size})</span>`;
 
                 [...descriptores].sort().forEach(desc => {
                     const descDetails = document.createElement('details');
