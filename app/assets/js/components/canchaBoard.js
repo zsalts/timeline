@@ -23,6 +23,36 @@
     const COLOR = { jugadora: '#F7C948', rival: '#56C2E6' };
     const COLOR_FLECHA = '#EAEEF4';
 
+    // Estilos de línea táctica. Cada uno se dibuja distinto en renderFlechas:
+    //  - movimiento: flecha recta         - corto: flecha punteada (pase corto al espacio)
+    //  - presion: flecha ondulada         - bloqueo: línea con barra en T (pantalla)
+    const LINEAS = {
+        mov: { color: '#EAEEF4', nombre: '➜ Movimiento' },
+        corto: { color: '#5FD3A6', nombre: '⇢ Corto' },
+        presion: { color: '#FFB454', nombre: '∿ Presión' },
+        bloqueo: { color: '#FF5C63', nombre: '⊤ Bloqueo' },
+    };
+    const LINE_TOOLS = Object.keys(LINEAS);
+
+    // Camino ondulado (presión) entre dos puntos; recto en el tramo final
+    // para que la punta de flecha quede limpia.
+    function wavyPath(x1, y1, x2, y2) {
+        const dx = x2 - x1, dy = y2 - y1, len = Math.hypot(dx, dy);
+        if (len < 4) return `M ${x1} ${y1} L ${x2} ${y2}`;
+        const ux = dx / len, uy = dy / len;
+        const amp = 7, wl = 26, recto = 12;
+        const n = Math.max(2, Math.round(len / 4));
+        let d = '';
+        for (let i = 0; i <= n; i++) {
+            const t = i / n * len;
+            const off = t > len - recto ? 0 : Math.sin(t / wl * Math.PI * 2) * amp;
+            const bx = x1 + ux * t - uy * off;
+            const by = y1 + uy * t + ux * off;
+            d += (i === 0 ? 'M ' : ' L ') + bx.toFixed(1) + ' ' + by.toFixed(1);
+        }
+        return d;
+    }
+
     // --- CSS (se inyecta una sola vez) ---
     const CSS = `
     .cb-root { display: flex; flex-direction: column; gap: 10px; }
@@ -164,7 +194,10 @@
                         <button class="cb-chip" data-tool="jugadora"><span class="dot" style="background:${COLOR.jugadora}"></span>Nosotras</button>
                         <button class="cb-chip" data-tool="rival"><span class="dot" style="background:${COLOR.rival}"></span>Rival</button>
                         <button class="cb-chip" data-tool="pelota"><span class="dot" style="background:#fff"></span>Pelota</button>
-                        <button class="cb-chip" data-tool="flecha">➜ Flecha</button>
+                    </div>
+                    <div class="cb-tg">
+                        <span class="cb-lbl">Líneas</span>
+                        ${LINE_TOOLS.map(t => `<button class="cb-chip" data-tool="${t}"><span class="dot" style="background:${LINEAS[t].color}"></span>${LINEAS[t].nombre.replace(/^\S+\s/, '')}</button>`).join('')}
                     </div>
                     <div class="cb-tg">
                         <span class="cb-lbl">Modo</span>
@@ -243,10 +276,31 @@
 
             function renderFlechas() {
                 const fl = objetos.filter(o => o.tipo === 'flecha');
-                const defs = `<defs><marker id="cbah" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="${COLOR_FLECHA}"/></marker></defs>`;
+                const colorDe = o => (LINEAS[o.sub || 'mov'] || LINEAS.mov).color;
+                const markerId = c => 'cbah' + c.replace('#', '');
+                // Una punta de flecha por color usado (hereda el color de la línea)
+                const colores = [...new Set(fl.map(colorDe))];
+                const defs = '<defs>' + colores.map(c =>
+                    `<marker id="${markerId(c)}" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="${c}"/></marker>`
+                ).join('') + '</defs>';
                 const lineas = fl.map(o => {
+                    const sub = o.sub || 'mov';
+                    const col = colorDe(o);
                     const x1 = o.x1 / 100 * vbW, y1 = o.y1 / 100 * vbH, x2 = o.x2 / 100 * vbW, y2 = o.y2 / 100 * vbH;
-                    return `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${COLOR_FLECHA}" stroke-width="4" marker-end="url(#cbah)"/>`;
+                    if (sub === 'bloqueo') {
+                        // Línea + barra perpendicular en la punta (pantalla/bloqueo)
+                        const dx = x2 - x1, dy = y2 - y1, len = Math.hypot(dx, dy) || 1;
+                        const ux = dx / len, uy = dy / len, bar = 14;
+                        const bx1 = (x2 - uy * bar).toFixed(1), by1 = (y2 + ux * bar).toFixed(1);
+                        const bx2 = (x2 + uy * bar).toFixed(1), by2 = (y2 - ux * bar).toFixed(1);
+                        return `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${col}" stroke-width="4"/>`
+                            + `<line x1="${bx1}" y1="${by1}" x2="${bx2}" y2="${by2}" stroke="${col}" stroke-width="4"/>`;
+                    }
+                    if (sub === 'presion') {
+                        return `<path d="${wavyPath(x1, y1, x2, y2)}" fill="none" stroke="${col}" stroke-width="4" marker-end="url(#${markerId(col)})"/>`;
+                    }
+                    const dash = sub === 'corto' ? ' stroke-dasharray="12 9"' : '';
+                    return `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${col}" stroke-width="4"${dash} marker-end="url(#${markerId(col)})"/>`;
                 }).join('');
                 arrows.innerHTML = defs + lineas;
             }
@@ -279,10 +333,10 @@
                         objetos.push(o);
                         layer.appendChild(crearEl(o));
                         notificar();
-                    } else if (herramienta === 'flecha') {
+                    } else if (LINE_TOOLS.includes(herramienta)) {
                         if (e.target.closest('.cb-obj')) return;
                         const p = pos(e);
-                        dibujoFlecha = { id: ++seq, tipo: 'flecha', x1: p.x, y1: p.y, x2: p.x, y2: p.y };
+                        dibujoFlecha = { id: ++seq, tipo: 'flecha', sub: herramienta, x1: p.x, y1: p.y, x2: p.x, y2: p.y };
                         objetos.push(dibujoFlecha);
                         window.addEventListener('pointermove', flechaMove);
                         window.addEventListener('pointerup', flechaUp);
@@ -555,7 +609,7 @@
                     return {
                         vista,
                         objetos: objetos.map(o => o.tipo === 'flecha'
-                            ? { tipo: 'flecha', x1: +o.x1.toFixed(1), y1: +o.y1.toFixed(1), x2: +o.x2.toFixed(1), y2: +o.y2.toFixed(1) }
+                            ? { tipo: 'flecha', sub: o.sub || 'mov', x1: +o.x1.toFixed(1), y1: +o.y1.toFixed(1), x2: +o.x2.toFixed(1), y2: +o.y2.toFixed(1) }
                             : { tipo: o.tipo, x: +o.x.toFixed(1), y: +o.y.toFixed(1), ...(o.num ? { num: o.num } : {}) }),
                         pasos: pasos.map(paso => ({
                             p: punt.map(o => paso.pos[o.id]
