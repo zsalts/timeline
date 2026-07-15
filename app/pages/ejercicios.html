@@ -147,6 +147,7 @@
                     <span class="tool-lbl">Campos</span>
                     <select id="sel-campos" class="campos-sel">
                         <option value="1">Cancha entera</option>
+                        <option value="vertical">Cancha entera (vertical)</option>
                         <option value="media">Media cancha</option>
                         <option value="25">Los 25</option>
                     </select>
@@ -281,7 +282,8 @@
 
             let objetos = [];          // { id, tipo, x, y, num? }
             let herramienta = 'mover';  // mover | borrar | jugadora | rival | pelota | cono | carrera | pase | conduccion
-            let campos = '1';           // '1' | 'media' | '25'
+            let campos = '1';           // '1' | 'vertical' | 'media' | '25'
+            let vbW = 1000;             // ancho del viewBox de la capa de flechas (600 en vertical)
             let vbH = 600;              // alto del viewBox de la capa de flechas (varía según la vista)
             let editandoId = null;      // id del doc si estoy editando uno existente
             let seq = 0;                // id local incremental de objetos
@@ -309,7 +311,9 @@
             // Vista de ataque con el arco ABAJO (se ataca hacia arriba). Sirve
             // para "media cancha" (profundidad 45,7 m) y "los 25" (22,9 m).
             // Ancho fijo 1000 (=55 m), alto proporcional a la profundidad.
-            const ALTO_VB = { '1': 600, 'media': Math.round(45.7 * 1000 / 55), '25': Math.round(22.9 * 1000 / 55) };
+            const ALTO_VB = { '1': 600, 'vertical': 1000, 'media': Math.round(45.7 * 1000 / 55), '25': Math.round(22.9 * 1000 / 55) };
+            // Ancho del viewBox: 1000 salvo la cancha entera vertical (600, retrato).
+            const ANCHO_VB = { 'vertical': 600 };
             function svgZoom(profM, mini) {
                 const s = 1000 / 55;                 // px por metro
                 const H = Math.round(profM * s);
@@ -343,7 +347,43 @@
                 </svg>`;
             }
 
+            // Cancha entera en VERTICAL (retrato): es la transpuesta exacta de
+            // la horizontal (viewBox 600×1000). Dos "D" (arriba/abajo), líneas
+            // de 23 m horizontales y arcos en los bordes corto superior/inferior.
+            function svgCanchaVertical(mini) {
+                const lw = mini ? 1.5 : 2.5;
+                const lc = 'rgba(255,255,255,0.42)';
+                return `
+                <svg class="field-svg" viewBox="0 0 600 1000" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+                    <defs>
+                        <linearGradient id="turf" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0" stop-color="#173d2c"/>
+                            <stop offset="1" stop-color="#123023"/>
+                        </linearGradient>
+                    </defs>
+                    <rect x="0" y="0" width="600" height="1000" fill="url(#turf)"/>
+                    <rect x="14" y="14" width="572" height="972" fill="none" stroke="${lc}" stroke-width="${lw}"/>
+                    <!-- línea central y líneas de 23 m (horizontales) -->
+                    <line x1="14" y1="500" x2="586" y2="500" stroke="${lc}" stroke-width="${lw}"/>
+                    <line x1="14" y1="258" x2="586" y2="258" stroke="${lc}" stroke-width="${lw}"/>
+                    <line x1="14" y1="742" x2="586" y2="742" stroke="${lc}" stroke-width="${lw}"/>
+                    <!-- "D" arriba y abajo (2 cuartos de círculo + tramo recto) -->
+                    <path d="M 125 14 A 156 156 0 0 0 281 170 L 319 170 A 156 156 0 0 0 475 14" fill="none" stroke="${lc}" stroke-width="${lw}"/>
+                    <path d="M 125 986 A 156 156 0 0 1 281 830 L 319 830 A 156 156 0 0 1 475 986" fill="none" stroke="${lc}" stroke-width="${lw}"/>
+                    <!-- línea punteada a 5 m de cada D -->
+                    <path d="M 72 14 A 209 209 0 0 0 281 223 L 319 223 A 209 209 0 0 0 528 14" fill="none" stroke="${lc}" stroke-width="${lw * 0.8}" stroke-dasharray="2 13"/>
+                    <path d="M 72 986 A 209 209 0 0 1 281 777 L 319 777 A 209 209 0 0 1 528 986" fill="none" stroke="${lc}" stroke-width="${lw * 0.8}" stroke-dasharray="2 13"/>
+                    <!-- puntos de penal (6,40 m) -->
+                    <circle cx="300" cy="82" r="3" fill="${lc}"/>
+                    <circle cx="300" cy="904" r="3" fill="${lc}"/>
+                    <!-- arcos (3,66 m) -->
+                    <rect x="281" y="6" width="38" height="8" fill="none" stroke="${lc}" stroke-width="${lw}"/>
+                    <rect x="281" y="986" width="38" height="8" fill="none" stroke="${lc}" stroke-width="${lw}"/>
+                </svg>`;
+            }
+
             function svgCancha(nCampos, mini) {
+                if (nCampos === 'vertical') return svgCanchaVertical(mini);
                 if (nCampos === 'media') return svgZoom(45.7, mini);
                 if (nCampos === '25') return svgZoom(22.9, mini);
                 const grid = { 1: [1, 1], 2: [2, 1], 4: [2, 2], 6: [3, 2] }[nCampos] || [1, 1];
@@ -399,11 +439,12 @@
                 // Reemplazar solo la cancha (no la capa de flechas ni los objetos)
                 const viejo = pitch.querySelector('svg.field-svg');
                 if (viejo) viejo.remove();
-                // Cada vista tiene su alto de viewBox; la capa de flechas lo
-                // sigue para no deformarse.
+                // Cada vista tiene su ancho y alto de viewBox; la capa de flechas
+                // los sigue para no deformarse.
+                vbW = ANCHO_VB[campos] || 1000;
                 vbH = ALTO_VB[campos] || 600;
-                pitch.style.aspectRatio = `1000 / ${vbH}`;
-                arrowsSvg.setAttribute('viewBox', `0 0 1000 ${vbH}`);
+                pitch.style.aspectRatio = `${vbW} / ${vbH}`;
+                arrowsSvg.setAttribute('viewBox', `0 0 ${vbW} ${vbH}`);
                 renderFlechas();
                 pitch.insertAdjacentHTML('afterbegin', svgCancha(campos, false));
             }
@@ -450,7 +491,7 @@
             function ptosDe(o) {
                 const pts = (o.pts && o.pts.length) ? o.pts
                     : [{ x: o.x1, y: o.y1 }, { x: o.x2, y: o.y2 }];
-                return pts.map(p => ({ X: p.x * 10, Y: (p.y / 100) * vbH }));
+                return pts.map(p => ({ X: (p.x / 100) * vbW, Y: (p.y / 100) * vbH }));
             }
 
             // Curva suave que pasa por los puntos (Béziers cuadráticas por los
@@ -854,12 +895,19 @@
                 conBoton(btnGif, async () => {
                     try {
                         const workerUrl = await cargarGifLib();
-                        const W = 800, H = Math.round(W * vbH / 1000), esc = W / 920;
+                        // Lado mayor ~800; el canvas respeta el aspecto de la vista
+                        // (horizontal o vertical). esc mapea px de pantalla → canvas
+                        // para que los objetos se vean como en el editor.
+                        const LARGO = 800;
+                        const W = vbW >= vbH ? LARGO : Math.round(LARGO * vbW / vbH);
+                        const H = Math.round(W * vbH / vbW);
+                        const domW = pitch.getBoundingClientRect().width || 920;
+                        const esc = W / domW;
                         // Cancha y flechas se rasterizan una sola vez (son fijas)
                         const canchaImg = await svgAImagen(
-                            svgCancha(campos, false).replace('<svg ', `<svg width="1000" height="${vbH}" `));
+                            svgCancha(campos, false).replace('<svg ', `<svg width="${vbW}" height="${vbH}" `));
                         const flechasImg = arrowsSvg.innerHTML.trim()
-                            ? await svgAImagen(`<svg xmlns="${NS}" viewBox="0 0 1000 ${vbH}" width="1000" height="${vbH}">${arrowsSvg.innerHTML}</svg>`)
+                            ? await svgAImagen(`<svg xmlns="${NS}" viewBox="0 0 ${vbW} ${vbH}" width="${vbW}" height="${vbH}">${arrowsSvg.innerHTML}</svg>`)
                             : null;
                         const canvas = document.createElement('canvas');
                         canvas.width = W; canvas.height = H;
@@ -1104,6 +1152,11 @@
             }
 
             // ---------- Lista de ejercicios guardados ----------
+            // Nombre y proporción del mini-preview según la vista de cancha
+            const NOMBRE_VISTA = { '1': 'Cancha entera', 'vertical': 'Cancha vertical', 'media': 'Media cancha', '25': 'Los 25' };
+            function nombreVista(c) { return NOMBRE_VISTA[c] || 'Cancha entera'; }
+            function aspectoVista(c) { return `${ANCHO_VB[c] || 1000} / ${ALTO_VB[c] || 600}`; }
+
             function miniObjetos(objs) {
                 // Puntitos escalados dentro del mini-preview (las flechas se omiten)
                 return (objs || []).filter(o => o.tipo !== 'flecha').map(o => {
@@ -1131,9 +1184,9 @@
                         card.className = 'saved-card';
                         const nObj = (it.objetos || []).length;
                         card.innerHTML = `
-                            <div class="mini-pitch">${svgCancha(it.campos || 1, true)}${miniObjetos(it.objetos)}</div>
+                            <div class="mini-pitch" style="aspect-ratio:${aspectoVista(it.campos || '1')};">${svgCancha(it.campos || 1, true)}${miniObjetos(it.objetos)}</div>
                             <h4></h4>
-                            <div class="meta">${it.campos || 1} campo(s) · ${nObj} objeto(s)${(it.pasos || []).length >= 2 ? ' · 🎞 anim.' : ''}${it.youtube_id ? ' · 🎬' : ''}</div>
+                            <div class="meta">${nombreVista(it.campos || '1')} · ${nObj} objeto(s)${(it.pasos || []).length >= 2 ? ' · 🎞 anim.' : ''}${it.youtube_id ? ' · 🎬' : ''}</div>
                             <div class="row">
                                 <span style="color:var(--accent); font-size:0.82rem; font-weight:600;">Abrir ✎</span>
                                 <button class="btn-danger btn-del">Borrar</button>
