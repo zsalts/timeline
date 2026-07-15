@@ -131,23 +131,35 @@ body.app-shell {
     text-overflow: ellipsis;
 }
 
-.sidebar-nav { display: flex; flex-direction: column; gap: 2px; flex: 1; }
-.sidebar-nav a {
+.sidebar-nav { display: flex; flex-direction: column; gap: 18px; flex: 1; }
+.nav-group { display: flex; flex-direction: column; gap: 2px; }
+.nav-group-label {
+    font-family: var(--font-mono);
+    font-size: 0.64rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--faint);
+    padding: 0 13px 6px;
+}
+.sidebar-nav a.nav-link {
     position: relative;
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 11px;
     color: var(--muted);
     text-decoration: none;
     font-size: 0.92rem;
     font-weight: 500;
-    padding: 10px 13px;
+    padding: 9px 13px;
     border-radius: 9px;
     transition: background 0.15s, color 0.15s;
 }
-.sidebar-nav a:hover { background: var(--panel-2); color: var(--text); }
-.sidebar-nav a.active { color: var(--accent); background: var(--accent-dim); font-weight: 600; }
-.sidebar-nav a.active::before {
+.nav-link .nav-ico { width: 18px; height: 18px; flex-shrink: 0; opacity: 0.8; }
+.sidebar-nav a.nav-link:hover { background: var(--panel-2); color: var(--text); }
+.sidebar-nav a.nav-link:hover .nav-ico { opacity: 1; }
+.sidebar-nav a.nav-link.active { color: var(--accent); background: var(--accent-dim); font-weight: 600; }
+.sidebar-nav a.nav-link.active .nav-ico { opacity: 1; }
+.sidebar-nav a.nav-link.active::before {
     content: "";
     position: absolute;
     left: -14px;
@@ -449,9 +461,17 @@ label { font-weight: 600; color: var(--text); font-size: 0.85rem; }
     }
     .sidebar-brand { border-bottom: none; margin-bottom: 0; padding: 0 8px 0 0; flex-shrink: 0; }
     .sidebar-brand .brand-name { display: none; }
-    .sidebar-nav { flex-direction: row; gap: 4px; }
-    .sidebar-nav a { padding: 8px 11px; font-size: 0.85rem; white-space: nowrap; }
-    .sidebar-nav a.active::before { display: none; }
+    /* En fila: los grupos se disuelven y los links fluyen en un carrusel */
+    .sidebar-nav { flex-direction: row; gap: 4px; align-items: center; }
+    .nav-group { display: contents; }
+    .nav-group-label { display: none; }
+    /* Separador sutil antes del primer link de cada grupo (salvo el primero) */
+    .nav-group + .nav-group .nav-link:first-of-type {
+        margin-left: 6px; border-left: 1px solid var(--line); padding-left: 13px; border-radius: 0 9px 9px 0;
+    }
+    .sidebar-nav a.nav-link { padding: 8px 11px; font-size: 0.85rem; white-space: nowrap; }
+    .nav-link .nav-ico { width: 16px; height: 16px; }
+    .sidebar-nav a.nav-link.active::before { display: none; }
     .sidebar-foot { border-top: none; padding-top: 0; margin-top: 0; margin-left: auto; }
     .sidebar-foot .user-email { display: none; }
     .btn-logout-side { padding: 8px 11px; width: auto; }

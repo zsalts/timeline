@@ -47,32 +47,59 @@
     // "Contexto de partido": al abrir un partido aparecen Video y Estadísticas
     const hayPartido = !!sessionStorage.getItem('partidoSeleccionadoId');
 
-    const links = [
-        { id: 'historial', href: `${toPage}historial.html`, label: 'Historial' }
-    ];
-    // Cargar partido y Comparar son herramientas del cuerpo técnico.
+    // Íconos (SVG stroke, heredan color con currentColor)
+    const ICON = {
+        historial: '<path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l3 3"/>',
+        carga: '<path d="M12 5v14"/><path d="M5 12h14"/>',
+        comparar: '<rect x="3" y="4" width="7" height="16" rx="1"/><rect x="14" y="4" width="7" height="16" rx="1"/>',
+        entrenamientos: '<path d="M6.5 6.5 17.5 17.5"/><path d="M21 21l-1-1"/><path d="M3 3l1 1"/><path d="M18 9l3-3-3-3"/><path d="M6 15l-3 3 3 3"/><path d="M9 18l6-6"/>',
+        ejercicios: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M12 4v16"/><circle cx="12" cy="12" r="2.5"/>',
+        video: '<rect x="2" y="4" width="20" height="16" rx="2"/><path d="M10 9l5 3-5 3z"/>',
+        estadisticas: '<path d="M3 3v18h18"/><rect x="7" y="12" width="3" height="6"/><rect x="12" y="8" width="3" height="10"/><rect x="17" y="5" width="3" height="13"/>',
+        usuarios: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'
+    };
+    const icono = id => `<svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[id] || ''}</svg>`;
+
+    // Navegación agrupada por secciones. Cada grupo se muestra solo si tiene
+    // links visibles según rol/plan/contexto.
+    const grupos = [];
+
+    // Partidos: lo básico que ve todo el mundo (las jugadoras solo el historial)
+    const partidos = [{ id: 'historial', href: `${toPage}historial.html`, label: 'Historial' }];
     if (!esJugadora) {
-        links.push({ id: 'carga', href: `${toPage}carga.html`, label: 'Cargar partido' });
-        links.push({ id: 'comparar', href: `${toPage}comparar.html`, label: 'Comparar' });
-        // Entrenamientos y Ejercicios (editor de cancha): plan Ultra y solo
-        // el cuerpo técnico (entrenador o admin del club).
-        if (puedeEjercicios && esEntrenador) {
-            links.push({ id: 'entrenamientos', href: `${toPage}entrenamientos.html`, label: 'Entrenamientos' });
-            links.push({ id: 'ejercicios', href: `${toPage}ejercicios.html`, label: 'Ejercicios' });
-        }
+        partidos.push({ id: 'carga', href: `${toPage}carga.html`, label: 'Cargar partido' });
+        partidos.push({ id: 'comparar', href: `${toPage}comparar.html`, label: 'Comparar' });
+    }
+    grupos.push({ titulo: 'Partidos', items: partidos });
+
+    // Entrenamiento (plan Ultra + solo cuerpo técnico)
+    if (!esJugadora && puedeEjercicios && esEntrenador) {
+        grupos.push({
+            titulo: 'Entrenamiento', items: [
+                { id: 'entrenamientos', href: `${toPage}entrenamientos.html`, label: 'Entrenamientos' },
+                { id: 'ejercicios', href: `${toPage}ejercicios.html`, label: 'Ejercicios' }
+            ]
+        });
     }
 
+    // Contexto del partido abierto: Video (+ Estadísticas para el cuerpo técnico)
     if (hayPartido) {
-        // Las jugadoras solo miran el partido; las estadísticas son análisis.
-        links.push({ id: 'video', href: `${toPage}video.html`, label: 'Video' });
-        if (!esJugadora) {
-            links.push({ id: 'estadisticas', href: `${toPage}estadisticas.html`, label: 'Estadísticas' });
-        }
+        const abierto = [{ id: 'video', href: `${toPage}video.html`, label: 'Video' }];
+        if (!esJugadora) abierto.push({ id: 'estadisticas', href: `${toPage}estadisticas.html`, label: 'Estadísticas' });
+        grupos.push({ titulo: 'Partido abierto', items: abierto });
     }
 
+    // Administración del club
     if (esClubAdmin) {
-        links.push({ id: 'usuarios', href: `${toPage}gestion-usuarios.html`, label: 'Usuarios' });
+        grupos.push({ titulo: 'Administración', items: [{ id: 'usuarios', href: `${toPage}gestion-usuarios.html`, label: 'Usuarios' }] });
     }
+
+    const linkHTML = l => `<a href="${l.href}" class="nav-link ${l.id === active ? 'active' : ''}">${icono(l.id)}<span>${l.label}</span></a>`;
+    const grupoHTML = g => `
+        <div class="nav-group">
+            <div class="nav-group-label">${g.titulo}</div>
+            ${g.items.map(linkHTML).join('')}
+        </div>`;
 
     root.outerHTML = `
         <aside class="sidebar">
@@ -81,7 +108,7 @@
                 <span class="brand-name">${nombreClub}</span>
             </div>
             <nav class="sidebar-nav">
-                ${links.map(l => `<a href="${l.href}" class="${l.id === active ? 'active' : ''}">${l.label}</a>`).join('')}
+                ${grupos.map(grupoHTML).join('')}
             </nav>
             <div class="sidebar-foot">
                 <div class="user-email">${email}</div>
