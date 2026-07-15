@@ -84,26 +84,18 @@
         }
         .btn-guardar:hover { filter: brightness(1.08); }
 
-        /* Alineación del partido (visible para todos, también jugadoras) */
-        #seccion-alineacion {
+        /* Pizarra táctica (alineación + bloqueos + rival) */
+        #seccion-pizarra {
             background: var(--panel); border: 1px solid var(--line);
             border-left: 3px solid var(--accent); padding: 16px; border-radius: var(--radius);
         }
-        .alin-title {
-            margin: 0 0 12px; font-family: var(--font-mono); font-size: 0.7rem;
-            text-transform: uppercase; letter-spacing: 0.14em; color: var(--muted); font-weight: 500;
-        }
-        .alin-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
-        .alin-jug { display: flex; align-items: center; gap: 10px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 8px 11px; }
-        .alin-num {
-            flex: 0 0 auto; min-width: 28px; height: 28px; padding: 0 6px;
-            display: flex; align-items: center; justify-content: center;
-            background: var(--accent); color: var(--accent-ink);
-            border-radius: 6px; font-family: var(--font-mono); font-weight: 700; font-size: 0.85rem;
-        }
-        .alin-num.vacio { background: var(--panel-3); color: var(--faint); }
-        .alin-nombre { font-weight: 600; color: var(--text); font-size: 0.92rem; }
-        .alin-pos { margin-left: auto; color: var(--muted); font-size: 0.8rem; font-family: var(--font-mono); }
+        .pizarra-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .pizarra-head .obs-title { margin: 0; }
+        .pizarra-sub { color: var(--muted); font-size: 0.84rem; margin: 6px 0 14px; }
+        #msg-pizarra { color: var(--live); font-size: 0.82rem; font-weight: 600; margin-right: 10px; }
+        #msg-pizarra.sin-guardar { color: var(--ambar, #F7C948); }
+        /* Vista jugadora: la pizarra se ve pero sin botón de guardar */
+        html.rol-jugadora #btn-guardar-pizarra, html.rol-jugadora #msg-pizarra, html.rol-jugadora .pizarra-sub { display: none; }
 
         .columna-derecha-wrapper { width: 40%; position: relative; }
         .columna-cortes-scroll {
@@ -211,11 +203,6 @@
                     <div id="player"></div>
                 </div>
 
-                <div id="seccion-alineacion" style="display:none;">
-                    <h4 class="alin-title">Alineación</h4>
-                    <div id="alineacion-grid" class="alin-grid"></div>
-                </div>
-
                 <div id="seccion-observaciones">
                     <h4 class="obs-title">Notas y observaciones</h4>
                     <textarea id="texto-observaciones"
@@ -224,6 +211,18 @@
                         <span id="msg-ok" style="color: var(--live); font-size: 0.85rem; font-weight: 600; margin-right: 10px; display: none;">Guardado</span>
                         <button id="btn-guardar-obs" class="btn-guardar">Guardar cambios</button>
                     </div>
+                </div>
+
+                <div id="seccion-pizarra" style="display: none;">
+                    <div class="pizarra-head">
+                        <h4 class="obs-title">Pizarra táctica</h4>
+                        <div style="display: flex; align-items: center;">
+                            <span id="msg-pizarra" style="display: none;"></span>
+                            <button id="btn-guardar-pizarra" class="btn-guardar">Guardar pizarra</button>
+                        </div>
+                    </div>
+                    <p class="pizarra-sub">Marcá la alineación, los bloqueos que usaron y cómo salió el rival. Queda guardado en el partido para preparar los próximos.</p>
+                    <div id="board-container"></div>
                 </div>
             </div>
 
@@ -263,6 +262,7 @@
     <script src="../assets/js/utils/planes.js"></script>
     <script src="../assets/js/components/cortesRenderer.js"></script>
     <script src="../assets/js/components/timeline.js"></script>
+    <script src="../assets/js/components/canchaBoard.js"></script>
 
     <script type="module">
         import { db, doc, getDoc, updateDoc, collection, addDoc } from '../assets/js/firebase.js';
@@ -314,37 +314,53 @@
             }
         }
 
-        // Escapar texto para insertarlo como HTML
-        function escHtml(s) {
-            return String(s == null ? '' : s)
-                .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        // --- Pizarra táctica (alineación + bloqueos + rival) ---
+        let board = null;
+
+        function marcarPizarraSinGuardar() {
+            const m = document.getElementById('msg-pizarra');
+            m.textContent = 'Sin guardar';
+            m.classList.add('sin-guardar');
+            m.style.display = 'inline';
         }
 
-        // Dibuja la alineación del partido (lista de jugadoras). Oculta la
-        // sección si el partido no tiene alineación cargada.
-        function renderAlineacion(alineacion) {
-            const sec = document.getElementById('seccion-alineacion');
-            const grid = document.getElementById('alineacion-grid');
-            const lista = (alineacion || []).filter(j => j && (j.num || j.nombre || j.pos));
-            if (!lista.length) { sec.style.display = 'none'; return; }
+        async function guardarPizarra() {
+            if (!board) return;
+            const m = document.getElementById('msg-pizarra');
+            const btn = document.getElementById('btn-guardar-pizarra');
+            btn.disabled = true;
+            btn.textContent = 'Guardando…';
+            try {
+                await updateDoc(doc(db, "partidos", partidoId), { pizarra: board.getDatos() });
+                m.textContent = 'Guardado';
+                m.classList.remove('sin-guardar');
+                m.style.display = 'inline';
+            } catch (e) {
+                console.error("Error al guardar la pizarra:", e);
+                m.textContent = 'No se pudo guardar';
+                m.classList.add('sin-guardar');
+                m.style.display = 'inline';
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Guardar pizarra';
+            }
+        }
 
-            // Ordenar por dorsal numérico cuando se puede
-            lista.sort((a, b) => {
-                const na = parseInt(a.num, 10), nb = parseInt(b.num, 10);
-                if (!isNaN(na) && !isNaN(nb)) return na - nb;
-                if (!isNaN(na)) return -1;
-                if (!isNaN(nb)) return 1;
-                return 0;
-            });
-
-            grid.innerHTML = lista.map(j => `
-                <div class="alin-jug">
-                    <span class="alin-num${j.num ? '' : ' vacio'}">${j.num ? escHtml(j.num) : '–'}</span>
-                    <span class="alin-nombre">${escHtml(j.nombre) || 'Sin nombre'}</span>
-                    ${j.pos ? `<span class="alin-pos">${escHtml(j.pos)}</span>` : ''}
-                </div>`).join('');
+        function setupPizarra(partido) {
+            const sec = document.getElementById('seccion-pizarra');
+            const tienePizarra = partido.pizarra && (partido.pizarra.objetos || []).length > 0;
+            // Las jugadoras solo la ven si hay algo cargado; el cuerpo técnico
+            // siempre la ve (para armarla).
+            if (esJugadora && !tienePizarra) { sec.style.display = 'none'; return; }
             sec.style.display = 'block';
+
+            board = TL.canchaBoard.crear(document.getElementById('board-container'), { editable: !esJugadora });
+            if (partido.pizarra) board.setDatos(partido.pizarra);
+
+            if (!esJugadora) {
+                board.onChange = marcarPizarraSinGuardar;
+                document.getElementById('btn-guardar-pizarra').onclick = guardarPizarra;
+            }
         }
 
         async function cargarAnalisis() {
@@ -364,8 +380,8 @@
                     const eq2 = partido.rival || 'Rival';
                     document.getElementById('titulo-partido').textContent = `${eq1} vs ${eq2}`;
 
-                    // Alineación del partido (si tiene) — la ven todos, también jugadoras
-                    renderAlineacion(partido.alineacion);
+                    // Pizarra táctica (la ven todos; la edita el cuerpo técnico)
+                    setupPizarra(partido);
 
                     videoIdLimpio = TL.youtube.extraerId(partido.youtube_id || partido.video_url || '');
 

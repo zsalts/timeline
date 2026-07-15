@@ -10,40 +10,6 @@
     <link rel="apple-touch-icon" href="../assets/image/logo-web.png">
     <link rel="stylesheet" href="../assets/css/style.css">
     <script src="../assets/js/utils/tema.js"></script>
-    <style>
-        .lineup-box { display: flex; flex-direction: column; gap: 8px; }
-        .lineup-row { display: flex; gap: 8px; align-items: center; }
-        .lineup-row .lu-num { flex: 0 0 62px; text-align: center; }
-        .lineup-row .lu-nombre { flex: 1 1 auto; min-width: 0; }
-        .lineup-row .lu-pos { flex: 0 0 150px; min-width: 0; }
-        .lineup-row .lu-del {
-            flex: 0 0 auto; width: 38px; height: 40px; padding: 0;
-            background: var(--panel-2); color: var(--muted);
-            border: 1px solid var(--line-2); border-radius: var(--radius-sm);
-            cursor: pointer; font-weight: 600; font-family: inherit;
-            transition: border-color 0.15s, color 0.15s;
-        }
-        .lineup-row .lu-del:hover { border-color: var(--danger); color: var(--danger); }
-        .lineup-head {
-            display: flex; gap: 8px; font-family: var(--font-mono); font-size: 0.64rem;
-            text-transform: uppercase; letter-spacing: 0.1em; color: var(--faint); padding: 0 2px;
-        }
-        .lineup-head .h-num { flex: 0 0 62px; text-align: center; }
-        .lineup-head .h-nombre { flex: 1 1 auto; }
-        .lineup-head .h-pos { flex: 0 0 150px; }
-        .lineup-head .h-del { flex: 0 0 38px; }
-        .btn-add-jugadora {
-            align-self: flex-start; margin-top: 4px;
-            background: var(--panel-2); color: var(--text);
-            border: 1px dashed var(--line-2); border-radius: var(--radius-sm);
-            padding: 9px 16px; cursor: pointer; font-weight: 600; font-family: inherit;
-            transition: border-color 0.15s;
-        }
-        .btn-add-jugadora:hover { border-color: var(--accent); color: var(--accent); }
-        @media (max-width: 560px) {
-            .lineup-row .lu-pos, .lineup-head .h-pos { flex-basis: 96px; }
-        }
-    </style>
 </head>
 
 <body>
@@ -95,25 +61,6 @@
                     <input type="text" id="input-youtube" required style="margin-top: 6px;">
                 </div>
 
-                <div>
-                    <label style="margin-bottom: 4px;">Alineación del partido <span style="font-weight:normal; color:var(--faint); text-transform:none; letter-spacing:0;">(opcional)</span></label>
-                    <p class="subtitle" style="margin: 0 0 12px; font-size: 0.85rem;">Cargá las jugadoras que jugaron. Se guarda con el partido.</p>
-                    <div class="lineup-head">
-                        <span class="h-num">Dorsal</span>
-                        <span class="h-nombre">Nombre</span>
-                        <span class="h-pos">Posición</span>
-                        <span class="h-del"></span>
-                    </div>
-                    <div class="lineup-box" id="lineup-box"></div>
-                    <button type="button" class="btn-add-jugadora" id="btn-add-jugadora">+ Agregar jugadora</button>
-                    <datalist id="posiciones-hockey">
-                        <option value="Arquera"></option>
-                        <option value="Back"></option>
-                        <option value="Volante"></option>
-                        <option value="Delantera"></option>
-                    </datalist>
-                </div>
-
                 <label class="upload-box" for="input-xml">
                     <span class="upload-title">Reemplazar cortes (.lgm o .xml)</span>
                     <span class="upload-sub" id="upload-filename">Opcional — solo si querés sobrescribir los cortes anteriores</span>
@@ -147,49 +94,6 @@
 
         let estadisticasViejas = {};
 
-        // ---- Alineación del partido (dorsal + nombre + posición) ----
-        const lineupBox = document.getElementById('lineup-box');
-
-        function crearFilaAlineacion(j = {}) {
-            const row = document.createElement('div');
-            row.className = 'lineup-row';
-            row.innerHTML = `
-                <input class="lu-num" type="text" inputmode="numeric" placeholder="#" maxlength="3">
-                <input class="lu-nombre" type="text" placeholder="Nombre de la jugadora">
-                <input class="lu-pos" type="text" placeholder="Ej: Back" list="posiciones-hockey">
-                <button type="button" class="lu-del" title="Quitar">✕</button>`;
-            row.querySelector('.lu-num').value = j.num || '';
-            row.querySelector('.lu-nombre').value = j.nombre || '';
-            row.querySelector('.lu-pos').value = j.pos || '';
-            row.querySelector('.lu-del').addEventListener('click', () => row.remove());
-            lineupBox.appendChild(row);
-            return row;
-        }
-
-        // Pinta la alineación guardada (o una fila vacía para empezar)
-        function pintarAlineacion(alineacion) {
-            lineupBox.innerHTML = '';
-            if (Array.isArray(alineacion) && alineacion.length) {
-                alineacion.forEach(j => crearFilaAlineacion(j));
-            } else {
-                crearFilaAlineacion();
-            }
-        }
-
-        // Serializa las filas: descarta las vacías, ordena por dorsal si es número
-        function leerAlineacion() {
-            const filas = [...lineupBox.querySelectorAll('.lineup-row')].map(r => ({
-                num: r.querySelector('.lu-num').value.trim(),
-                nombre: r.querySelector('.lu-nombre').value.trim(),
-                pos: r.querySelector('.lu-pos').value.trim()
-            })).filter(j => j.num || j.nombre || j.pos);
-            return filas;
-        }
-
-        document.getElementById('btn-add-jugadora').addEventListener('click', () => {
-            crearFilaAlineacion();
-        });
-
         // Muestra el nombre del archivo elegido dentro de la caja de subida
         document.getElementById('input-xml').addEventListener('change', (e) => {
             const nombreSpan = document.getElementById('upload-filename');
@@ -218,7 +122,6 @@
                     // Partidos viejos pueden tener el video en video_url
                     document.getElementById('input-youtube').value = datos.youtube_id || datos.video_url || '';
                     estadisticasViejas = datos.estadisticas;
-                    pintarAlineacion(datos.alineacion);
                 }
             } catch (error) {
                 console.error("Error trayendo datos", error);
@@ -264,7 +167,6 @@
                 // Ambos campos en sincronía (las páginas leen uno u otro)
                 youtube_id: idYoutube,
                 video_url: idYoutube,
-                alineacion: leerAlineacion(),
                 modificado_el: new Date()
             };
 
@@ -305,7 +207,6 @@
             btn.textContent = "Reintentar";
         }
 
-        pintarAlineacion();          // una fila vacía hasta que cargue el partido
         cargarDatosParaEditar();
     </script>
 </body>
