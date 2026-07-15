@@ -374,7 +374,8 @@
 
             // Cuerpo técnico en Pro/Ultra: pizarra editable.
             sec.style.display = 'block';
-            board = TL.canchaBoard.crear(document.getElementById('board-container'), { editable: true });
+            const nombreGif = `pizarra-${(partido.mi_equipo || 'eq1')}-vs-${(partido.rival || 'eq2')}`;
+            board = TL.canchaBoard.crear(document.getElementById('board-container'), { editable: true, nombre: nombreGif });
             if (partido.pizarra) board.setDatos(partido.pizarra);
             board.onChange = marcarPizarraSinGuardar;
             document.getElementById('btn-guardar-pizarra').onclick = guardarPizarra;

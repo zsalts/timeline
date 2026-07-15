@@ -99,6 +99,42 @@
     }
     const VB = { '1': [1000, 600], 'vertical': [600, 1000] };
 
+    // --- Animación (pasos → reproducir → GIF) ---
+    const DUR_TRANS = 900;   // ms de cada transición entre pasos
+    const PAUSA = 450;       // ms de pausa al llegar a cada paso
+    const espera = ms => new Promise(r => setTimeout(r, ms));
+    const easeInOut = t => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+
+    // gif.js se carga a demanda; su worker se baja y se pasa como blob para
+    // esquivar el CORS del CDN. Se cachea entre instancias del board.
+    let gifLibP = null;
+    function cargarGifLib() {
+        if (!gifLibP) gifLibP = (async () => {
+            await new Promise((res, rej) => {
+                const s = document.createElement('script');
+                s.src = 'https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.js';
+                s.onload = res;
+                s.onerror = () => rej(new Error('No se pudo cargar gif.js'));
+                document.head.appendChild(s);
+            });
+            const r = await fetch('https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.worker.js');
+            if (!r.ok) throw new Error('No se pudo bajar el worker de gif.js');
+            return URL.createObjectURL(await r.blob());
+        })().catch(e => { gifLibP = null; throw e; });
+        return gifLibP;
+    }
+
+    // Rasteriza un markup SVG a imagen (blob URL, sin CORS)
+    function svgAImagen(markup) {
+        return new Promise((res, rej) => {
+            const url = URL.createObjectURL(new Blob([markup], { type: 'image/svg+xml' }));
+            const img = new Image();
+            img.onload = () => { URL.revokeObjectURL(url); res(img); };
+            img.onerror = () => { URL.revokeObjectURL(url); rej(new Error('No se pudo rasterizar el SVG')); };
+            img.src = url;
+        });
+    }
+
     TL.canchaBoard = {
         crear(contenedor, opts = {}) {
             ensureCSS();
@@ -109,6 +145,9 @@
             let herramienta = 'jugadora';
             let seq = 0;
             let vbW = 1000, vbH = 600;
+            let pasos = [];          // animación: [{ pos: { [idObjeto]: {x,y} } }]
+            let reproduciendo = false;
+            const nombreArchivo = (opts.nombre || 'pizarra').replace(/\s+/g, '_');
 
             const root = document.createElement('div');
             root.className = 'cb-root' + (editable ? ' cb-editable' : '');
@@ -132,6 +171,15 @@
                         <button class="cb-chip" data-tool="mover">✋ Mover</button>
                         <button class="cb-chip" data-tool="borrar">✕ Borrar</button>
                         <button class="cb-chip" data-vaciar>🗑 Vaciar</button>
+                    </div>
+                    <div class="cb-tg">
+                        <span class="cb-lbl">Animación</span>
+                        <button class="cb-chip" data-paso title="Guarda la posición actual como un paso">📷 Paso</button>
+                        <span class="cb-lbl cb-paso-info" style="color:var(--text);">0 pasos</span>
+                        <button class="cb-chip" data-paso-menos title="Quitar último paso" disabled>–</button>
+                        <button class="cb-chip" data-paso-reset title="Reiniciar pasos" disabled>↺</button>
+                        <button class="cb-chip" data-play disabled>▶</button>
+                        <button class="cb-chip" data-gif disabled>🎞 GIF</button>
                     </div>
                 </div>` : '';
 
@@ -273,6 +321,7 @@
                 e.stopPropagation();
                 if (herramienta === 'borrar') {
                     objetos = objetos.filter(x => x.id !== o.id);
+                    pasos.forEach(p => { delete p.pos[o.id]; });   // sacarla de la animación
                     el.remove();
                     notificar();
                     return;
@@ -315,24 +364,204 @@
                     });
                 });
                 root.querySelector('[data-vaciar]').addEventListener('click', () => {
-                    if (!objetos.length) return;
-                    if (confirm('¿Vaciar la pizarra? Se quitan todas las fichas y flechas.')) {
-                        objetos = []; renderObjetos(); notificar();
+                    if (!objetos.length && !pasos.length) return;
+                    if (confirm('¿Vaciar la pizarra? Se quitan todas las fichas, flechas y pasos.')) {
+                        objetos = []; pasos = []; renderObjetos(); actualizarPasosUI(); notificar();
                     }
+                });
+                // Botones de animación
+                root.querySelector('[data-paso]').addEventListener('click', capturarPaso);
+                root.querySelector('[data-paso-menos]').addEventListener('click', () => {
+                    if (reproduciendo || !pasos.length) return;
+                    pasos.pop(); actualizarPasosUI(); notificar();
+                });
+                root.querySelector('[data-paso-reset]').addEventListener('click', () => {
+                    if (reproduciendo || !pasos.length) return;
+                    if (!confirm('¿Reiniciar la animación? Se borran los pasos (las fichas quedan).')) return;
+                    pasos = []; actualizarPasosUI(); notificar();
+                });
+                root.querySelector('[data-play]').addEventListener('click', reproducir);
+                root.querySelector('[data-gif]').addEventListener('click', async () => {
+                    if (reproduciendo || pasos.length < 2) return;
+                    const btn = root.querySelector('[data-gif]');
+                    const orig = btn.textContent;
+                    btn.disabled = true; btn.textContent = 'Generando…';
+                    try { await exportarGif(); }
+                    catch (e) { console.error('Error al generar el GIF:', e); alert('No se pudo generar el GIF. Revisá tu conexión e intentá de nuevo.'); }
+                    finally { btn.disabled = false; btn.textContent = orig; actualizarPasosUI(); }
                 });
                 // Estado inicial de los botones
                 root.querySelector('.cb-chip[data-tool="jugadora"]').classList.add('on');
                 root.querySelector('.cb-chip[data-vista="1"]').classList.add('on');
             }
 
+            // --- Animación: capturar pasos, reproducir, exportar GIF ---
+            function actualizarPasosUI() {
+                const info = root.querySelector('.cb-paso-info');
+                if (info) info.textContent = pasos.length + (pasos.length === 1 ? ' paso' : ' pasos');
+                const listo = pasos.length >= 2 && !reproduciendo;
+                const set = (sel, dis) => { const b = root.querySelector(sel); if (b) b.disabled = dis; };
+                set('[data-play]', !listo);
+                set('[data-gif]', !listo);
+                set('[data-paso-menos]', !pasos.length || reproduciendo);
+                set('[data-paso-reset]', !pasos.length || reproduciendo);
+                set('[data-paso]', reproduciendo);
+            }
+
+            function capturarPaso() {
+                if (reproduciendo) return;
+                const punt = objetos.filter(o => o.tipo !== 'flecha');
+                if (!punt.length) return;
+                const pos = {};
+                punt.forEach(o => { pos[o.id] = { x: o.x, y: o.y }; });
+                pasos.push({ pos });
+                actualizarPasosUI();
+                notificar();
+            }
+
+            // Posición interpolada de cada ficha entre el paso k y el k+1
+            function posicionesEn(k, t) {
+                const a = pasos[k].pos, b = pasos[Math.min(k + 1, pasos.length - 1)].pos;
+                const out = {};
+                objetos.filter(o => o.tipo !== 'flecha').forEach(o => {
+                    const pa = a[o.id], pb = b[o.id];
+                    if (pa && pb) out[o.id] = { x: pa.x + (pb.x - pa.x) * t, y: pa.y + (pb.y - pa.y) * t };
+                    else if (pa) out[o.id] = pa;
+                    else if (pb) out[o.id] = pb;
+                });
+                return out;
+            }
+
+            function aplicarPosiciones(posMap) {
+                layer.querySelectorAll('.cb-obj').forEach(el => {
+                    const p = posMap[el.dataset.id];
+                    if (p) { el.style.left = p.x + '%'; el.style.top = p.y + '%'; }
+                });
+            }
+
+            // rAF con fallback a setTimeout (no se congela en pestaña oculta)
+            function tickAnim(cb) {
+                let hecho = false;
+                const f = () => { if (!hecho) { hecho = true; cb(performance.now()); } };
+                requestAnimationFrame(f);
+                setTimeout(f, 50);
+            }
+            function animarTransicion(k) {
+                return new Promise(res => {
+                    const t0 = performance.now();
+                    (function frame(now) {
+                        const t = Math.min(1, (now - t0) / DUR_TRANS);
+                        aplicarPosiciones(posicionesEn(k, easeInOut(t)));
+                        if (t < 1) tickAnim(frame); else res();
+                    })(performance.now());
+                });
+            }
+            async function reproducir() {
+                if (reproduciendo || pasos.length < 2) return;
+                reproduciendo = true;
+                actualizarPasosUI();
+                const btn = root.querySelector('[data-play]');
+                if (btn) btn.textContent = '⏸';
+                const backup = {};
+                objetos.filter(o => o.tipo !== 'flecha').forEach(o => { backup[o.id] = { x: o.x, y: o.y }; });
+                try {
+                    aplicarPosiciones(posicionesEn(0, 0));
+                    await espera(PAUSA);
+                    for (let k = 0; k < pasos.length - 1; k++) {
+                        await animarTransicion(k);
+                        await espera(PAUSA);
+                    }
+                    await espera(300);
+                } finally {
+                    aplicarPosiciones(backup);
+                    reproduciendo = false;
+                    if (btn) btn.textContent = '▶';
+                    actualizarPasosUI();
+                }
+            }
+
+            // Dibuja las fichas sobre el canvas del GIF (mismo look que el DOM)
+            function dibujarObjetosCanvas(ctx, posMap, esc) {
+                objetos.filter(o => o.tipo !== 'flecha').forEach(o => {
+                    const p = posMap[o.id] || { x: o.x, y: o.y };
+                    const X = p.x / 100 * ctx.canvas.width, Y = p.y / 100 * ctx.canvas.height;
+                    if (o.tipo === 'jugadora' || o.tipo === 'rival') {
+                        ctx.beginPath(); ctx.arc(X, Y, 14 * esc, 0, Math.PI * 2);
+                        ctx.fillStyle = COLOR[o.tipo]; ctx.fill();
+                        ctx.lineWidth = 2 * esc; ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.stroke();
+                        ctx.fillStyle = o.tipo === 'rival' ? '#06181f' : '#10130a';
+                        ctx.font = `800 ${Math.round(12 * esc)}px Arial, sans-serif`;
+                        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                        ctx.fillText(String(o.num ?? ''), X, Y + esc);
+                    } else if (o.tipo === 'pelota') {
+                        ctx.beginPath(); ctx.arc(X, Y, 7 * esc, 0, Math.PI * 2);
+                        ctx.fillStyle = '#fff'; ctx.fill();
+                    }
+                });
+            }
+
+            async function exportarGif() {
+                const workerUrl = await cargarGifLib();
+                const LARGO = 800;
+                const W = vbW >= vbH ? LARGO : Math.round(LARGO * vbW / vbH);
+                const H = Math.round(W * vbH / vbW);
+                const domW = pitch.getBoundingClientRect().width || 800;
+                const esc = W / domW;
+                // Cancha y flechas se rasterizan una vez (son fijas)
+                const canchaMarkup = (vista === 'vertical' ? svgVertical() : svgHorizontal())
+                    .replace('<svg ', `<svg width="${vbW}" height="${vbH}" `);
+                const canchaImg = await svgAImagen(canchaMarkup);
+                const flechasImg = arrows.innerHTML.trim()
+                    ? await svgAImagen(`<svg xmlns="${NS}" viewBox="0 0 ${vbW} ${vbH}" width="${vbW}" height="${vbH}">${arrows.innerHTML}</svg>`)
+                    : null;
+                const canvas = document.createElement('canvas');
+                canvas.width = W; canvas.height = H;
+                const ctx = canvas.getContext('2d');
+                const gif = new GIF({ workers: 2, quality: 8, width: W, height: H, workerScript: workerUrl });
+                const FPS = 15, FRAMES = Math.round(DUR_TRANS / 1000 * FPS);
+                const dibujar = (posMap) => {
+                    ctx.drawImage(canchaImg, 0, 0, W, H);
+                    if (flechasImg) ctx.drawImage(flechasImg, 0, 0, W, H);
+                    dibujarObjetosCanvas(ctx, posMap, esc);
+                };
+                dibujar(posicionesEn(0, 0));
+                gif.addFrame(ctx, { copy: true, delay: 800 });
+                for (let k = 0; k < pasos.length - 1; k++) {
+                    for (let f = 1; f <= FRAMES; f++) {
+                        dibujar(posicionesEn(k, easeInOut(f / FRAMES)));
+                        gif.addFrame(ctx, { copy: true, delay: Math.round(1000 / FPS) });
+                    }
+                    gif.addFrame(ctx, { copy: true, delay: k === pasos.length - 2 ? 1200 : PAUSA });
+                }
+                const blob = await new Promise((res, rej) => {
+                    gif.on('finished', res);
+                    gif.on('abort', () => rej(new Error('Generación abortada')));
+                    gif.render();
+                });
+                const a = document.createElement('a');
+                a.download = `${nombreArchivo}.gif`;
+                a.href = URL.createObjectURL(blob);
+                a.click();
+                URL.revokeObjectURL(a.href);
+            }
+
             const api = {
                 onChange: null,
                 getDatos() {
+                    // Los pasos guardan las posiciones alineadas al orden de las
+                    // fichas (Firestore no permite arrays anidados → cada paso es
+                    // { p: [...] } con null donde la ficha no está en ese paso).
+                    const punt = objetos.filter(o => o.tipo !== 'flecha');
                     return {
                         vista,
                         objetos: objetos.map(o => o.tipo === 'flecha'
                             ? { tipo: 'flecha', x1: +o.x1.toFixed(1), y1: +o.y1.toFixed(1), x2: +o.x2.toFixed(1), y2: +o.y2.toFixed(1) }
-                            : { tipo: o.tipo, x: +o.x.toFixed(1), y: +o.y.toFixed(1), ...(o.num ? { num: o.num } : {}) })
+                            : { tipo: o.tipo, x: +o.x.toFixed(1), y: +o.y.toFixed(1), ...(o.num ? { num: o.num } : {}) }),
+                        pasos: pasos.map(paso => ({
+                            p: punt.map(o => paso.pos[o.id]
+                                ? { x: +(+paso.pos[o.id].x).toFixed(1), y: +(+paso.pos[o.id].y).toFixed(1) }
+                                : null)
+                        }))
                     };
                 },
                 setDatos(d) {
@@ -340,17 +569,26 @@
                     vista = d.vista === 'vertical' ? 'vertical' : '1';
                     seq = 0;
                     objetos = (d.objetos || []).map(o => ({ id: ++seq, ...o }));
+                    // Reconstruir los pasos: se guardaron por índice de ficha
+                    const punt = objetos.filter(o => o.tipo !== 'flecha');
+                    pasos = (d.pasos || []).map(paso => {
+                        const pos = {};
+                        (paso.p || []).forEach((pt, i) => { if (pt && punt[i]) pos[punt[i].id] = { x: pt.x, y: pt.y }; });
+                        return { pos };
+                    });
                     if (editable) {
                         root.querySelectorAll('.cb-chip[data-vista]').forEach(x => x.classList.toggle('on', x.dataset.vista === vista));
                     }
                     pintarCancha();
                     renderObjetos();
+                    actualizarPasosUI();
                 },
                 estaVacia() { return objetos.length === 0; }
             };
 
             pintarCancha();
             renderObjetos();
+            actualizarPasosUI();
             return api;
         }
     };
