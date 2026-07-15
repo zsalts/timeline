@@ -2,7 +2,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
 import { getFirestore, collection, addDoc, getDocs, doc, getDoc, updateDoc, deleteDoc, setDoc, query, where, writeBatch, increment } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
-import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-functions.js";
 
 // Configuración de Firebase desde variables de ambiente
 // Actualizar estos valores desde .env.local en la raíz del proyecto
@@ -24,9 +23,6 @@ export const MASTER_EMAIL = "mateotesta2016@gmail.com";
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
 export const auth = getAuth(app);
-// Cloud Functions (región por defecto us-central1). Se usa para el borrado
-// server-side de cuentas de Auth desde el panel admin.
-export const functions = getFunctions(app);
 
 // Función para validar si un usuario es super-admin
 export const isMasterAdmin = (email) => {
@@ -67,4 +63,4 @@ export const getClubData = async (clubId) => {
   }
 };
 
-export { collection, addDoc, getDocs, doc, getDoc, updateDoc, deleteDoc, setDoc, query, where, writeBatch, increment, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, httpsCallable };
+export { collection, addDoc, getDocs, doc, getDoc, updateDoc, deleteDoc, setDoc, query, where, writeBatch, increment, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail };

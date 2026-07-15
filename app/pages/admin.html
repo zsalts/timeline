@@ -245,41 +245,73 @@
     <!-- MODAL: eliminar club permanentemente (varias validaciones) -->
     <div id="modal-eliminar" class="modal-overlay">
         <div class="modal-danger">
-            <h2>Eliminar club permanentemente</h2>
-            <p class="sub">Esta acción <strong>no se puede deshacer</strong>. Se borran todos los datos del club.</p>
+            <!-- Estado 1: confirmación -->
+            <div id="eliminar-form">
+                <h2>Eliminar club permanentemente</h2>
+                <p class="sub">Esta acción <strong>no se puede deshacer</strong>. Se borran todos los datos del club.</p>
 
-            <div class="borrado-resumen" id="borrado-resumen">
-                Calculando qué se va a borrar…
+                <div class="borrado-resumen" id="borrado-resumen">
+                    Calculando qué se va a borrar…
+                </div>
+
+                <div class="aviso-permanente">
+                    ⚠️ Se eliminan de forma permanente el club, sus usuarios, partidos, cortes, entrenamientos,
+                    ejercicios y facturación. Las <strong>cuentas de acceso (Auth)</strong> de los usuarios no
+                    se pueden borrar desde la web: al terminar te mostramos los correos para eliminarlos en
+                    Firebase → Authentication.
+                </div>
+
+                <div class="form-group">
+                    <label>Para confirmar, escribí el ID del club: <span id="confirm-club-id" style="color:var(--danger); text-transform:none; letter-spacing:0;"></span></label>
+                    <input type="text" id="input-confirm-id" placeholder="Escribí el ID exacto" autocomplete="off">
+                </div>
+
+                <div class="check-row">
+                    <input type="checkbox" id="check-permanente">
+                    <label for="check-permanente">Entiendo que esta acción es permanente y borra todos los datos del club.</label>
+                </div>
+
+                <div class="mensaje" id="msg-eliminar" style="margin-top:6px;"></div>
+
+                <div class="modal-acciones">
+                    <button class="btn-cancelar" id="btn-cancelar-eliminar">Cancelar</button>
+                    <button class="btn-eliminar-def" id="btn-confirmar-eliminar" disabled>Eliminar definitivamente</button>
+                </div>
             </div>
 
-            <div class="aviso-permanente">
-                ⚠️ Se eliminan de forma permanente el club, sus usuarios, partidos, cortes, entrenamientos,
-                ejercicios y facturación. También se borran las <strong>cuentas de acceso (Auth)</strong> de
-                los usuarios mediante la función server-side. Si esa función no está desplegada, el club igual
-                se borra y te avisamos para sacar las cuentas a mano en Firebase → Authentication.
-            </div>
+            <!-- Estado 2: listo, con los emails a borrar a mano -->
+            <div id="eliminar-hecho" style="display:none;">
+                <h2 style="color:var(--live);">Club eliminado</h2>
+                <p class="sub">Se borraron todos los datos del club en la base de datos.</p>
 
-            <div class="form-group">
-                <label>Para confirmar, escribí el ID del club: <span id="confirm-club-id" style="color:var(--danger); text-transform:none; letter-spacing:0;"></span></label>
-                <input type="text" id="input-confirm-id" placeholder="Escribí el ID exacto" autocomplete="off">
-            </div>
+                <div id="hecho-sin-cuentas" style="display:none;">
+                    <p style="color:var(--muted);">Este club no tenía cuentas de acceso registradas.</p>
+                </div>
 
-            <div class="check-row">
-                <input type="checkbox" id="check-permanente">
-                <label for="check-permanente">Entiendo que esta acción es permanente y borra todos los datos del club.</label>
-            </div>
+                <div id="hecho-con-cuentas" style="display:none;">
+                    <div class="aviso-permanente" style="color:var(--text); background:var(--panel-2); border-color:var(--line);">
+                        Falta un último paso manual: borrar estas <strong>cuentas de acceso</strong> en
+                        Firebase Authentication (la web no puede borrarlas). Copiá los correos y eliminalos ahí.
+                    </div>
+                    <label style="margin-bottom:6px;">Correos a eliminar</label>
+                    <textarea id="hecho-emails" readonly rows="4"
+                        style="width:100%; font-family:var(--font-mono); font-size:0.85rem; resize:vertical;"></textarea>
+                    <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:12px;">
+                        <button class="btn-primary" style="width:auto; padding:9px 16px;" id="btn-copiar-emails">Copiar correos</button>
+                        <a class="btn-cancelar" style="text-decoration:none; display:inline-flex; align-items:center;"
+                            id="link-auth-console" target="_blank" rel="noopener">Abrir Firebase Authentication ↗</a>
+                    </div>
+                </div>
 
-            <div class="mensaje" id="msg-eliminar" style="margin-top:6px;"></div>
-
-            <div class="modal-acciones">
-                <button class="btn-cancelar" id="btn-cancelar-eliminar">Cancelar</button>
-                <button class="btn-eliminar-def" id="btn-confirmar-eliminar" disabled>Eliminar definitivamente</button>
+                <div class="modal-acciones">
+                    <button class="btn-cancelar" id="btn-cerrar-hecho">Cerrar</button>
+                </div>
             </div>
         </div>
     </div>
 
     <script type="module">
-        import { auth, db, functions, httpsCallable, signOut, onAuthStateChanged, doc, getDoc, setDoc, updateDoc, deleteDoc, writeBatch, getDocs, collection, query, where, signInWithEmailAndPassword, isMasterAdmin } from '../assets/js/firebase.js';
+        import { auth, db, signOut, onAuthStateChanged, doc, getDoc, setDoc, updateDoc, deleteDoc, writeBatch, getDocs, collection, query, where, signInWithEmailAndPassword, isMasterAdmin } from '../assets/js/firebase.js';
 
         // API key de Firebase (usada para crear usuarios vía REST sin desloguear al admin)
         const API_KEY = "AIzaSyAm7hCCz4pIHb9DER9AhVYZEON_3pt7ChU";
@@ -814,14 +846,67 @@
             msgEliminar.style.display = 'none';
             btnConfirmarEliminar.disabled = true;
             btnConfirmarEliminar.textContent = 'Eliminar definitivamente';
+            // Volver al estado 1 (formulario) por si quedó en el panel "hecho"
+            document.getElementById('eliminar-form').style.display = 'block';
+            document.getElementById('eliminar-hecho').style.display = 'none';
         }
         document.getElementById('btn-cancelar-eliminar').addEventListener('click', cerrarModalEliminar);
-        modalEliminar.addEventListener('click', (e) => { if (e.target === modalEliminar) cerrarModalEliminar(); });
+        document.getElementById('btn-cerrar-hecho').addEventListener('click', cerrarModalEliminar);
+        // Mientras se está mostrando el panel "hecho" no cerramos al clickear afuera
+        // (para que no se pierdan los emails sin querer); en el form sí.
+        modalEliminar.addEventListener('click', (e) => {
+            if (e.target === modalEliminar &&
+                document.getElementById('eliminar-form').style.display !== 'none') {
+                cerrarModalEliminar();
+            }
+        });
+
+        // Panel final: muestra los correos de Auth a borrar a mano en Firebase
+        function mostrarHechoEliminar(emails) {
+            document.getElementById('eliminar-form').style.display = 'none';
+            document.getElementById('eliminar-hecho').style.display = 'block';
+
+            const conCuentas = document.getElementById('hecho-con-cuentas');
+            const sinCuentas = document.getElementById('hecho-sin-cuentas');
+            const link = document.getElementById('link-auth-console');
+            const proyecto = 'proyecto-hockey-169f4';
+            link.href = `https://console.firebase.google.com/project/${proyecto}/authentication/users`;
+
+            if (emails && emails.length) {
+                conCuentas.style.display = 'block';
+                sinCuentas.style.display = 'none';
+                document.getElementById('hecho-emails').value = emails.join('\n');
+            } else {
+                conCuentas.style.display = 'none';
+                sinCuentas.style.display = 'block';
+            }
+        }
+
+        // Copiar los correos al portapapeles
+        document.getElementById('btn-copiar-emails').addEventListener('click', async () => {
+            const ta = document.getElementById('hecho-emails');
+            const btn = document.getElementById('btn-copiar-emails');
+            try {
+                await navigator.clipboard.writeText(ta.value);
+            } catch (e) {
+                ta.select();
+                document.execCommand('copy');
+            }
+            const orig = btn.textContent;
+            btn.textContent = '¡Copiado!';
+            setTimeout(() => { btn.textContent = orig; }, 1500);
+        });
 
         // Cuenta los documentos de una colección que pertenecen al club
         async function contarPorClub(coleccion, clubId) {
             const snap = await getDocs(query(collection(db, coleccion), where('club_id', '==', clubId)));
             return snap.docs.map(d => d.id);
+        }
+
+        // Usuarios del club con su email (para el borrado manual de Auth en Spark)
+        async function usuariosDelClub(clubId) {
+            const snap = await getDocs(query(collection(db, 'usuarios'), where('club_id', '==', clubId)));
+            return snap.docs.map(d => ({ id: d.id, email: d.data().email || '' }));
         }
 
         // Abrir el modal: valida que el club esté de baja y muestra el resumen
@@ -844,7 +929,7 @@
             // Resumen de lo que se va a borrar (conteos)
             try {
                 const [usuarios, partidos, ejercicios, entrenamientos] = await Promise.all([
-                    contarPorClub('usuarios', clubId),
+                    usuariosDelClub(clubId),
                     contarPorClub('partidos', clubId),
                     contarPorClub('ejercicios', clubId),
                     contarPorClub('entrenamientos', clubId)
@@ -884,19 +969,18 @@
             try {
                 // Reunir todos los ids a borrar (usa lo ya contado si está)
                 const datos = clubAEliminar_datos || {
-                    usuarios: await contarPorClub('usuarios', clubId),
+                    usuarios: await usuariosDelClub(clubId),
                     partidos: await contarPorClub('partidos', clubId),
                     ejercicios: await contarPorClub('ejercicios', clubId),
                     entrenamientos: await contarPorClub('entrenamientos', clubId)
                 };
 
-                // Los IDs de los docs de usuarios SON los UIDs de Auth (así se
-                // crean). Los guardamos para borrar sus cuentas de Auth después.
-                const uidsAuth = [...datos.usuarios];
+                // Emails de las cuentas de acceso a borrar a mano (ver más abajo)
+                const emails = datos.usuarios.map(u => u.email).filter(Boolean);
 
                 // Armar la lista de referencias a borrar
                 const refs = [];
-                datos.usuarios.forEach(id => refs.push(doc(db, 'usuarios', id)));
+                datos.usuarios.forEach(u => refs.push(doc(db, 'usuarios', u.id)));
                 datos.partidos.forEach(id => refs.push(doc(db, 'partidos', id)));
                 datos.ejercicios.forEach(id => refs.push(doc(db, 'ejercicios', id)));
                 datos.entrenamientos.forEach(id => refs.push(doc(db, 'entrenamientos', id)));
@@ -912,31 +996,10 @@
                     await batch.commit();
                 }
 
-                // Borrar las cuentas de acceso (Auth) vía Cloud Function.
-                // Si la función no está desplegada (o el proyecto no está en
-                // Blaze), el club igual quedó borrado: solo avisamos que las
-                // cuentas hay que sacarlas a mano desde Firebase Authentication.
-                let avisoAuth = '';
-                if (uidsAuth.length) {
-                    try {
-                        btnConfirmarEliminar.textContent = 'Borrando cuentas…';
-                        const eliminarCuentasAuth = httpsCallable(functions, 'eliminarCuentasAuth');
-                        const r = await eliminarCuentasAuth({ uids: uidsAuth });
-                        const borradas = (r.data && r.data.borradas) || 0;
-                        const fallidas = (r.data && r.data.errores && r.data.errores.length) || 0;
-                        avisoAuth = `\n\n${borradas} cuenta(s) de acceso eliminada(s)` +
-                            (fallidas ? ` (${fallidas} no se pudieron borrar).` : '.');
-                    } catch (e) {
-                        console.warn('No se pudieron borrar las cuentas de Auth automáticamente:', e);
-                        avisoAuth = '\n\n⚠️ Las cuentas de acceso NO se borraron automáticamente ' +
-                            '(la función server-side no está disponible). Borralas a mano en ' +
-                            'Firebase → Authentication.';
-                    }
-                }
-
-                cerrarModalEliminar();
                 await loadClubs();
-                alert('Club eliminado permanentemente.' + avisoAuth);
+                // Panel final: las cuentas de Auth se borran a mano en Firebase
+                // (el cliente web no puede borrarlas). Mostramos los emails.
+                mostrarHechoEliminar(emails);
             } catch (e) {
                 console.error('Error al eliminar el club:', e);
                 showMessage(msgEliminar, 'Error al eliminar: ' + (e.message || e), 'error');
