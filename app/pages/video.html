@@ -349,18 +349,35 @@
         function setupPizarra(partido) {
             const sec = document.getElementById('seccion-pizarra');
             const tienePizarra = partido.pizarra && (partido.pizarra.objetos || []).length > 0;
+            const puedePizarra = TL.planes.puedeActual('pizarra');   // Pro / Ultra
+
             // Las jugadoras solo la ven si hay algo cargado; el cuerpo técnico
-            // siempre la ve (para armarla).
-            if (esJugadora && !tienePizarra) { sec.style.display = 'none'; return; }
-            sec.style.display = 'block';
-
-            board = TL.canchaBoard.crear(document.getElementById('board-container'), { editable: !esJugadora });
-            if (partido.pizarra) board.setDatos(partido.pizarra);
-
-            if (!esJugadora) {
-                board.onChange = marcarPizarraSinGuardar;
-                document.getElementById('btn-guardar-pizarra').onclick = guardarPizarra;
+            // siempre la ve (para armarla), salvo en Free.
+            if (esJugadora) {
+                if (!tienePizarra) { sec.style.display = 'none'; return; }
+                sec.style.display = 'block';
+                board = TL.canchaBoard.crear(document.getElementById('board-container'), { editable: false });
+                board.setDatos(partido.pizarra);
+                return;
             }
+
+            // Cuerpo técnico en Free: mostrar aviso de upgrade en vez del board.
+            if (!puedePizarra) {
+                sec.style.display = 'block';
+                document.getElementById('btn-guardar-pizarra').style.display = 'none';
+                document.querySelector('#seccion-pizarra .pizarra-sub').innerHTML =
+                    '🔒 La pizarra táctica es una función del plan <strong>Pro</strong>. ' +
+                    'Hablá con el administrador del club para mejorar el plan.';
+                document.getElementById('board-container').innerHTML = '';
+                return;
+            }
+
+            // Cuerpo técnico en Pro/Ultra: pizarra editable.
+            sec.style.display = 'block';
+            board = TL.canchaBoard.crear(document.getElementById('board-container'), { editable: true });
+            if (partido.pizarra) board.setDatos(partido.pizarra);
+            board.onChange = marcarPizarraSinGuardar;
+            document.getElementById('btn-guardar-pizarra').onclick = guardarPizarra;
         }
 
         async function cargarAnalisis() {

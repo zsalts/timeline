@@ -44,6 +44,7 @@ window.TL.planes = (function () {
                 'filtros_tablero',   // filtros por rival/competencia/fecha
                 'compartir_ilimitado',
                 'roles_finos',       // roles extra (ej. ojeador/scout)
+                'pizarra',           // pizarra táctica del partido (alineación/bloqueos/rival)
             ],
         },
         ultra: {
