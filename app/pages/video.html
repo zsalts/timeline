@@ -115,6 +115,13 @@
             font-family: inherit; font-weight: 600; transition: border-color 0.12s, color 0.12s;
         }
         .jugada-add:hover { border-color: var(--accent); color: var(--accent); }
+        .jugada-edit {
+            width: 150px; max-width: 55vw;
+            background: var(--panel-2); color: var(--text);
+            border: 1px solid var(--accent); border-radius: 999px;
+            padding: 6px 13px; font-size: 0.83rem; font-family: inherit; font-weight: 600;
+            outline: none; box-shadow: 0 0 0 3px var(--accent-dim);
+        }
 
         .columna-derecha-wrapper { width: 40%; position: relative; }
         .columna-cortes-scroll {
@@ -423,6 +430,7 @@
             renderTabs();
             montarBoard();
             marcarPizarraSinGuardar();
+            renombrarJugada(jugadaIdx);   // entra directo a nombrarla
         }
 
         function borrarJugada(i) {
@@ -436,13 +444,35 @@
             marcarPizarraSinGuardar();
         }
 
+        // Renombrar en línea: la pestaña se convierte en un input (Enter guarda,
+        // Esc cancela, al perder foco guarda). Más lindo que un prompt.
         function renombrarJugada(i) {
-            const n = prompt('Nombre de la jugada:', jugadas[i].nombre);
-            if (n !== null && n.trim()) {
-                jugadas[i].nombre = n.trim();
+            const tabs = document.getElementById('jugadas-tabs');
+            const chip = tabs.children[i];
+            if (!chip) return;
+            const inp = document.createElement('input');
+            inp.className = 'jugada-edit';
+            inp.value = jugadas[i].nombre;
+            inp.maxLength = 40;
+            inp.setAttribute('aria-label', 'Nombre de la jugada');
+            tabs.replaceChild(inp, chip);
+            inp.focus();
+            inp.select();
+            let listo = false;
+            const cerrar = (guardar) => {
+                if (listo) return;
+                listo = true;
+                if (guardar) {
+                    const n = inp.value.trim();
+                    if (n && n !== jugadas[i].nombre) { jugadas[i].nombre = n; marcarPizarraSinGuardar(); }
+                }
                 renderTabs();
-                marcarPizarraSinGuardar();
-            }
+            };
+            inp.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') { e.preventDefault(); cerrar(true); }
+                else if (e.key === 'Escape') { e.preventDefault(); cerrar(false); }
+            });
+            inp.addEventListener('blur', () => cerrar(true));
         }
 
         async function guardarPizarra() {
