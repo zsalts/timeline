@@ -97,6 +97,25 @@
         /* Vista jugadora: la pizarra se ve pero sin botón de guardar */
         html.rol-jugadora #btn-guardar-pizarra, html.rol-jugadora #msg-pizarra, html.rol-jugadora .pizarra-sub { display: none; }
 
+        /* Pestañas de jugadas */
+        .jugadas-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+        .jugada-tab {
+            display: inline-flex; align-items: center; gap: 7px;
+            background: var(--panel-2); border: 1px solid var(--line-2); color: var(--muted);
+            border-radius: 999px; padding: 6px 13px; cursor: pointer; font-size: 0.83rem;
+            font-family: inherit; font-weight: 600; transition: border-color 0.12s, color 0.12s, background 0.12s;
+        }
+        .jugada-tab:hover { border-color: var(--accent-line); color: var(--text); }
+        .jugada-tab.activa { border-color: var(--accent); background: var(--accent-dim); color: var(--accent-hi); }
+        .jugada-tab .jugada-del { font-size: 0.72rem; opacity: 0.6; }
+        .jugada-tab .jugada-del:hover { opacity: 1; color: var(--danger); }
+        .jugada-add {
+            background: transparent; border: 1px dashed var(--line-2); color: var(--muted);
+            border-radius: 999px; padding: 6px 13px; cursor: pointer; font-size: 0.83rem;
+            font-family: inherit; font-weight: 600; transition: border-color 0.12s, color 0.12s;
+        }
+        .jugada-add:hover { border-color: var(--accent); color: var(--accent); }
+
         .columna-derecha-wrapper { width: 40%; position: relative; }
         .columna-cortes-scroll {
             position: absolute; inset: 0; overflow-y: auto;
@@ -221,7 +240,8 @@
                             <button id="btn-guardar-pizarra" class="btn-guardar">Guardar pizarra</button>
                         </div>
                     </div>
-                    <p class="pizarra-sub">Marcá la alineación, los bloqueos que usaron y cómo salió el rival. Queda guardado en el partido para preparar los próximos.</p>
+                    <p class="pizarra-sub">Marcá la alineación, los bloqueos que usaron y cómo salió el rival. Cada jugada es una cancha aparte; se guardan todas en el partido.</p>
+                    <div id="jugadas-tabs" class="jugadas-tabs"></div>
                     <div id="board-container"></div>
                 </div>
             </div>
@@ -314,8 +334,12 @@
             }
         }
 
-        // --- Pizarra táctica (alineación + bloqueos + rival) ---
+        // --- Pizarra táctica: varias JUGADAS, cada una su propia cancha ---
         let board = null;
+        let jugadas = [];        // [{ nombre, datos }]  (datos = board.getDatos())
+        let jugadaIdx = 0;
+        let boardEditable = false;
+        let equipoNombre = 'partido';
 
         function marcarPizarraSinGuardar() {
             const m = document.getElementById('msg-pizarra');
@@ -324,14 +348,111 @@
             m.style.display = 'inline';
         }
 
+        // Migra lo guardado: soporta el formato viejo (un solo tablero en
+        // partido.pizarra) y el nuevo (partido.pizarra.jugadas = [...]).
+        function cargarJugadas(partido) {
+            const pz = partido.pizarra;
+            if (pz && Array.isArray(pz.jugadas) && pz.jugadas.length) {
+                return pz.jugadas.map((j, i) => ({ nombre: j.nombre || ('Jugada ' + (i + 1)), datos: j.datos || {} }));
+            }
+            if (pz && (pz.objetos || pz.nombres || pz.pasos)) {
+                return [{ nombre: 'Jugada 1', datos: pz }];   // formato viejo
+            }
+            return [];
+        }
+
+        // Guarda en la jugada activa lo que hay en la cancha ahora
+        function sincronizarActual() {
+            if (board && boardEditable && jugadas[jugadaIdx]) {
+                jugadas[jugadaIdx].datos = board.getDatos();
+            }
+        }
+
+        // Monta la cancha de la jugada activa
+        function montarBoard() {
+            const j = jugadas[jugadaIdx] || { nombre: 'Jugada 1', datos: {} };
+            const nombreGif = `pizarra-${equipoNombre}-${(j.nombre || 'jugada')}`;
+            board = TL.canchaBoard.crear(document.getElementById('board-container'), { editable: boardEditable, nombre: nombreGif });
+            board.setDatos(j.datos || {});
+            if (boardEditable) board.onChange = marcarPizarraSinGuardar;
+        }
+
+        function renderTabs() {
+            const tabs = document.getElementById('jugadas-tabs');
+            tabs.innerHTML = '';
+            jugadas.forEach((j, i) => {
+                const chip = document.createElement('button');
+                chip.className = 'jugada-tab' + (i === jugadaIdx ? ' activa' : '');
+                chip.textContent = j.nombre;
+                chip.title = boardEditable ? 'Clic para abrir · doble clic para renombrar' : j.nombre;
+                chip.onclick = () => seleccionarJugada(i);
+                if (boardEditable) {
+                    chip.ondblclick = () => renombrarJugada(i);
+                    if (jugadas.length > 1) {
+                        const x = document.createElement('span');
+                        x.className = 'jugada-del';
+                        x.textContent = '✕';
+                        x.title = 'Borrar jugada';
+                        x.onclick = (e) => { e.stopPropagation(); borrarJugada(i); };
+                        chip.appendChild(x);
+                    }
+                }
+                tabs.appendChild(chip);
+            });
+            if (boardEditable) {
+                const add = document.createElement('button');
+                add.className = 'jugada-add';
+                add.textContent = '+ Nueva jugada';
+                add.onclick = nuevaJugada;
+                tabs.appendChild(add);
+            }
+        }
+
+        function seleccionarJugada(i) {
+            if (i === jugadaIdx) return;
+            sincronizarActual();
+            jugadaIdx = i;
+            renderTabs();
+            montarBoard();
+        }
+
+        function nuevaJugada() {
+            sincronizarActual();
+            jugadas.push({ nombre: 'Jugada ' + (jugadas.length + 1), datos: {} });
+            jugadaIdx = jugadas.length - 1;
+            renderTabs();
+            montarBoard();
+            marcarPizarraSinGuardar();
+        }
+
+        function borrarJugada(i) {
+            if (jugadas.length <= 1) return;   // siempre queda al menos una
+            if (!confirm(`¿Borrar la jugada "${jugadas[i].nombre}"?`)) return;
+            jugadas.splice(i, 1);
+            if (jugadaIdx > i) jugadaIdx--;
+            else if (jugadaIdx >= jugadas.length) jugadaIdx = jugadas.length - 1;
+            renderTabs();
+            montarBoard();
+            marcarPizarraSinGuardar();
+        }
+
+        function renombrarJugada(i) {
+            const n = prompt('Nombre de la jugada:', jugadas[i].nombre);
+            if (n !== null && n.trim()) {
+                jugadas[i].nombre = n.trim();
+                renderTabs();
+                marcarPizarraSinGuardar();
+            }
+        }
+
         async function guardarPizarra() {
-            if (!board) return;
+            sincronizarActual();
             const m = document.getElementById('msg-pizarra');
             const btn = document.getElementById('btn-guardar-pizarra');
             btn.disabled = true;
             btn.textContent = 'Guardando…';
             try {
-                await updateDoc(doc(db, "partidos", partidoId), { pizarra: board.getDatos() });
+                await updateDoc(doc(db, "partidos", partidoId), { pizarra: { jugadas } });
                 m.textContent = 'Guardado';
                 m.classList.remove('sin-guardar');
                 m.style.display = 'inline';
@@ -348,23 +469,28 @@
 
         function setupPizarra(partido) {
             const sec = document.getElementById('seccion-pizarra');
-            const tienePizarra = partido.pizarra && (partido.pizarra.objetos || []).length > 0;
             const puedePizarra = TL.planes.puedeActual('pizarra');   // Pro / Ultra
+            equipoNombre = `${(partido.mi_equipo || 'eq1')}-vs-${(partido.rival || 'eq2')}`;
+            jugadas = cargarJugadas(partido);
 
-            // Las jugadoras solo la ven si hay algo cargado; el cuerpo técnico
-            // siempre la ve (para armarla), salvo en Free.
+            // Jugadoras: ven las jugadas (solo lectura) si hay algo cargado.
             if (esJugadora) {
-                if (!tienePizarra) { sec.style.display = 'none'; return; }
+                const hayContenido = jugadas.some(j => j.datos &&
+                    ((j.datos.objetos || []).length || (j.datos.nombres || []).length));
+                if (!hayContenido) { sec.style.display = 'none'; return; }
+                boardEditable = false;
                 sec.style.display = 'block';
-                board = TL.canchaBoard.crear(document.getElementById('board-container'), { editable: false });
-                board.setDatos(partido.pizarra);
+                jugadaIdx = 0;
+                renderTabs();
+                montarBoard();
                 return;
             }
 
-            // Cuerpo técnico en Free: mostrar aviso de upgrade en vez del board.
+            // Cuerpo técnico en Free: aviso de upgrade en vez de la pizarra.
             if (!puedePizarra) {
                 sec.style.display = 'block';
                 document.getElementById('btn-guardar-pizarra').style.display = 'none';
+                document.getElementById('jugadas-tabs').style.display = 'none';
                 document.querySelector('#seccion-pizarra .pizarra-sub').innerHTML =
                     '🔒 La pizarra táctica es una función del plan <strong>Pro</strong>. ' +
                     'Hablá con el administrador del club para mejorar el plan.';
@@ -372,12 +498,13 @@
                 return;
             }
 
-            // Cuerpo técnico en Pro/Ultra: pizarra editable.
+            // Cuerpo técnico en Pro/Ultra: pizarra editable con varias jugadas.
+            boardEditable = true;
+            if (!jugadas.length) jugadas = [{ nombre: 'Jugada 1', datos: {} }];
             sec.style.display = 'block';
-            const nombreGif = `pizarra-${(partido.mi_equipo || 'eq1')}-vs-${(partido.rival || 'eq2')}`;
-            board = TL.canchaBoard.crear(document.getElementById('board-container'), { editable: true, nombre: nombreGif });
-            if (partido.pizarra) board.setDatos(partido.pizarra);
-            board.onChange = marcarPizarraSinGuardar;
+            jugadaIdx = 0;
+            renderTabs();
+            montarBoard();
             document.getElementById('btn-guardar-pizarra').onclick = guardarPizarra;
         }
 
