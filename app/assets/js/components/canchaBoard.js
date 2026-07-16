@@ -215,14 +215,6 @@
                         <button class="cb-chip" data-tool="pelota"><span class="dot" style="background:#fff"></span>Pelota</button>
                     </div>
                     <div class="cb-tg">
-                        <span class="cb-lbl">Líneas</span>
-                        ${LINE_TOOLS.map(t => `<button class="cb-chip" data-tool="${t}"><span class="dot" style="background:${LINEAS[t].color}"></span>${LINEAS[t].nombre.replace(/^\S+\s/, '')}</button>`).join('')}
-                    </div>
-                    <div class="cb-tg">
-                        <span class="cb-lbl">Jugada</span>
-                        <button class="cb-chip" data-corner title="Arma un planteo de córner corto">⚑ Córner corto</button>
-                    </div>
-                    <div class="cb-tg">
                         <span class="cb-lbl">Modo</span>
                         <button class="cb-chip" data-tool="mover">✋ Mover</button>
                         <button class="cb-chip" data-tool="borrar">✕ Borrar</button>
@@ -530,8 +522,6 @@
                         objetos = []; pasos = []; renderObjetos(); actualizarPasosUI(); notificar();
                     }
                 });
-                // Córner corto (planteo rápido)
-                root.querySelector('[data-corner]').addEventListener('click', agregarCornerCorto);
                 // Agregar fila de nombre
                 root.querySelector('[data-nom-add]').addEventListener('click', () => crearNomRow());
                 // Botones de animación
