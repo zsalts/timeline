@@ -85,6 +85,24 @@
     .cb-obj.pelota { width: 14px; height: 14px; border-radius: 50%; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.5); }
     .cb-pitch.borrar .cb-obj:hover { outline: 2px solid var(--danger); outline-offset: 2px; }
     .cb-hint { text-align: center; color: var(--faint); font-size: 0.78rem; margin: 0; }
+    /* Cancha + panel de nombres al costado */
+    .cb-main { display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
+    .cb-pitch-col { flex: 1 1 420px; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+    .cb-nombres { flex: 0 0 210px; background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 11px; }
+    .cb-nombres h5 { margin: 0 0 9px; font-family: var(--font-mono); font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); }
+    .cb-nom-rows { display: flex; flex-direction: column; gap: 6px; }
+    .cb-nom-row { display: flex; gap: 6px; align-items: center; }
+    .cb-nom-row input { padding: 6px 8px; font-size: 0.82rem; }
+    .cb-nom-row .cb-nom-num { flex: 0 0 44px; text-align: center; }
+    .cb-nom-row .cb-nom-name { flex: 1 1 auto; min-width: 0; }
+    .cb-nom-row .cb-nom-del { flex: 0 0 auto; width: 26px; height: 32px; padding: 0; background: var(--panel-3); color: var(--muted); border: 1px solid var(--line-2); border-radius: 6px; cursor: pointer; font-family: inherit; }
+    .cb-nom-row .cb-nom-del:hover { border-color: var(--danger); color: var(--danger); }
+    .cb-nom-add { margin-top: 8px; background: var(--panel-3); color: var(--text); border: 1px dashed var(--line-2); border-radius: 6px; padding: 7px 12px; cursor: pointer; font-weight: 600; font-family: inherit; font-size: 0.8rem; width: 100%; }
+    .cb-nom-add:hover { border-color: var(--accent); color: var(--accent); }
+    .cb-nom-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+    .cb-nom-list li { display: flex; gap: 8px; align-items: baseline; font-size: 0.86rem; color: var(--text); }
+    .cb-nom-list li b { flex: 0 0 auto; min-width: 22px; font-family: var(--font-mono); color: var(--accent); }
+    .cb-nom-empty { color: var(--faint); font-size: 0.82rem; margin: 0; }
     `;
     function ensureCSS() {
         if (document.getElementById('cb-css')) return;
@@ -177,6 +195,7 @@
             let vbW = 1000, vbH = 600;
             let pasos = [];          // animación: [{ pos: { [idObjeto]: {x,y} } }]
             let reproduciendo = false;
+            let nombresGuardados = [];   // último set de nombres (para modo lectura)
             const nombreArchivo = (opts.nombre || 'pizarra').replace(/\s+/g, '_');
 
             const root = document.createElement('div');
@@ -222,19 +241,80 @@
 
             root.innerHTML = `
                 ${toolbarHTML}
-                <div class="cb-pitch">
-                    <svg class="cb-arrows" viewBox="0 0 1000 600" preserveAspectRatio="none" style="pointer-events:none;"></svg>
-                    <div class="cb-objs"></div>
-                </div>
-                ${editable ? '<p class="cb-hint">Elegí una herramienta y tocá la cancha. Arrastrá para mover. Doble clic en una jugadora cambia el número.</p>' : ''}`;
+                <div class="cb-main">
+                    <div class="cb-pitch-col">
+                        <div class="cb-pitch">
+                            <svg class="cb-arrows" viewBox="0 0 1000 600" preserveAspectRatio="none" style="pointer-events:none;"></svg>
+                            <div class="cb-objs"></div>
+                        </div>
+                        ${editable ? '<p class="cb-hint">Elegí una herramienta y tocá la cancha. Arrastrá para mover. Doble clic en una jugadora cambia el número.</p>' : ''}
+                    </div>
+                    <div class="cb-nombres">
+                        <h5>Nombres</h5>
+                        <div class="cb-nom-rows"></div>
+                        ${editable ? '<button class="cb-nom-add" data-nom-add>+ Nombre</button>' : ''}
+                    </div>
+                </div>`;
             contenedor.innerHTML = '';
             contenedor.appendChild(root);
 
             const pitch = root.querySelector('.cb-pitch');
             const arrows = root.querySelector('.cb-arrows');
             const layer = root.querySelector('.cb-objs');
+            const nomRows = root.querySelector('.cb-nom-rows');
 
             const notificar = () => { if (typeof api.onChange === 'function') api.onChange(); };
+
+            // --- Panel de nombres (dorsal → jugadora) al costado de la cancha ---
+            function crearNomRow(j = {}) {
+                const row = document.createElement('div');
+                row.className = 'cb-nom-row';
+                row.innerHTML = `
+                    <input class="cb-nom-num" type="text" inputmode="numeric" maxlength="3" placeholder="#">
+                    <input class="cb-nom-name" type="text" placeholder="Nombre">
+                    <button class="cb-nom-del" type="button" title="Quitar">✕</button>`;
+                row.querySelector('.cb-nom-num').value = j.num || '';
+                row.querySelector('.cb-nom-name').value = j.nombre || '';
+                row.querySelectorAll('input').forEach(inp => inp.addEventListener('input', notificar));
+                row.querySelector('.cb-nom-del').addEventListener('click', () => { row.remove(); notificar(); });
+                nomRows.appendChild(row);
+                return row;
+            }
+
+            function renderNombres(lista) {
+                nomRows.innerHTML = '';
+                const items = (lista || []).filter(j => j && (j.num || j.nombre));
+                if (editable) {
+                    if (items.length) items.forEach(j => crearNomRow(j));
+                    else crearNomRow();       // una fila vacía para empezar
+                } else {
+                    // Solo lectura: lista estática
+                    if (!items.length) {
+                        nomRows.innerHTML = '<p class="cb-nom-empty">Sin nombres cargados.</p>';
+                    } else {
+                        const ul = document.createElement('ul');
+                        ul.className = 'cb-nom-list';
+                        ul.innerHTML = items.map(j =>
+                            `<li>${j.num ? `<b>${escaparHtml(j.num)}</b>` : '<b>–</b>'}<span>${escaparHtml(j.nombre) || 'Sin nombre'}</span></li>`
+                        ).join('');
+                        nomRows.appendChild(ul);
+                    }
+                }
+            }
+
+            // Lee las filas de nombres (editable), descarta las vacías
+            function leerNombres() {
+                return [...nomRows.querySelectorAll('.cb-nom-row')].map(r => ({
+                    num: r.querySelector('.cb-nom-num').value.trim(),
+                    nombre: r.querySelector('.cb-nom-name').value.trim()
+                })).filter(j => j.num || j.nombre);
+            }
+
+            function escaparHtml(s) {
+                return String(s == null ? '' : s)
+                    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+            }
 
             function pintarCancha() {
                 const viejo = pitch.querySelector('svg:not(.cb-arrows)');
@@ -452,6 +532,8 @@
                 });
                 // Córner corto (planteo rápido)
                 root.querySelector('[data-corner]').addEventListener('click', agregarCornerCorto);
+                // Agregar fila de nombre
+                root.querySelector('[data-nom-add]').addEventListener('click', () => crearNomRow());
                 // Botones de animación
                 root.querySelector('[data-paso]').addEventListener('click', capturarPaso);
                 root.querySelector('[data-paso-menos]').addEventListener('click', () => {
@@ -644,7 +726,8 @@
                             p: punt.map(o => paso.pos[o.id]
                                 ? { x: +(+paso.pos[o.id].x).toFixed(1), y: +(+paso.pos[o.id].y).toFixed(1) }
                                 : null)
-                        }))
+                        })),
+                        nombres: editable ? leerNombres() : (nombresGuardados || [])
                     };
                 },
                 setDatos(d) {
@@ -659,6 +742,8 @@
                         (paso.p || []).forEach((pt, i) => { if (pt && punt[i]) pos[punt[i].id] = { x: pt.x, y: pt.y }; });
                         return { pos };
                     });
+                    nombresGuardados = d.nombres || [];
+                    renderNombres(nombresGuardados);
                     if (editable) {
                         root.querySelectorAll('.cb-chip[data-vista]').forEach(x => x.classList.toggle('on', x.dataset.vista === vista));
                     }
@@ -672,6 +757,7 @@
             pintarCancha();
             renderObjetos();
             actualizarPasosUI();
+            renderNombres([]);   // fila vacía (editable) o "sin nombres" (lectura)
             return api;
         }
     };
