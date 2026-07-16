@@ -24,11 +24,11 @@
     const COLOR_FLECHA = '#EAEEF4';
 
     // Estilos de línea táctica. Cada uno se dibuja distinto en renderFlechas:
-    //  - movimiento: flecha recta         - corto: flecha punteada (pase corto al espacio)
-    //  - presion: flecha ondulada         - bloqueo: línea con barra en T (pantalla)
+    //  - movimiento: flecha recta         - presion: flecha ondulada
+    //  - bloqueo: línea con barra en T (pantalla)   - pase: flecha punteada
     const LINEAS = {
         mov: { color: '#EAEEF4', nombre: '➜ Movimiento' },
-        corto: { color: '#5FD3A6', nombre: '⇢ Corto' },
+        pase: { color: '#5FD3A6', nombre: '⇢ Pase' },
         presion: { color: '#FFB454', nombre: '∿ Presión' },
         bloqueo: { color: '#FF5C63', nombre: '⊤ Bloqueo' },
     };
@@ -200,6 +200,10 @@
                         ${LINE_TOOLS.map(t => `<button class="cb-chip" data-tool="${t}"><span class="dot" style="background:${LINEAS[t].color}"></span>${LINEAS[t].nombre.replace(/^\S+\s/, '')}</button>`).join('')}
                     </div>
                     <div class="cb-tg">
+                        <span class="cb-lbl">Jugada</span>
+                        <button class="cb-chip" data-corner title="Arma un planteo de córner corto">⚑ Córner corto</button>
+                    </div>
+                    <div class="cb-tg">
                         <span class="cb-lbl">Modo</span>
                         <button class="cb-chip" data-tool="mover">✋ Mover</button>
                         <button class="cb-chip" data-tool="borrar">✕ Borrar</button>
@@ -299,10 +303,33 @@
                     if (sub === 'presion') {
                         return `<path d="${wavyPath(x1, y1, x2, y2)}" fill="none" stroke="${col}" stroke-width="4" marker-end="url(#${markerId(col)})"/>`;
                     }
-                    const dash = sub === 'corto' ? ' stroke-dasharray="12 9"' : '';
+                    const dash = sub === 'pase' ? ' stroke-dasharray="12 9"' : '';
                     return `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${col}" stroke-width="4"${dash} marker-end="url(#${markerId(col)})"/>`;
                 }).join('');
                 arrows.innerHTML = defs + lineas;
+            }
+
+            // Arma un planteo de córner corto: pelota en el punto de inyección
+            // (sobre la línea de fondo), dos atacantes en el tope de la D y la
+            // línea de salida (push). Se adapta a la orientación actual.
+            function agregarCornerCorto() {
+                // Posiciones en % según la vista (horizontal → ataca a la derecha;
+                // vertical → ataca abajo).
+                const V = vista === 'vertical'
+                    ? { ball: [34, 96], stop: [50, 83], rem: [42, 83] }
+                    : { ball: [96, 34], stop: [83, 50], rem: [83, 42] };
+                const add = (tipo, xy) => {
+                    const o = { id: ++seq, tipo, x: xy[0], y: xy[1] };
+                    if (tipo === 'jugadora' || tipo === 'rival') o.num = proximoNumero(tipo);
+                    objetos.push(o);
+                };
+                add('pelota', V.ball);   // pelota en la inyección
+                add('jugadora', V.stop); // parada / stopper
+                add('jugadora', V.rem);  // rematadora
+                // Línea de salida (push) de la inyección al tope de la D
+                objetos.push({ id: ++seq, tipo: 'flecha', sub: 'mov', x1: V.ball[0], y1: V.ball[1], x2: V.stop[0], y2: V.stop[1] });
+                renderObjetos();
+                notificar();
             }
 
             function pos(e) {
@@ -423,6 +450,8 @@
                         objetos = []; pasos = []; renderObjetos(); actualizarPasosUI(); notificar();
                     }
                 });
+                // Córner corto (planteo rápido)
+                root.querySelector('[data-corner]').addEventListener('click', agregarCornerCorto);
                 // Botones de animación
                 root.querySelector('[data-paso]').addEventListener('click', capturarPaso);
                 root.querySelector('[data-paso-menos]').addEventListener('click', () => {
