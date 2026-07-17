@@ -74,7 +74,6 @@
         .obj.jug.rival { color: #06181f; }
         .obj.pelota { width: 15px; height: 15px; border-radius: 50%; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.5); }
         .obj.pelota.enlazada { box-shadow: 0 0 0 2px var(--accent), 0 1px 4px rgba(0,0,0,0.5); }
-        .obj.sel-enlace { outline: 2px dashed var(--accent); outline-offset: 3px; }
         .obj.cono { width: 0; height: 0; border-left: 9px solid transparent; border-right: 9px solid transparent; border-bottom: 17px solid var(--cono); filter: drop-shadow(0 2px 3px rgba(0,0,0,0.5)); }
         /* En modo borrar, resaltar que al tocar se elimina */
         .modo-borrar .obj { cursor: not-allowed; }
@@ -160,7 +159,6 @@
                     <button class="chip" data-tool="rival"><span class="dot" style="background:#56C2E6"></span>Rival</button>
                     <button class="chip" data-tool="pelota"><span class="dot" style="background:#fff"></span>Pelota</button>
                     <button class="chip" data-tool="cono"><span class="cono"></span>Cono</button>
-                    <button class="chip" data-tool="enlazar" title="Enlazá una bocha a una jugadora: tocá la bocha y después la jugadora. La bocha la sigue en la animación.">🔗 Enlazar bocha</button>
                 </div>
                 <div class="tool-group">
                     <span class="tool-lbl">Líneas</span>
@@ -475,6 +473,16 @@
                     });
                 } else if (o.tipo === 'pelota') {
                     el.className = 'obj pelota' + (o.link != null ? ' enlazada' : '');
+                    el.title = 'Soltala sobre una jugadora para engancharla · doble clic para soltar';
+                    // Doble clic: soltar la bocha (desenganchar de la jugadora)
+                    el.addEventListener('dblclick', (e) => {
+                        e.stopPropagation();
+                        if (o.link != null) {
+                            delete o.link; delete o.dx; delete o.dy;
+                            el.classList.remove('enlazada');
+                            mostrarMsg('Bocha soltada.', true);
+                        }
+                    });
                 } else if (o.tipo === 'cono') {
                     el.className = 'obj cono';
                     if (o.color) el.style.borderBottomColor = o.color;
@@ -681,34 +689,6 @@
                     el.remove();
                     return;
                 }
-                // Enlazar una bocha a una jugadora: tocar la bocha y luego la jugadora
-                if (herramienta === 'enlazar') {
-                    if (o.tipo === 'pelota') {
-                        if (o.link != null) {           // ya enlazada → desenlazar
-                            delete o.link; delete o.dx; delete o.dy;
-                            el.classList.remove('enlazada');
-                            enlaceEsperando = null;
-                            mostrarMsg('Bocha desenlazada.', true);
-                        } else {                        // elegir esta bocha
-                            enlaceEsperando = o.id;
-                            layer.querySelectorAll('.obj.sel-enlace').forEach(x => x.classList.remove('sel-enlace'));
-                            el.classList.add('sel-enlace');
-                            mostrarMsg('Ahora tocá la jugadora a la que sigue la bocha.', true);
-                        }
-                    } else if ((o.tipo === 'jugadora' || o.tipo === 'rival') && enlaceEsperando != null) {
-                        const pel = objetos.find(x => x.id === enlaceEsperando);
-                        if (pel) {
-                            pel.link = o.id;
-                            pel.dx = pel.x - o.x;
-                            pel.dy = pel.y - o.y;
-                            const pelEl = layer.querySelector(`.obj[data-id="${pel.id}"]`);
-                            if (pelEl) { pelEl.classList.add('enlazada'); pelEl.classList.remove('sel-enlace'); }
-                            mostrarMsg('Bocha enlazada: sigue a la jugadora en la animación.', true);
-                        }
-                        enlaceEsperando = null;
-                    }
-                    return;
-                }
                 drag = { o, el };
                 el.setPointerCapture(e.pointerId);
                 el.addEventListener('pointermove', onObjPointerMove);
@@ -733,9 +713,30 @@
             }
             function onObjPointerUp(e) {
                 if (!drag) return;
-                drag.el.removeEventListener('pointermove', onObjPointerMove);
-                drag.el.removeEventListener('pointerup', onObjPointerUp);
+                const { o, el } = drag;
+                el.removeEventListener('pointermove', onObjPointerMove);
+                el.removeEventListener('pointerup', onObjPointerUp);
                 drag = null;
+                // Al soltar una bocha encima de una jugadora, se engancha
+                // (la sigue). Si la soltás lejos, se suelta.
+                if (o.tipo === 'pelota') {
+                    let best = null, bd = Infinity;
+                    objetos.forEach(p => {
+                        if (p.tipo === 'jugadora' || p.tipo === 'rival') {
+                            const d = Math.hypot(o.x - p.x, o.y - p.y);
+                            if (d < bd) { bd = d; best = p; }
+                        }
+                    });
+                    if (best && bd < 5) {
+                        o.link = best.id; o.dx = o.x - best.x; o.dy = o.y - best.y;
+                        el.classList.add('enlazada');
+                        mostrarMsg('Bocha enganchada a la jugadora.', true);
+                    } else if (o.link != null) {
+                        delete o.link; delete o.dx; delete o.dy;
+                        el.classList.remove('enlazada');
+                        mostrarMsg('Bocha soltada.', true);
+                    }
+                }
             }
 
             // ---------- Herramientas ----------
@@ -748,12 +749,10 @@
                     hint.textContent = herramienta === 'borrar'
                         ? 'Tocá un objeto o una flecha para eliminarla.'
                         : (herramienta === 'mover'
-                            ? 'Arrastrá los objetos para reubicarlos · doble clic en una jugadora para cambiar su número.'
-                            : (herramienta === 'enlazar'
-                                ? 'Tocá una bocha y después la jugadora que la lleva. La bocha la sigue en la animación. Tocá una bocha enlazada para soltarla.'
-                                : (TOOLS_LINEA.includes(herramienta)
-                                    ? 'Arrastrá para dibujar la línea; seguí el trazo para curvarla (carrera sólida · pase punteado · conducción ondulada).'
-                                    : 'Tocá la cancha para colocar el objeto elegido · arrastralo para moverlo.')));
+                            ? 'Arrastrá los objetos para reubicarlos · soltá una bocha sobre una jugadora para engancharla (doble clic la suelta) · doble clic en una jugadora para cambiar su número.'
+                            : (TOOLS_LINEA.includes(herramienta)
+                                ? 'Arrastrá para dibujar la línea; seguí el trazo para curvarla (carrera sólida · pase punteado · conducción ondulada).'
+                                : 'Tocá la cancha para colocar el objeto elegido · arrastralo para moverlo.'));
                 });
             });
 
@@ -772,7 +771,6 @@
             let pasos = [];             // [{ pos: { [idObjeto]: {x,y} } }]
             let reproduciendo = false;
             let curva = false;          // animación curva (spline) vs recta
-            let enlaceEsperando = null; // id de la bocha esperando a qué jugadora enlazarse
 
             const btnPaso = document.getElementById('btn-paso');
             const btnPasoMenos = document.getElementById('btn-paso-menos');
@@ -1124,7 +1122,6 @@
                 pasos = [];
                 actualizarPasosUI();
                 curva = false;
-                enlaceEsperando = null;
                 document.getElementById('btn-curva').classList.remove('activo');
                 seq = 0;
                 campos = '1';
