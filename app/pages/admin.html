@@ -311,7 +311,7 @@
     </div>
 
     <script type="module">
-        import { auth, db, signOut, onAuthStateChanged, doc, getDoc, setDoc, updateDoc, deleteDoc, writeBatch, getDocs, collection, query, where, signInWithEmailAndPassword, isMasterAdmin } from '../assets/js/firebase.js';
+        import { auth, db, signOut, onAuthStateChanged, doc, getDoc, setDoc, updateDoc, deleteDoc, writeBatch, getDocs, collection, query, where, signInWithEmailAndPassword, isMasterAdmin, limpiarSesion } from '../assets/js/firebase.js';
 
         // API key de Firebase (usada para crear usuarios vía REST sin desloguear al admin)
         const API_KEY = "AIzaSyAm7hCCz4pIHb9DER9AhVYZEON_3pt7ChU";
@@ -444,7 +444,7 @@
             btnLogout.addEventListener('click', async () => {
                 try {
                     await signOut(auth);
-                    sessionStorage.clear();
+                    limpiarSesion();
                     window.location.href = '../pages/login.html';
                 } catch (error) {
                     console.error("Error al logout:", error);

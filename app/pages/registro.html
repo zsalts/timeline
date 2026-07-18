@@ -189,7 +189,7 @@
     <script type="module">
         import {
             auth, db, createUserWithEmailAndPassword,
-            doc, getDoc, setDoc
+            doc, getDoc, setDoc, guardarSesionRecordada
         } from '../assets/js/firebase.js';
 
         const btn = document.getElementById('btn-registrar');
@@ -310,6 +310,8 @@
                 sessionStorage.setItem('configClub', JSON.stringify({
                     nombre: clubNombre, plan: 'free', logo: ''
                 }));
+                // Un usuario recién registrado queda con la sesión recordada
+                guardarSesionRecordada(true);
 
                 msjInfo.style.display = 'block';
                 msjInfo.textContent = '¡Listo! Tu club está creado. Entrando…';

@@ -1,7 +1,7 @@
 // assets/js/firebase.js
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
 import { getFirestore, collection, addDoc, getDocs, doc, getDoc, updateDoc, deleteDoc, setDoc, query, where, writeBatch, increment } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, setPersistence, browserLocalPersistence, browserSessionPersistence } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
 
 // Configuración de Firebase desde variables de ambiente
 // Actualizar estos valores desde .env.local en la raíz del proyecto
@@ -23,6 +23,57 @@ export const MASTER_EMAIL = "mateotesta2016@gmail.com";
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
 export const auth = getAuth(app);
+
+// ---------- Sesión "Recordarme" ----------
+// La app guarda su sesión en sessionStorage (se borra al cerrar la pestaña).
+// Con "Recordarme" espejamos esas claves en localStorage y las restauramos al
+// volver, así no hay que iniciar sesión cada vez. La seguridad real la sigue
+// dando el token de Firebase Auth (persistencia local cuando se recuerda).
+const CLAVES_SESION = ['usuarioUID', 'userEmail', 'clubID', 'userRole', 'isClubAdmin', 'isSuperAdmin', 'configClub'];
+
+// Si no hay sesión activa pero quedó una recordada, la restaura. Se llama al
+// importar este módulo (los imports se evalúan antes del código de la página),
+// así las páginas encuentran la sesión y no redirigen al login.
+export function restaurarSesionRecordada() {
+  try {
+    if (localStorage.getItem('recordarSesion') !== '1') return false;
+    if (sessionStorage.getItem('usuarioUID')) return true;   // ya hay sesión
+    let restaurado = false;
+    CLAVES_SESION.forEach(k => {
+      const v = localStorage.getItem(k);
+      if (v != null) { sessionStorage.setItem(k, v); restaurado = true; }
+    });
+    return restaurado;
+  } catch (e) { return false; }
+}
+
+// Guarda o limpia la sesión recordada según el check "Recordarme".
+export function guardarSesionRecordada(recordar) {
+  try {
+    if (recordar) {
+      localStorage.setItem('recordarSesion', '1');
+      CLAVES_SESION.forEach(k => {
+        const v = sessionStorage.getItem(k);
+        if (v != null) localStorage.setItem(k, v); else localStorage.removeItem(k);
+      });
+    } else {
+      localStorage.removeItem('recordarSesion');
+      CLAVES_SESION.forEach(k => localStorage.removeItem(k));
+    }
+  } catch (e) { /* localStorage no disponible: seguimos con sessionStorage */ }
+}
+
+// Limpia toda la sesión (para el logout).
+export function limpiarSesion() {
+  try {
+    sessionStorage.clear();
+    localStorage.removeItem('recordarSesion');
+    CLAVES_SESION.forEach(k => localStorage.removeItem(k));
+  } catch (e) { try { sessionStorage.clear(); } catch (_) { } }
+}
+
+// Auto-restaurar al cargar cualquier página que use Firebase.
+restaurarSesionRecordada();
 
 // Función para validar si un usuario es super-admin
 export const isMasterAdmin = (email) => {
@@ -63,4 +114,4 @@ export const getClubData = async (clubId) => {
   }
 };
 
-export { collection, addDoc, getDocs, doc, getDoc, updateDoc, deleteDoc, setDoc, query, where, writeBatch, increment, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail };
+export { collection, addDoc, getDocs, doc, getDoc, updateDoc, deleteDoc, setDoc, query, where, writeBatch, increment, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, setPersistence, browserLocalPersistence, browserSessionPersistence };

@@ -119,8 +119,20 @@
 
     document.body.classList.add('app-shell');
 
-    document.getElementById('btn-cerrar-sesion').addEventListener('click', () => {
-        sessionStorage.clear();
+    document.getElementById('btn-cerrar-sesion').addEventListener('click', async () => {
+        // 1) Limpiar la sesión local (no necesita Firebase, siempre corre).
+        try { sessionStorage.clear(); } catch (_) { }
+        try {
+            localStorage.removeItem('recordarSesion');
+            ['usuarioUID', 'userEmail', 'clubID', 'userRole', 'isClubAdmin', 'isSuperAdmin', 'configClub']
+                .forEach(k => localStorage.removeItem(k));
+        } catch (_) { }
+        // 2) Cerrar sesión de Firebase para revocar el token (best-effort).
+        //    ui.js es script clásico → import dinámico de firebase.js.
+        try {
+            const fb = await import(`${toRoot}assets/js/firebase.js`);
+            await fb.signOut(fb.auth);
+        } catch (_) { }
         window.location.href = enPages ? 'login.html' : 'pages/login.html';
     });
 })();

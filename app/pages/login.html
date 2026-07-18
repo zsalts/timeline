@@ -125,6 +125,10 @@
         }
         .link-olvide:hover { color: var(--accent); }
 
+        .recordarme { display: flex; align-items: center; gap: 9px; margin-top: 4px; cursor: pointer; text-align: left; }
+        .recordarme input { width: auto; margin: 0; cursor: pointer; accent-color: var(--accent); }
+        .recordarme span { color: var(--muted); font-size: 0.85rem; }
+
         .registro-foot { margin-top: 22px; color: var(--muted); font-size: 0.88rem; }
         .registro-foot a { color: var(--accent); text-decoration: none; font-weight: 600; }
         .registro-foot a:hover { text-decoration: underline; text-underline-offset: 3px; }
@@ -177,6 +181,11 @@
                 <input type="password" id="password" placeholder="********" required>
             </div>
 
+            <label class="recordarme">
+                <input type="checkbox" id="recordarme" checked>
+                <span>Mantener la sesión iniciada en este dispositivo</span>
+            </label>
+
             <button class="btn-login" id="btn-ingresar">Ingresar</button>
 
             <button type="button" id="btn-olvide" class="link-olvide">¿Olvidaste tu contraseña?</button>
@@ -189,11 +198,21 @@
     </section>
 
     <script type="module">
-        import { auth, db, signInWithEmailAndPassword, sendPasswordResetEmail, doc, getDoc, MASTER_EMAIL, isMasterAdmin } from '../assets/js/firebase.js';
+        import { auth, db, signInWithEmailAndPassword, sendPasswordResetEmail, doc, getDoc, MASTER_EMAIL, isMasterAdmin,
+            onAuthStateChanged, setPersistence, browserLocalPersistence, browserSessionPersistence, guardarSesionRecordada } from '../assets/js/firebase.js';
 
         const btnIngresar = document.getElementById('btn-ingresar');
         const msjError = document.getElementById('mensaje-error');
         const msjInfo = document.getElementById('mensaje-info');
+
+        // Si quedó una sesión recordada y Firebase sigue autenticado, entrar
+        // directo sin pedir usuario/contraseña de nuevo. (firebase.js ya restauró
+        // la sesión de la app en sessionStorage al importar.)
+        onAuthStateChanged(auth, (user) => {
+            if (user && localStorage.getItem('recordarSesion') === '1' && sessionStorage.getItem('usuarioUID')) {
+                window.location.href = isMasterAdmin(user.email) ? 'admin.html' : 'historial.html';
+            }
+        });
 
         // Recuperar contraseña: manda el email de restablecimiento de Firebase
         document.getElementById('btn-olvide').addEventListener('click', async () => {
@@ -233,6 +252,11 @@
             try {
                 btnIngresar.textContent = "Validando...";
 
+                // "Recordarme": persistencia local del token (sobrevive al cerrar
+                // la pestaña) vs. de sesión (se borra). Va antes del signIn.
+                const recordar = document.getElementById('recordarme').checked;
+                await setPersistence(auth, recordar ? browserLocalPersistence : browserSessionPersistence);
+
                 // Validar si es super-admin (Mateo) - hacer login real en Firebase
                 if (isMasterAdmin(email)) {
                     const superAdminCredential = await signInWithEmailAndPassword(auth, email, password);
@@ -242,6 +266,7 @@
                     sessionStorage.setItem('usuarioUID', superAdminUid);
                     sessionStorage.setItem('userEmail', email);
                     sessionStorage.setItem('userRole', 'super-admin');
+                    guardarSesionRecordada(recordar);
                     window.location.href = "../pages/admin.html";
                     return;
                 }
@@ -282,6 +307,7 @@
                     return;
                 }
 
+                guardarSesionRecordada(recordar);
                 window.location.href = "historial.html";
 
             } catch (error) {
