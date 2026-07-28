@@ -189,7 +189,7 @@
     <script type="module">
         import {
             auth, db, createUserWithEmailAndPassword,
-            doc, getDoc, setDoc, guardarSesionRecordada
+            doc, setDoc, guardarSesionRecordada
         } from '../assets/js/firebase.js';
 
         const btn = document.getElementById('btn-registrar');
@@ -209,19 +209,11 @@
                 .normalize('NFD').replace(new RegExp('[\\u0300-\\u036f]', 'g'), '')   // saca acentos
                 .toUpperCase().replace(/[^A-Z0-9]/g, '')
                 .slice(0, 14) || 'CLUB';
-            const suf = Math.random().toString(36).slice(2, 6).toUpperCase();
+            // 6 caracteres al azar: ~2.200 millones de ids por nombre de club.
+            // No podemos consultar si el id está libre (ver abajo), así que la
+            // unicidad se apoya en el azar.
+            const suf = Math.random().toString(36).slice(2, 8).toUpperCase().padEnd(6, 'X');
             return `${base}_${suf}`;
-        }
-
-        // Busca un clubId libre (reintenta si por casualidad ya existe)
-        async function clubIdLibre(nombre) {
-            for (let i = 0; i < 5; i++) {
-                const id = generarClubId(nombre);
-                const snap = await getDoc(doc(db, 'clubes', id));
-                if (!snap.exists()) return id;
-            }
-            // Muy improbable: caé a un id con timestamp
-            return generarClubId(nombre) + '_' + Date.now().toString(36).toUpperCase();
         }
 
         function validarEmail(email) {
@@ -264,8 +256,13 @@
                 cred = await createUserWithEmailAndPassword(auth, email, password);
                 const uid = cred.user.uid;
 
-                // 2. Reservar un ID de club libre
-                const clubId = await clubIdLibre(clubNombre);
+                // 2. Armar el ID del club. No se puede chequear contra Firestore
+                // si está libre: en este punto el usuario todavía no tiene doc en
+                // 'usuarios', así que la regla de lectura de 'clubes' lo rechaza y
+                // el getDoc tira permission-denied. Si el id llegara a colisionar,
+                // el setDoc de abajo sería un update sobre un club ajeno y las
+                // reglas lo frenan, así que no se pisa nada.
+                const clubId = generarClubId(clubNombre);
 
                 // 3. Crear el club (plan Free, este usuario como admin)
                 await setDoc(doc(db, 'clubes', clubId), {
