@@ -101,8 +101,21 @@
             ${g.items.map(linkHTML).join('')}
         </div>`;
 
+    // En celular la barra lateral se esconde y se abre como cajón desde el
+    // botón hamburguesa de la topbar. En escritorio topbar y scrim se ocultan
+    // por CSS y la barra queda fija como siempre.
     root.outerHTML = `
-        <aside class="sidebar">
+        <header class="topbar">
+            <button class="nav-toggle" id="btn-nav-toggle" aria-label="Abrir menú"
+                    aria-expanded="false" aria-controls="sidebar-nav">
+                <svg class="ico-abrir" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h16"/></svg>
+                <svg class="ico-cerrar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg>
+            </button>
+            <img src="${toRoot}assets/image/logo-web.png" alt="" class="logo" onerror="this.style.visibility='hidden'">
+            <span class="brand-name">${nombreClub}</span>
+        </header>
+        <div class="nav-scrim" id="nav-scrim"></div>
+        <aside class="sidebar" id="sidebar-nav">
             <div class="sidebar-brand">
                 <img src="${toRoot}assets/image/logo-web.png" alt="Logo" class="logo" onerror="this.style.visibility='hidden'">
                 <span class="brand-name">${nombreClub}</span>
@@ -118,6 +131,28 @@
     `;
 
     document.body.classList.add('app-shell');
+
+    // --- Cajón de navegación (celular) ---
+    const btnMenu = document.getElementById('btn-nav-toggle');
+    const scrim = document.getElementById('nav-scrim');
+    const aside = document.getElementById('sidebar-nav');
+
+    const abrirMenu = (abrir) => {
+        document.body.classList.toggle('nav-open', abrir);
+        btnMenu.setAttribute('aria-expanded', String(abrir));
+        btnMenu.setAttribute('aria-label', abrir ? 'Cerrar menú' : 'Abrir menú');
+    };
+
+    btnMenu.addEventListener('click', () => abrirMenu(!document.body.classList.contains('nav-open')));
+    scrim.addEventListener('click', () => abrirMenu(false));
+    // Navegar cierra el cajón (si el link va a la página actual no hay recarga)
+    aside.addEventListener('click', (e) => { if (e.target.closest('a.nav-link')) abrirMenu(false); });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && document.body.classList.contains('nav-open')) {
+            abrirMenu(false);
+            btnMenu.focus();
+        }
+    });
 
     document.getElementById('btn-cerrar-sesion').addEventListener('click', async () => {
         // 1) Limpiar la sesión local (no necesita Firebase, siempre corre).
