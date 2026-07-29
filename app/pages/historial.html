@@ -17,6 +17,37 @@
     <style>
         .buscador-row { margin-top: 2px; }
         #buscador { max-width: 460px; }
+
+        /* Filtro por categoría del club */
+        .cat-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+        .cat-label {
+            font-family: var(--font-mono);
+            font-size: 0.64rem;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            color: var(--faint);
+        }
+        .cat-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+        .cat-chip {
+            background: var(--panel-2);
+            border: 1px solid var(--line);
+            color: var(--muted);
+            border-radius: 999px;
+            padding: 6px 13px;
+            font-size: 0.84rem;
+            font-weight: 500;
+            cursor: pointer;
+            font-family: inherit;
+            width: auto;
+            transition: background 0.15s, color 0.15s, border-color 0.15s;
+        }
+        .cat-chip:hover { background: var(--panel-3); color: var(--text); }
+        .cat-chip.activa {
+            background: var(--accent-dim);
+            border-color: var(--accent-line);
+            color: var(--accent);
+            font-weight: 600;
+        }
     </style>
 </head>
 
@@ -37,6 +68,13 @@
 
             <div class="buscador-row">
                 <input type="text" id="buscador" placeholder="Buscar por equipo o torneo">
+            </div>
+
+            <!-- Filtro por categoría del club: se arma con las categorías que
+                 aparecen en los partidos, así nunca ofrece una lista vacía. -->
+            <div class="cat-row" id="cat-row" style="display: none;">
+                <span class="cat-label">Categoría</span>
+                <div class="cat-chips" id="cat-chips"></div>
             </div>
         </div>
 
@@ -98,6 +136,7 @@
                     return;
                 }
 
+                renderCategorias();
                 renderizarPartidos(partidosGlobal);
             } catch (error) {
                 console.error("Error al conectar con Firestore: ", error);
@@ -285,16 +324,52 @@
             return card;
         }
 
-        // Buscador dinámico
-        document.getElementById('buscador').addEventListener('input', (e) => {
-            const textoBusqueda = e.target.value.toLowerCase();
-            const filtrados = partidosGlobal.filter(p =>
-                (p.rival && p.rival.toLowerCase().includes(textoBusqueda)) ||
-                (p.mi_equipo && p.mi_equipo.toLowerCase().includes(textoBusqueda)) ||
-                (p.torneo && p.torneo.toLowerCase().includes(textoBusqueda))
-            );
+        // --- Filtros: texto libre + categoría del club ---
+        // Los dos se combinan (se aplican juntos), así que hay una sola función
+        // que arma la lista y repinta; cada control solo cambia su variable.
+        let categoriaActiva = '';   // '' = todas
+
+        function aplicarFiltros() {
+            const texto = (document.getElementById('buscador').value || '').toLowerCase();
+            const filtrados = partidosGlobal.filter(p => {
+                if (categoriaActiva && (p.mi_equipo || '') !== categoriaActiva) return false;
+                if (!texto) return true;
+                return (p.rival && p.rival.toLowerCase().includes(texto)) ||
+                       (p.mi_equipo && p.mi_equipo.toLowerCase().includes(texto)) ||
+                       (p.torneo && p.torneo.toLowerCase().includes(texto));
+            });
             renderizarPartidos(filtrados);
-        });
+        }
+
+        // Las categorías salen de los partidos que hay, no de la lista del club:
+        // así no se ofrecen filtros que no devolverían ningún resultado.
+        function renderCategorias() {
+            const row = document.getElementById('cat-row');
+            const cont = document.getElementById('cat-chips');
+            const cats = [...new Set(partidosGlobal.map(p => p.mi_equipo).filter(Boolean))]
+                .sort((a, b) => a.localeCompare(b, 'es'));
+
+            // Con una sola categoría el filtro no aporta nada
+            if (cats.length < 2) { row.style.display = 'none'; return; }
+
+            row.style.display = 'flex';
+            cont.innerHTML = '';
+            [{ valor: '', label: 'Todas' }, ...cats.map(c => ({ valor: c, label: c }))].forEach(o => {
+                const chip = document.createElement('button');
+                chip.className = 'cat-chip' + (o.valor === categoriaActiva ? ' activa' : '');
+                chip.textContent = o.valor
+                    ? `${o.label} · ${partidosGlobal.filter(p => p.mi_equipo === o.valor).length}`
+                    : `${o.label} · ${partidosGlobal.length}`;
+                chip.onclick = () => {
+                    categoriaActiva = o.valor;
+                    renderCategorias();
+                    aplicarFiltros();
+                };
+                cont.appendChild(chip);
+            });
+        }
+
+        document.getElementById('buscador').addEventListener('input', aplicarFiltros);
 
         // Iniciamos la carga
         window.onload = () => { cargarHistorial(); cargarCompartidos(); };

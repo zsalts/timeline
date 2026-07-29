@@ -11,6 +11,7 @@
     <link rel="stylesheet" href="../assets/css/style.css">
     <script src="../assets/js/utils/tema.js"></script>
     <script src="../assets/js/utils/planes.js"></script>
+    <script src="../assets/js/utils/tacticas.js"></script>
     <style>
         #upgrade-screen {
             display: none;
@@ -28,8 +29,17 @@
 
         .tac-layout { display: flex; flex-direction: column; gap: 18px; }
 
-        /* Lista de tácticas guardadas */
-        .tac-lista { display: flex; flex-wrap: wrap; gap: 8px; }
+        /* Lista de tácticas guardadas, agrupada por tipo de jugada */
+        .tac-lista { display: flex; flex-direction: column; gap: 16px; }
+        .tac-grupo { display: flex; flex-direction: column; gap: 8px; }
+        .tac-grupo-label {
+            font-family: var(--font-mono);
+            font-size: 0.64rem;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            color: var(--faint);
+        }
+        .tac-grupo-chips { display: flex; flex-wrap: wrap; gap: 8px; }
         .tac-chip {
             display: inline-flex; align-items: center; gap: 8px;
             background: var(--panel-2); border: 1px solid var(--line);
@@ -115,6 +125,10 @@
                                 <input type="text" id="tac-nombre" placeholder="Ej: Salida de corner corto">
                             </div>
                             <div class="form-group">
+                                <label for="tac-tipo">Tipo de jugada</label>
+                                <select id="tac-tipo"></select>
+                            </div>
+                            <div class="form-group">
                                 <label for="tac-desc">Descripción (opcional)</label>
                                 <input type="text" id="tac-desc" placeholder="Ej: Variante con bloqueo al primer palo">
                             </div>
@@ -160,7 +174,11 @@
             const lista = document.getElementById('tac-lista');
             const editor = document.getElementById('tac-editor');
             const inpNombre = document.getElementById('tac-nombre');
+            const inpTipo = document.getElementById('tac-tipo');
             const inpDesc = document.getElementById('tac-desc');
+
+            inpTipo.innerHTML = TL.tacticas.TIPOS
+                .map(t => `<option value="${t.id}">${t.label}</option>`).join('');
             const msg = document.getElementById('msg-tactica');
             const btnGuardar = document.getElementById('btn-guardar-tactica');
 
@@ -181,6 +199,10 @@
             function abrirEditor(t) {
                 actualId = t && t.id ? t.id : null;
                 inpNombre.value = (t && t.nombre) || '';
+                // Un planteo nuevo arranca en el primer tipo, no en "Otro":
+                // "Otro" es el refugio de los planteos viejos sin tipo, y dejarlo
+                // como default haría que todo lo nuevo caiga ahí sin dividirse.
+                inpTipo.value = t ? TL.tacticas.normalizar(t.tipo) : TL.tacticas.TIPOS[0].id;
                 inpDesc.value = (t && t.descripcion) || '';
                 editor.style.display = 'block';
                 msg.textContent = '';
@@ -194,42 +216,59 @@
                 pintarLista();
             }
 
+            function crearChip(t) {
+                const chip = document.createElement('span');
+                chip.className = 'tac-chip' + (t.id === actualId ? ' activa' : '');
+                chip.title = t.descripcion || t.nombre;
+
+                const txt = document.createElement('span');
+                txt.textContent = t.nombre;
+                txt.addEventListener('click', () => abrirEditor(t));
+                chip.appendChild(txt);
+
+                const del = document.createElement('button');
+                del.className = 'tac-borrar';
+                del.textContent = '×';
+                del.title = 'Borrar planteo';
+                del.addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    if (!confirm(`¿Borrar el planteo "${t.nombre}"? Los partidos que lo tengan enlazado dejarán de mostrarlo.`)) return;
+                    try {
+                        await deleteDoc(doc(db, 'tacticas', t.id));
+                        tacticas = tacticas.filter(x => x.id !== t.id);
+                        if (actualId === t.id) { actualId = null; editor.style.display = 'none'; }
+                        pintarLista();
+                    } catch (err) {
+                        console.error('Error al borrar la táctica:', err);
+                        alert('No se pudo borrar el planteo.');
+                    }
+                });
+                chip.appendChild(del);
+                return chip;
+            }
+
             function pintarLista() {
                 if (!tacticas.length) {
                     lista.innerHTML = '<p class="tac-vacio">Todavía no armaste ningún planteo. Empezá con “Nuevo planteo”.</p>';
                     return;
                 }
+                // Un bloque por tipo de jugada; los tipos sin planteos no aparecen.
                 lista.innerHTML = '';
-                tacticas.forEach(t => {
-                    const chip = document.createElement('span');
-                    chip.className = 'tac-chip' + (t.id === actualId ? ' activa' : '');
-                    chip.title = t.descripcion || t.nombre;
+                TL.tacticas.agrupar(tacticas).forEach(g => {
+                    const grupo = document.createElement('div');
+                    grupo.className = 'tac-grupo';
 
-                    const txt = document.createElement('span');
-                    txt.textContent = t.nombre;
-                    txt.addEventListener('click', () => abrirEditor(t));
-                    chip.appendChild(txt);
+                    const titulo = document.createElement('div');
+                    titulo.className = 'tac-grupo-label';
+                    titulo.textContent = `${g.label} · ${g.items.length}`;
+                    grupo.appendChild(titulo);
 
-                    const del = document.createElement('button');
-                    del.className = 'tac-borrar';
-                    del.textContent = '×';
-                    del.title = 'Borrar planteo';
-                    del.addEventListener('click', async (e) => {
-                        e.stopPropagation();
-                        if (!confirm(`¿Borrar el planteo "${t.nombre}"? Los partidos que lo tengan enlazado dejarán de mostrarlo.`)) return;
-                        try {
-                            await deleteDoc(doc(db, 'tacticas', t.id));
-                            tacticas = tacticas.filter(x => x.id !== t.id);
-                            if (actualId === t.id) { actualId = null; editor.style.display = 'none'; }
-                            pintarLista();
-                        } catch (err) {
-                            console.error('Error al borrar la táctica:', err);
-                            alert('No se pudo borrar el planteo.');
-                        }
-                    });
-                    chip.appendChild(del);
+                    const fila = document.createElement('div');
+                    fila.className = 'tac-grupo-chips';
+                    g.items.forEach(t => fila.appendChild(crearChip(t)));
+                    grupo.appendChild(fila);
 
-                    lista.appendChild(chip);
+                    lista.appendChild(grupo);
                 });
             }
 
@@ -243,6 +282,7 @@
                     const payload = {
                         club_id: clubId,
                         nombre,
+                        tipo: inpTipo.value,
                         descripcion: inpDesc.value.trim(),
                         datos: board.getDatos(),
                         actualizado_en: new Date()

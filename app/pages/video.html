@@ -287,6 +287,7 @@
     <!-- Módulos compartidos -->
     <script src="../assets/js/utils/youtube.js"></script>
     <script src="../assets/js/utils/planes.js"></script>
+    <script src="../assets/js/utils/tacticas.js"></script>
     <script src="../assets/js/components/cortesRenderer.js"></script>
     <script src="../assets/js/components/timeline.js"></script>
     <script src="../assets/js/components/canchaBoard.js"></script>
@@ -435,8 +436,13 @@
         function renderSelector() {
             const sel = document.getElementById('sel-enlazar');
             const libres = tacticasClub.filter(t => !idsEnlazadas.includes(t.id));
-            sel.innerHTML = '<option value="">+ Enlazar planteo…</option>' +
-                libres.map(t => `<option value="${t.id}">${t.nombre}</option>`).join('');
+            // Agrupado por tipo de jugada, igual que la biblioteca
+            const grupos = TL.tacticas.agrupar(libres).map(g =>
+                `<optgroup label="${g.label}">` +
+                g.items.map(t => `<option value="${t.id}">${t.nombre}</option>`).join('') +
+                `</optgroup>`
+            ).join('');
+            sel.innerHTML = '<option value="">+ Enlazar planteo…</option>' + grupos;
             sel.disabled = !libres.length;
         }
 
