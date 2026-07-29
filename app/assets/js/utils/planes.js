@@ -29,6 +29,7 @@ window.TL.planes = (function () {
                 'partidos',          // cargar partidos (hasta el límite)
                 'tablero',           // tablero de estadísticas completo
                 'video_youtube',     // video vía YouTube no listado
+                'chat',              // chat interno (mensajes directos del club)
             ],
         },
         pro: {

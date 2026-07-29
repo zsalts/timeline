@@ -982,6 +982,12 @@
                 const invitaciones = await contarPorClub('invitaciones', clubId);
                 // Los planteos tácticos también son del club
                 const tacticas = await contarPorClub('tacticas', clubId);
+                // Conversaciones del chat interno. Ojo: se borra el documento de
+                // la conversación, no su subcolección 'mensajes' — Firestore no
+                // borra en cascada desde el cliente. Los mensajes quedan
+                // huérfanos e inaccesibles (la regla de lectura mira la
+                // conversación, que ya no existe).
+                const conversaciones = await contarPorClub('conversaciones', clubId);
 
                 // Emails de las cuentas de acceso a borrar a mano (ver más abajo)
                 const emails = datos.usuarios.map(u => u.email).filter(Boolean);
@@ -994,6 +1000,7 @@
                 datos.entrenamientos.forEach(id => refs.push(doc(db, 'entrenamientos', id)));
                 invitaciones.forEach(id => refs.push(doc(db, 'invitaciones', id)));
                 tacticas.forEach(id => refs.push(doc(db, 'tacticas', id)));
+                conversaciones.forEach(id => refs.push(doc(db, 'conversaciones', id)));
                 refs.push(doc(db, 'facturacion', clubId));
                 refs.push(doc(db, 'estadisticas', clubId));
                 // El doc del club va último, así si algo falla antes no queda huérfano el club

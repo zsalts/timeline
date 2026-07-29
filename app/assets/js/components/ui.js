@@ -58,7 +58,8 @@
         tacticas: '<circle cx="6" cy="7" r="2"/><circle cx="18" cy="7" r="2"/><circle cx="12" cy="17" r="2"/><path d="M7.6 8.5 10.8 15.4"/><path d="M16.4 8.5 13.2 15.4"/>',
         video: '<rect x="2" y="4" width="20" height="16" rx="2"/><path d="M10 9l5 3-5 3z"/>',
         estadisticas: '<path d="M3 3v18h18"/><rect x="7" y="12" width="3" height="6"/><rect x="12" y="8" width="3" height="10"/><rect x="17" y="5" width="3" height="13"/>',
-        usuarios: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'
+        usuarios: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+        mensajes: '<path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.9-.9L3 20.5l1.5-4.4A8.4 8.4 0 0 1 3.6 11.5a8.4 8.4 0 0 1 8.4-8.4h.5a8.4 8.4 0 0 1 8.5 8.4z"/>'
     };
     const icono = id => `<svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[id] || ''}</svg>`;
 
@@ -73,6 +74,13 @@
         partidos.push({ id: 'comparar', href: `${toPage}comparar.html`, label: 'Comparar' });
     }
     grupos.push({ titulo: 'Partidos', items: partidos });
+
+    // Chat interno: lo tiene todo el club, jugadoras incluidas, en cualquier plan
+    grupos.push({
+        titulo: 'Club', items: [
+            { id: 'mensajes', href: `${toPage}mensajes.html`, label: 'Mensajes' }
+        ]
+    });
 
     // Entrenamiento (plan Ultra + solo cuerpo técnico)
     if (!esJugadora && puedeEjercicios && esEntrenador) {

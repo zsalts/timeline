@@ -97,14 +97,46 @@ service cloud.firestore {
     // COLECCIÓN: clubes
     // ============================================
     match /clubes/{clubId} {
+      // ¿Es el admin de ESTE club?
+      function esAdminDelClub() {
+        return request.auth != null &&
+               request.auth.uid == resource.data.admin_uid;
+      }
+
+      // Campos que el admin del club puede editar por su cuenta.
+      // Todo lo comercial y estructural queda AFUERA a propósito:
+      //   - plan          → lo mueve el super-admin cuando se paga; si el
+      //                     admin lo pudiera escribir se autoasignaría Ultra
+      //                     y saltearía todo el gating de planes.
+      //   - estado        → alta/baja del club.
+      //   - admin_uid     → quién manda en el club.
+      //   - partidos_count→ tope del plan Free (se mueve solo por
+      //                     soloContadorPartidos, ±1 y en el batch del partido).
+      //   - authorized_uids / fecha_creacion → se fijan al crear el club.
+      function camposEditablesPorAdminClub() {
+        return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'nombre',
+          'logo',
+          'equipos',
+          'mapeoEstadisticas',
+          'usuarios_activos'
+        ]);
+      }
+
       // Leer: super-admin, admin del club, o cualquier usuario del club
       allow read: if isSuper() ||
-        (request.auth != null && request.auth.uid == resource.data.admin_uid) ||
+        esAdminDelClub() ||
         (userExists() && userDoc().club_id == clubId);
 
-      // Editar / borrar: super-admin o admin del club
-      allow update, delete: if isSuper() ||
-        (request.auth != null && request.auth.uid == resource.data.admin_uid);
+      // Editar: el super-admin puede todo; el admin del club, solo los campos
+      // de su propia configuración (ver camposEditablesPorAdminClub).
+      allow update: if isSuper() ||
+        (esAdminDelClub() && camposEditablesPorAdminClub());
+
+      // Borrar: solo el super-admin. Si el admin del club pudiera borrar su
+      // club, volvería a crearlo con partidos_count en 0 y reiniciaría el tope
+      // de 10 partidos del plan Free. El flujo normal es "dar de baja".
+      allow delete: if isSuper();
 
       // Crear: super-admin, o auto-registro público (cualquier usuario
       // autenticado creando SU club en plan Free, con él mismo como admin).
@@ -313,6 +345,85 @@ service cloud.firestore {
       // o super-admin (borrado del club)
       allow delete: if isSuper() ||
         (esEntrenador() && userDoc().club_id == resource.data.club_id);
+    }
+
+    // ============================================
+    // COLECCIÓN: conversaciones (chat interno, mensajes directos)
+    // Una conversación por par de personas del mismo club. El id es
+    // determinístico (club + los dos uid ordenados), así abrir el chat con
+    // alguien dos veces reusa la misma conversación en vez de duplicarla.
+    // Los mensajes van en la subcolección 'mensajes'.
+    // ============================================
+    match /conversaciones/{convId} {
+      // ¿El que pide es uno de los dos de la conversación?
+      function esParticipante() {
+        return request.auth != null &&
+               request.auth.uid in resource.data.participantes;
+      }
+
+      // Los dos participantes tienen que ser de MI club. Sin esto, cualquiera
+      // podría abrirle conversación a un uid de otro club.
+      // Se chequean los dos y no "el otro" a propósito: uno de los dos soy yo,
+      // así que da lo mismo, y evita tener que averiguar en qué índice quedé
+      // (los uid van ordenados). Con un ternario acá la precedencia de && lo
+      // agrupaba mal y la condición no era la que parecía.
+      function clubDeUsuario(u) {
+        return get(/databases/$(database)/documents/usuarios/$(u)).data.club_id;
+      }
+      function ambosDeMiClub() {
+        return userExists() &&
+               clubDeUsuario(request.resource.data.participantes[0]) == userDoc().club_id &&
+               clubDeUsuario(request.resource.data.participantes[1]) == userDoc().club_id;
+      }
+
+      // Leer y listar: solo los dos participantes. La consulta va con
+      // array-contains sobre 'participantes', así que 'list' se evalúa
+      // documento por documento y nadie ve conversaciones ajenas.
+      allow get, list: if esParticipante();
+
+      // Crear: tengo que ser uno de los dos, ser exactamente dos, y ambos
+      // del mismo club.
+      allow create: if request.auth != null &&
+        request.auth.uid in request.resource.data.participantes &&
+        request.resource.data.participantes.size() == 2 &&
+        userExists() &&
+        request.resource.data.club_id == userDoc().club_id &&
+        ambosDeMiClub();
+
+      // Actualizar: los participantes mantienen el resumen del último mensaje.
+      // No se puede cambiar quiénes son ni mover la conversación de club.
+      allow update: if esParticipante() &&
+        request.resource.data.participantes == resource.data.participantes &&
+        request.resource.data.club_id == resource.data.club_id;
+
+      // Borrar la conversación entera: solo el super (borrado del club).
+      allow delete: if isSuper();
+
+      match /mensajes/{mensajeId} {
+        function conversacion() {
+          return get(/databases/$(database)/documents/conversaciones/$(convId)).data;
+        }
+        function participaEnLaConversacion() {
+          return request.auth != null &&
+                 request.auth.uid in conversacion().participantes;
+        }
+
+        allow read: if participaEnLaConversacion();
+
+        // Escribir: solo los participantes, y firmando con su propio uid
+        // (no se puede mandar un mensaje "de" otra persona). Se acota el
+        // largo para que nadie use el chat como depósito de datos.
+        allow create: if participaEnLaConversacion() &&
+          request.resource.data.de == request.auth.uid &&
+          request.resource.data.texto is string &&
+          request.resource.data.texto.size() > 0 &&
+          request.resource.data.texto.size() <= 2000;
+
+        // Un mensaje enviado no se edita; se puede borrar el propio.
+        allow update: if false;
+        allow delete: if isSuper() ||
+          (request.auth != null && request.auth.uid == resource.data.de);
+      }
     }
 
     // ============================================
