@@ -30,9 +30,10 @@
     const esClubAdmin = sessionStorage.getItem('isClubAdmin') === 'true';
     // Las jugadoras son espectadoras: ven los partidos pero no cargan
     const esJugadora = sessionStorage.getItem('userRole') === 'player';
-    // Los ejercicios/entrenamientos son solo del cuerpo técnico (entrenador o admin)
+    // Los ejercicios/entrenamientos son solo del cuerpo técnico
+    // (entrenador, coordinador o admin del club)
     const rolActual = sessionStorage.getItem('userRole');
-    const esEntrenador = rolActual === 'trainer' || rolActual === 'club-admin';
+    const esEntrenador = rolActual === 'trainer' || rolActual === 'coordinator' || rolActual === 'club-admin';
     // Editor de cancha (armar ejercicios) es una función del plan Ultra.
     // Se resuelve con TL.planes si está cargado; si no, se mira el plan directo.
     let puedeEjercicios = false;

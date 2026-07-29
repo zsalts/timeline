@@ -50,10 +50,32 @@ service cloud.firestore {
               getAfter(/databases/$(database)/documents/clubes/$(clubId)).data.partidos_count <= 10);
     }
 
-    // ¿El usuario es del cuerpo técnico? (entrenador o admin del club).
+    // ¿El usuario es del cuerpo técnico? (entrenador, coordinador o admin).
     // Los ejercicios y entrenamientos son solo para ellos.
     function esEntrenador() {
-      return userExists() && (userDoc().rol == 'trainer' || userDoc().rol == 'club-admin');
+      return userExists() &&
+             (userDoc().rol == 'trainer' ||
+              userDoc().rol == 'coordinator' ||
+              userDoc().rol == 'club-admin');
+    }
+
+    // Datos de una invitación (link de alta generado por el admin del club)
+    function invitacionDoc(token) {
+      return get(/databases/$(database)/documents/invitaciones/$(token)).data;
+    }
+
+    // ¿El doc de usuario que se está creando corresponde a un alta por link?
+    // El usuario recién registrado se crea SU propio doc, y club_id y rol
+    // tienen que coincidir exactamente con los de una invitación activa. El
+    // token queda guardado en el doc para que la regla lo pueda verificar.
+    function altaPorInvitacion(userId) {
+      return request.auth != null &&
+             request.auth.uid == userId &&
+             request.resource.data.invitacion is string &&
+             exists(/databases/$(database)/documents/invitaciones/$(request.resource.data.invitacion)) &&
+             invitacionDoc(request.resource.data.invitacion).activa == true &&
+             invitacionDoc(request.resource.data.invitacion).club_id == request.resource.data.club_id &&
+             invitacionDoc(request.resource.data.invitacion).rol == request.resource.data.rol;
     }
 
     // ============================================
@@ -103,7 +125,9 @@ service cloud.firestore {
         (request.auth != null &&
          request.auth.uid == userId &&
          request.resource.data.rol == 'club-admin' &&
-         clubDoc(request.resource.data.club_id).admin_uid == request.auth.uid);
+         clubDoc(request.resource.data.club_id).admin_uid == request.auth.uid) ||
+        // o alta por link de invitación (club y rol los fija la invitación)
+        altaPorInvitacion(userId);
 
       // Actualizar: super-admin, propietario, o club-admin del mismo club
       allow update: if isSuper() ||
@@ -115,6 +139,46 @@ service cloud.firestore {
       // Eliminar: solo el super-admin (borrado permanente de un club completo).
       // El flujo normal es "dar de baja" (estado: inactivo), no borrar.
       allow delete: if isSuper();
+    }
+
+    // ============================================
+    // COLECCIÓN: invitaciones (links de alta que genera el admin del club)
+    // El id del documento ES el token del link. Quien tiene el link puede
+    // leerlo; nadie puede listar la colección.
+    // ============================================
+    match /invitaciones/{token} {
+      // Lectura por token: hace falta ANTES de crear la cuenta, para mostrar
+      // a qué club y con qué rol te están invitando. El secreto es el token,
+      // así que 'get' (leer UNO, sabiendo el id) es público.
+      allow get: if true;
+
+      // Listar es otra cosa: solo el admin del club, y únicamente las de su
+      // propio club (la consulta tiene que venir filtrada por club_id). Así
+      // nadie puede recorrer la colección para descubrir invitaciones ajenas.
+      allow list: if isSuper() ||
+        (userExists() &&
+         userDoc().rol == 'club-admin' &&
+         resource.data.club_id == userDoc().club_id);
+
+      // Crear: solo el admin del club, para su propio club. El rol se limita
+      // acá para que un link no pueda repartir permisos de club-admin.
+      allow create: if userExists() &&
+        userDoc().rol == 'club-admin' &&
+        request.resource.data.club_id == userDoc().club_id &&
+        request.resource.data.rol in ['trainer', 'coordinator', 'analyst', 'player'] &&
+        request.resource.data.activa == true;
+
+      // Editar (activar/desactivar) y borrar: el admin del club o el super.
+      allow update, delete: if isSuper() ||
+        (userExists() &&
+         userDoc().rol == 'club-admin' &&
+         userDoc().club_id == resource.data.club_id);
+
+      // Además: quien se da de alta con el link suma 1 al contador de usos y
+      // no puede tocar ningún otro campo (ni desactivar la invitación).
+      allow update: if request.auth != null &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['usos']) &&
+        request.resource.data.usos == resource.data.get('usos', 0) + 1;
     }
 
     // ============================================

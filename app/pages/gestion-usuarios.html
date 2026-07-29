@@ -186,13 +186,20 @@
             font-size: 0.8rem;
             font-weight: bold;
         }
-        .role-admin {
+        /* El badge se arma como role-${rol}, así que para el admin del club la
+           clase es role-club-admin (role-admin quedaba sin usar). */
+        .role-admin,
+        .role-club-admin {
             background: var(--accent-dim);
             color: var(--accent);
         }
         .role-trainer {
             background: rgba(167, 139, 250, 0.14);
             color: #A78BFA;
+        }
+        .role-coordinator {
+            background: rgba(247, 145, 88, 0.14);
+            color: #F79158;
         }
         .role-analyst {
             background: var(--success-weak);
@@ -348,7 +355,7 @@
             <!-- Agregar nuevo usuario -->
             <div class="card">
                 <h2>Agregar usuario</h2>
-                <p style="color: var(--muted); margin-bottom: 15px;">Entrenador y analista adicionales cuestan <strong>$50 USD/mes</strong>. Las <strong>jugadoras</strong> son espectadoras y no se cobran.</p>
+                <p style="color: var(--muted); margin-bottom: 15px;">Los planes Pro y Ultra ya incluyen una entrenadora. Cada entrenadora adicional cuesta <strong>$10.000/mes</strong>. Las <strong>jugadoras</strong> son espectadoras y no se cobran.</p>
 
                 <div class="form-row">
                     <div class="form-group">
@@ -369,7 +376,8 @@
                     <div class="form-group">
                         <label>Rol</label>
                         <select id="new-role" required>
-                            <option value="trainer">Entrenador</option>
+                            <option value="trainer">Entrenadora</option>
+                            <option value="coordinator">Coordinadora</option>
                             <option value="analyst">Analista</option>
                             <option value="player">Jugadora (solo ve, sin costo)</option>
                         </select>
@@ -378,6 +386,39 @@
 
                 <button class="btn-primary" id="btn-add-user">Crear usuario</button>
                 <div class="mensaje" id="mensaje-add"></div>
+            </div>
+
+            <!-- Links de invitación -->
+            <div class="card">
+                <h2>Links de invitación</h2>
+                <p style="color: var(--muted); margin-bottom: 15px;">
+                    Generá un link y pasáselo a quien quieras sumar: cada persona crea su propia cuenta
+                    con su correo y contraseña, y entra directo a este club con el rol que elijas acá.
+                    El mismo link sirve para varias personas y lo podés desactivar cuando quieras.
+                </p>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Rol de quien use el link</label>
+                        <select id="inv-role" required>
+                            <option value="player">Jugadora (solo ve, sin costo)</option>
+                            <option value="trainer">Entrenadora</option>
+                            <option value="coordinator">Coordinadora</option>
+                            <option value="analyst">Analista</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Nota (opcional)</label>
+                        <input type="text" id="inv-nota" placeholder="Ej: Plantel Sub-16">
+                    </div>
+                </div>
+
+                <button class="btn-primary" id="btn-crear-invitacion">Generar link</button>
+                <div class="mensaje" id="mensaje-invitacion"></div>
+
+                <div id="invitaciones-container" class="users-list" style="margin-top: 18px;">
+                    <p style="color: var(--muted);">Cargando links…</p>
+                </div>
             </div>
 
             <!-- Lista de usuarios -->
@@ -391,7 +432,7 @@
     </div>
 
     <script type="module">
-        import { auth, db, getDocs, collection, doc, getDoc, setDoc, updateDoc, query, where, signInWithEmailAndPassword } from '../assets/js/firebase.js';
+        import { auth, db, getDocs, collection, doc, getDoc, setDoc, updateDoc, deleteDoc, query, where, signInWithEmailAndPassword } from '../assets/js/firebase.js';
 
         const mainContent = document.getElementById('main-content');
         const unauthorizedScreen = document.getElementById('unauthorized-screen');
@@ -428,6 +469,8 @@
             loadEquipos();
             loadUsers();
             setupAddUser();
+            setupInvitaciones();
+            loadInvitaciones();
             setupAddTeam();
             loadMapeo();
             setupMapeo();
@@ -878,7 +921,8 @@
                     const roleClass = `role-${user.rol}`;
                     const roleName = {
                         'club-admin': 'Administrador del Club',
-                        'trainer': 'Entrenador',
+                        'trainer': 'Entrenadora',
+                        'coordinator': 'Coordinadora',
                         'analyst': 'Analista',
                         'player': 'Jugadora'
                     }[user.rol] || user.rol;
@@ -990,7 +1034,7 @@
                     }
 
                     showMessage(mensajeDiv, esPago
-                        ? 'Usuario creado y cobro registrado ($50 USD)'
+                        ? 'Usuario creado y registrado en la facturación del club.'
                         : 'Jugadora agregada. Ya puede entrar a ver los partidos.', 'exito');
 
                     // Limpiar formulario
@@ -1033,6 +1077,156 @@
             } catch (error) {
                 console.error("Error:", error);
                 alert('Error al desactivar usuario');
+            }
+        };
+
+        // =====================================================
+        // LINKS DE INVITACIÓN
+        // El id del doc en 'invitaciones' ES el token del link. Cualquiera con
+        // el token puede leer la invitación (para ver club y rol antes de
+        // registrarse), pero solo el admin del club puede crearlas y listarlas.
+        // =====================================================
+
+        const ROLES_INV = {
+            trainer: 'Entrenadora',
+            coordinator: 'Coordinadora',
+            analyst: 'Analista',
+            player: 'Jugadora'
+        };
+
+        // Token al azar, largo e imposible de adivinar: es lo único que protege
+        // la invitación, así que se arma con el RNG criptográfico del navegador.
+        function generarToken() {
+            const bytes = new Uint8Array(18);
+            crypto.getRandomValues(bytes);
+            return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+        }
+
+        // La URL se resuelve contra la página actual, así funciona igual en
+        // GitHub Pages (subcarpeta /timeline/) que en Firebase Hosting (raíz).
+        function urlInvitacion(token) {
+            return new URL('invitacion.html?t=' + encodeURIComponent(token), window.location.href).href;
+        }
+
+        function setupInvitaciones() {
+            document.getElementById('btn-crear-invitacion').addEventListener('click', async () => {
+                const rol = document.getElementById('inv-role').value;
+                const nota = document.getElementById('inv-nota').value.trim();
+                const clubID = sessionStorage.getItem('clubID');
+                const mensajeDiv = document.getElementById('mensaje-invitacion');
+                const btn = document.getElementById('btn-crear-invitacion');
+
+                btn.disabled = true;
+                btn.textContent = 'Generando…';
+
+                try {
+                    const token = generarToken();
+                    // club_nombre queda copiado acá a propósito: quien abre el link
+                    // todavía no tiene permiso para leer 'clubes', así que sin esta
+                    // copia no habría forma de mostrarle a qué club lo invitaron.
+                    const cfg = JSON.parse(sessionStorage.getItem('configClub') || '{}');
+                    await setDoc(doc(db, 'invitaciones', token), {
+                        club_id: clubID,
+                        club_nombre: cfg.nombre || clubID,
+                        rol,
+                        nota,
+                        activa: true,
+                        usos: 0,
+                        creado_por: sessionStorage.getItem('usuarioUID') || '',
+                        creado_en: new Date()
+                    });
+
+                    showMessage(mensajeDiv, 'Link generado. Copialo y pasáselo a quien quieras sumar.', 'exito');
+                    document.getElementById('inv-nota').value = '';
+                    loadInvitaciones();
+                } catch (error) {
+                    console.error('Error al crear invitación:', error);
+                    showMessage(mensajeDiv, 'No se pudo generar el link. Probá de nuevo.', 'error');
+                } finally {
+                    btn.disabled = false;
+                    btn.textContent = 'Generar link';
+                }
+            });
+        }
+
+        async function loadInvitaciones() {
+            const container = document.getElementById('invitaciones-container');
+            const clubID = sessionStorage.getItem('clubID');
+
+            try {
+                // La consulta va filtrada por club_id porque la regla de 'list'
+                // solo deja listar las invitaciones del propio club.
+                const q = query(collection(db, 'invitaciones'), where('club_id', '==', clubID));
+                const snap = await getDocs(q);
+
+                if (snap.empty) {
+                    container.innerHTML = '<p style="color: var(--muted);">Todavía no generaste ningún link.</p>';
+                    return;
+                }
+
+                const items = [];
+                snap.forEach(d => items.push({ token: d.id, ...d.data() }));
+                // Los más nuevos primero
+                items.sort((a, b) => (b.creado_en?.seconds || 0) - (a.creado_en?.seconds || 0));
+
+                container.innerHTML = items.map(inv => {
+                    const url = urlInvitacion(inv.token);
+                    const rolLabel = ROLES_INV[inv.rol] || inv.rol;
+                    const estado = inv.activa
+                        ? '<span class="role-badge role-analyst">Activo</span>'
+                        : '<span class="role-badge role-player">Desactivado</span>';
+                    return `
+                        <div class="user-item">
+                            <div class="user-info" style="min-width: 0;">
+                                <h4>${rolLabel} ${estado}</h4>
+                                ${inv.nota ? `<p><strong>Nota:</strong> ${inv.nota}</p>` : ''}
+                                <p><strong>Usos:</strong> ${inv.usos || 0}</p>
+                                <p style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--faint); word-break: break-all;">${url}</p>
+                            </div>
+                            <div class="user-actions">
+                                <button class="btn-primary" style="width:auto" onclick="copiarInvitacion('${inv.token}')">Copiar link</button>
+                                <button class="btn-danger" onclick="toggleInvitacion('${inv.token}', ${!inv.activa})">${inv.activa ? 'Desactivar' : 'Reactivar'}</button>
+                                <button class="btn-danger" onclick="borrarInvitacion('${inv.token}')">Borrar</button>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            } catch (error) {
+                console.error('Error al cargar invitaciones:', error);
+                container.innerHTML = '<p style="color: var(--muted);">No se pudieron cargar los links.</p>';
+            }
+        }
+
+        window.copiarInvitacion = async (token) => {
+            const url = urlInvitacion(token);
+            const mensajeDiv = document.getElementById('mensaje-invitacion');
+            try {
+                await navigator.clipboard.writeText(url);
+                showMessage(mensajeDiv, 'Link copiado al portapapeles.', 'exito');
+            } catch (_) {
+                // Sin permiso de portapapeles (o sin HTTPS): que lo copie a mano
+                window.prompt('Copiá el link:', url);
+            }
+        };
+
+        window.toggleInvitacion = async (token, activar) => {
+            try {
+                await updateDoc(doc(db, 'invitaciones', token), { activa: activar });
+                loadInvitaciones();
+            } catch (error) {
+                console.error('Error:', error);
+                alert('No se pudo cambiar el estado del link');
+            }
+        };
+
+        window.borrarInvitacion = async (token) => {
+            if (!confirm('¿Borrar este link? Quien lo tenga ya no va a poder usarlo.')) return;
+            try {
+                await deleteDoc(doc(db, 'invitaciones', token));
+                loadInvitaciones();
+            } catch (error) {
+                console.error('Error:', error);
+                alert('No se pudo borrar el link');
             }
         };
 
