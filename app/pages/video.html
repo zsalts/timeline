@@ -95,7 +95,7 @@
         #msg-pizarra { color: var(--live); font-size: 0.82rem; font-weight: 600; margin-right: 10px; }
         #msg-pizarra.sin-guardar { color: var(--ambar, #F7C948); }
         /* Vista jugadora: la pizarra se ve pero sin botón de guardar */
-        html.rol-jugadora #btn-guardar-pizarra, html.rol-jugadora #msg-pizarra, html.rol-jugadora .pizarra-sub { display: none; }
+        html.rol-jugadora #enlazar-wrap, html.rol-jugadora .pizarra-sub { display: none !important; }
 
         /* Pestañas de jugadas */
         .jugadas-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
@@ -241,13 +241,13 @@
 
                 <div id="seccion-pizarra" style="display: none;">
                     <div class="pizarra-head">
-                        <h4 class="obs-title">Pizarra táctica</h4>
-                        <div style="display: flex; align-items: center;">
+                        <h4 class="obs-title">Táctica</h4>
+                        <div id="enlazar-wrap" style="display: none; align-items: center; gap: 8px;">
                             <span id="msg-pizarra" style="display: none;"></span>
-                            <button id="btn-guardar-pizarra" class="btn-guardar">Guardar pizarra</button>
+                            <select id="sel-enlazar" aria-label="Enlazar un planteo al partido"></select>
                         </div>
                     </div>
-                    <p class="pizarra-sub">Marcá la alineación, los bloqueos que usaron y cómo salió el rival. Cada jugada es una cancha aparte; se guardan todas en el partido.</p>
+                    <p class="pizarra-sub">Los planteos se arman en <strong>Entrenamiento → Táctica</strong> y se enlazan acá. En el partido se ven en modo lectura.</p>
                     <div id="jugadas-tabs" class="jugadas-tabs"></div>
                     <div id="board-container"></div>
                 </div>
@@ -292,7 +292,7 @@
     <script src="../assets/js/components/canchaBoard.js"></script>
 
     <script type="module">
-        import { db, doc, getDoc, updateDoc, collection, addDoc } from '../assets/js/firebase.js';
+        import { db, doc, getDoc, updateDoc, collection, addDoc, getDocs, query, where } from '../assets/js/firebase.js';
 
         const uid = sessionStorage.getItem('usuarioUID');
         const clubId = sessionStorage.getItem('clubID');
@@ -341,47 +341,55 @@
             }
         }
 
-        // --- Pizarra táctica: varias JUGADAS, cada una su propia cancha ---
+        // --- Táctica del partido: SOLO LECTURA ---
+        // Los planteos se arman en Entrenamiento → Táctica y acá se enlazan.
+        // La cancha se monta siempre con editable:false, así el partido queda
+        // limpio (nada de herramientas de dibujo).
+        //
+        // La lista mezcla dos orígenes:
+        //  - enlazadas: ids en partido.tacticas que se leen de la colección
+        //  - heredadas: lo que ya estaba dibujado en partido.pizarra (formato
+        //    viejo). Se sigue mostrando para no perder lo que ya cargaron los
+        //    clubes, pero no se puede editar más desde acá.
         let board = null;
-        let jugadas = [];        // [{ nombre, datos }]  (datos = board.getDatos())
+        let jugadas = [];        // [{ nombre, datos, heredada?, id? }]
         let jugadaIdx = 0;
-        let boardEditable = false;
         let equipoNombre = 'partido';
+        let tacticasClub = [];   // biblioteca del club, para el selector
+        let idsEnlazadas = [];
 
-        function marcarPizarraSinGuardar() {
+        function mostrarMsg(txt, alerta) {
             const m = document.getElementById('msg-pizarra');
-            m.textContent = 'Sin guardar';
-            m.classList.add('sin-guardar');
-            m.style.display = 'inline';
+            m.textContent = txt;
+            m.classList.toggle('sin-guardar', !!alerta);
+            m.style.display = txt ? 'inline' : 'none';
+            if (txt && !alerta) setTimeout(() => { m.style.display = 'none'; }, 2500);
         }
 
-        // Migra lo guardado: soporta el formato viejo (un solo tablero en
-        // partido.pizarra) y el nuevo (partido.pizarra.jugadas = [...]).
-        function cargarJugadas(partido) {
+        // Lee la pizarra vieja del partido: soporta el formato con jugadas y el
+        // más viejo todavía, de un solo tablero suelto en partido.pizarra.
+        function cargarHeredadas(partido) {
             const pz = partido.pizarra;
             if (pz && Array.isArray(pz.jugadas) && pz.jugadas.length) {
-                return pz.jugadas.map((j, i) => ({ nombre: j.nombre || ('Jugada ' + (i + 1)), datos: j.datos || {} }));
+                return pz.jugadas.map((j, i) => ({ nombre: j.nombre || ('Jugada ' + (i + 1)), datos: j.datos || {}, heredada: true }));
             }
             if (pz && (pz.objetos || pz.nombres || pz.pasos)) {
-                return [{ nombre: 'Jugada 1', datos: pz }];   // formato viejo
+                return [{ nombre: 'Jugada 1', datos: pz, heredada: true }];
             }
             return [];
         }
 
-        // Guarda en la jugada activa lo que hay en la cancha ahora
-        function sincronizarActual() {
-            if (board && boardEditable && jugadas[jugadaIdx]) {
-                jugadas[jugadaIdx].datos = board.getDatos();
-            }
+        function tieneContenido(j) {
+            return j.datos && ((j.datos.objetos || []).length || (j.datos.nombres || []).length);
         }
 
-        // Monta la cancha de la jugada activa
+        // Monta la cancha de la jugada activa (siempre en modo lectura)
         function montarBoard() {
-            const j = jugadas[jugadaIdx] || { nombre: 'Jugada 1', datos: {} };
-            const nombreGif = `pizarra-${equipoNombre}-${(j.nombre || 'jugada')}`;
-            board = TL.canchaBoard.crear(document.getElementById('board-container'), { editable: boardEditable, nombre: nombreGif });
+            const j = jugadas[jugadaIdx];
+            if (!j) { document.getElementById('board-container').innerHTML = ''; return; }
+            const nombreGif = `tactica-${equipoNombre}-${(j.nombre || 'planteo')}`;
+            board = TL.canchaBoard.crear(document.getElementById('board-container'), { editable: false, nombre: nombreGif });
             board.setDatos(j.datos || {});
-            if (boardEditable) board.onChange = marcarPizarraSinGuardar;
         }
 
         function renderTabs() {
@@ -391,151 +399,123 @@
                 const chip = document.createElement('button');
                 chip.className = 'jugada-tab' + (i === jugadaIdx ? ' activa' : '');
                 chip.textContent = j.nombre;
-                chip.title = boardEditable ? 'Clic para abrir · doble clic para renombrar' : j.nombre;
+                chip.title = j.heredada ? j.nombre + ' (dibujada en este partido)' : j.nombre;
                 chip.onclick = () => seleccionarJugada(i);
-                if (boardEditable) {
-                    chip.ondblclick = () => renombrarJugada(i);
-                    if (jugadas.length > 1) {
-                        const x = document.createElement('span');
-                        x.className = 'jugada-del';
-                        x.textContent = '✕';
-                        x.title = 'Borrar jugada';
-                        x.onclick = (e) => { e.stopPropagation(); borrarJugada(i); };
-                        chip.appendChild(x);
-                    }
+                // Desenlazar solo aplica a las de la biblioteca; las heredadas
+                // viven dentro del partido y no se tocan desde acá.
+                if (puedeEnlazar && !j.heredada) {
+                    const x = document.createElement('span');
+                    x.className = 'jugada-del';
+                    x.textContent = '✕';
+                    x.title = 'Quitar del partido';
+                    x.onclick = (e) => { e.stopPropagation(); desenlazar(j.id); };
+                    chip.appendChild(x);
                 }
                 tabs.appendChild(chip);
             });
-            if (boardEditable) {
-                const add = document.createElement('button');
-                add.className = 'jugada-add';
-                add.textContent = '+ Nueva jugada';
-                add.onclick = nuevaJugada;
-                tabs.appendChild(add);
-            }
         }
 
         function seleccionarJugada(i) {
             if (i === jugadaIdx) return;
-            sincronizarActual();
             jugadaIdx = i;
             renderTabs();
             montarBoard();
         }
 
-        function nuevaJugada() {
-            sincronizarActual();
-            jugadas.push({ nombre: 'Jugada ' + (jugadas.length + 1), datos: {} });
-            jugadaIdx = jugadas.length - 1;
-            renderTabs();
-            montarBoard();
-            marcarPizarraSinGuardar();
-            renombrarJugada(jugadaIdx);   // entra directo a nombrarla
+        // Rearma la lista visible = enlazadas (en orden) + heredadas al final
+        function refrescarJugadas(heredadas) {
+            const enlazadas = idsEnlazadas
+                .map(id => tacticasClub.find(t => t.id === id))
+                .filter(Boolean)
+                .map(t => ({ id: t.id, nombre: t.nombre, datos: t.datos || {} }));
+            jugadas = enlazadas.concat(heredadas.filter(tieneContenido));
+            if (jugadaIdx >= jugadas.length) jugadaIdx = 0;
         }
 
-        function borrarJugada(i) {
-            if (jugadas.length <= 1) return;   // siempre queda al menos una
-            if (!confirm(`¿Borrar la jugada "${jugadas[i].nombre}"?`)) return;
-            jugadas.splice(i, 1);
-            if (jugadaIdx > i) jugadaIdx--;
-            else if (jugadaIdx >= jugadas.length) jugadaIdx = jugadas.length - 1;
-            renderTabs();
-            montarBoard();
-            marcarPizarraSinGuardar();
+        function renderSelector() {
+            const sel = document.getElementById('sel-enlazar');
+            const libres = tacticasClub.filter(t => !idsEnlazadas.includes(t.id));
+            sel.innerHTML = '<option value="">+ Enlazar planteo…</option>' +
+                libres.map(t => `<option value="${t.id}">${t.nombre}</option>`).join('');
+            sel.disabled = !libres.length;
         }
 
-        // Renombrar en línea: la pestaña se convierte en un input (Enter guarda,
-        // Esc cancela, al perder foco guarda). Más lindo que un prompt.
-        function renombrarJugada(i) {
-            const tabs = document.getElementById('jugadas-tabs');
-            const chip = tabs.children[i];
-            if (!chip) return;
-            const inp = document.createElement('input');
-            inp.className = 'jugada-edit';
-            inp.value = jugadas[i].nombre;
-            inp.maxLength = 40;
-            inp.setAttribute('aria-label', 'Nombre de la jugada');
-            tabs.replaceChild(inp, chip);
-            inp.focus();
-            inp.select();
-            let listo = false;
-            const cerrar = (guardar) => {
-                if (listo) return;
-                listo = true;
-                if (guardar) {
-                    const n = inp.value.trim();
-                    if (n && n !== jugadas[i].nombre) { jugadas[i].nombre = n; marcarPizarraSinGuardar(); }
-                }
-                renderTabs();
-            };
-            inp.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') { e.preventDefault(); cerrar(true); }
-                else if (e.key === 'Escape') { e.preventDefault(); cerrar(false); }
-            });
-            inp.addEventListener('blur', () => cerrar(true));
-        }
-
-        async function guardarPizarra() {
-            sincronizarActual();
-            const m = document.getElementById('msg-pizarra');
-            const btn = document.getElementById('btn-guardar-pizarra');
-            btn.disabled = true;
-            btn.textContent = 'Guardando…';
+        async function guardarEnlaces() {
             try {
-                await updateDoc(doc(db, "partidos", partidoId), { pizarra: { jugadas } });
-                m.textContent = 'Guardado';
-                m.classList.remove('sin-guardar');
-                m.style.display = 'inline';
+                await updateDoc(doc(db, "partidos", partidoId), { tacticas: idsEnlazadas });
+                mostrarMsg('Guardado');
             } catch (e) {
-                console.error("Error al guardar la pizarra:", e);
-                m.textContent = 'No se pudo guardar';
-                m.classList.add('sin-guardar');
-                m.style.display = 'inline';
-            } finally {
-                btn.disabled = false;
-                btn.textContent = 'Guardar pizarra';
+                console.error("Error al guardar las tácticas del partido:", e);
+                mostrarMsg('No se pudo guardar', true);
             }
         }
 
-        function setupPizarra(partido) {
+        async function enlazar(id) {
+            if (!id || idsEnlazadas.includes(id)) return;
+            idsEnlazadas.push(id);
+            refrescarJugadas(heredadasCache);
+            jugadaIdx = idsEnlazadas.length - 1;
+            renderTabs(); montarBoard(); renderSelector();
+            await guardarEnlaces();
+        }
+
+        async function desenlazar(id) {
+            idsEnlazadas = idsEnlazadas.filter(x => x !== id);
+            refrescarJugadas(heredadasCache);
+            renderTabs(); montarBoard(); renderSelector();
+            await guardarEnlaces();
+        }
+
+        let heredadasCache = [];
+        let puedeEnlazar = false;
+
+        async function setupPizarra(partido) {
             const sec = document.getElementById('seccion-pizarra');
-            const puedePizarra = TL.planes.puedeActual('pizarra');   // Pro / Ultra
+            const puedeTacticas = TL.planes.puedeActual('tacticas');   // Ultra
             equipoNombre = `${(partido.mi_equipo || 'eq1')}-vs-${(partido.rival || 'eq2')}`;
-            jugadas = cargarJugadas(partido);
+            heredadasCache = cargarHeredadas(partido);
+            idsEnlazadas = Array.isArray(partido.tacticas) ? partido.tacticas.slice() : [];
 
-            // Jugadoras: ven las jugadas (solo lectura) si hay algo cargado.
-            if (esJugadora) {
-                const hayContenido = jugadas.some(j => j.datos &&
-                    ((j.datos.objetos || []).length || (j.datos.nombres || []).length));
-                if (!hayContenido) { sec.style.display = 'none'; return; }
-                boardEditable = false;
-                sec.style.display = 'block';
-                jugadaIdx = 0;
-                renderTabs();
-                montarBoard();
-                return;
+            // Enlazar es del cuerpo técnico con plan Ultra; el resto solo mira.
+            puedeEnlazar = !esJugadora && puedeTacticas;
+
+            // La biblioteca la puede leer cualquier miembro del club (para poder
+            // mostrar lo enlazado), así que se carga siempre que haga falta.
+            if (idsEnlazadas.length || puedeEnlazar) {
+                try {
+                    const snap = await getDocs(query(collection(db, 'tacticas'), where('club_id', '==', clubId)));
+                    tacticasClub = [];
+                    snap.forEach(d => tacticasClub.push({ id: d.id, ...d.data() }));
+                    tacticasClub.sort((a, b) => (a.nombre || '').localeCompare(b.nombre || ''));
+                } catch (e) {
+                    console.error('No se pudieron cargar las tácticas del club:', e);
+                }
             }
 
-            // Cuerpo técnico en Free: aviso de upgrade en vez de la pizarra.
-            if (!puedePizarra) {
-                sec.style.display = 'block';
-                document.getElementById('btn-guardar-pizarra').style.display = 'none';
-                document.getElementById('jugadas-tabs').style.display = 'none';
-                document.querySelector('#seccion-pizarra .pizarra-sub').innerHTML =
-                    '🔒 La pizarra táctica es una función del plan <strong>Pro</strong>. ' +
-                    'Hablá con el administrador del club para mejorar el plan.';
-                document.getElementById('board-container').innerHTML = '';
-                return;
-            }
+            refrescarJugadas(heredadasCache);
 
-            // Cuerpo técnico en Pro/Ultra: pizarra editable con varias jugadas.
-            boardEditable = true;
-            if (!jugadas.length) jugadas = [{ nombre: 'Jugada 1', datos: {} }];
+            // Sin nada para mostrar y sin poder enlazar: la sección no aparece.
+            if (!jugadas.length && !puedeEnlazar) { sec.style.display = 'none'; return; }
+
             sec.style.display = 'block';
             jugadaIdx = 0;
             renderTabs();
             montarBoard();
-            document.getElementById('btn-guardar-pizarra').onclick = guardarPizarra;
+
+            if (puedeEnlazar) {
+                document.getElementById('enlazar-wrap').style.display = 'flex';
+                renderSelector();
+                const sel = document.getElementById('sel-enlazar');
+                sel.onchange = () => { const v = sel.value; sel.value = ''; enlazar(v); };
+                if (!tacticasClub.length) {
+                    document.querySelector('#seccion-pizarra .pizarra-sub').innerHTML =
+                        'Todavía no armaste planteos. Creálos en <strong>Entrenamiento → Táctica</strong> y después enlazalos acá.';
+                }
+            } else if (!esJugadora && !puedeTacticas) {
+                document.querySelector('#seccion-pizarra .pizarra-sub').innerHTML =
+                    '🔒 Armar y enlazar planteos tácticos es una función del plan <strong>Ultra</strong>. ' +
+                    'Hablá con el administrador del club para mejorar el plan.';
+            }
         }
 
         async function cargarAnalisis() {
@@ -555,8 +535,9 @@
                     const eq2 = partido.rival || 'Rival';
                     document.getElementById('titulo-partido').textContent = `${eq1} vs ${eq2}`;
 
-                    // Pizarra táctica (la ven todos; la edita el cuerpo técnico)
-                    setupPizarra(partido);
+                    // Táctica del partido: la ven todos en modo lectura; el cuerpo
+                    // técnico (Ultra) además puede enlazar planteos de la biblioteca.
+                    setupPizarra(partido);   // async: no bloquea la carga del video
 
                     videoIdLimpio = TL.youtube.extraerId(partido.youtube_id || partido.video_url || '');
 

@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Táctica - Timeline</title>
+    <link rel="manifest" href="../manifest.json">
+    <link rel="icon" type="image/png" href="../assets/image/logo-web.png">
+    <link rel="apple-touch-icon" href="../assets/image/logo-web.png">
+    <link rel="stylesheet" href="../assets/css/style.css">
+    <script src="../assets/js/utils/tema.js"></script>
+    <script src="../assets/js/utils/planes.js"></script>
+    <style>
+        #upgrade-screen {
+            display: none;
+            text-align: center;
+            padding: 54px 24px;
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+            max-width: 560px;
+            margin: 40px auto;
+        }
+        #upgrade-screen .lock { font-size: 2.2rem; margin-bottom: 10px; }
+        #upgrade-screen h2 { margin: 0 0 8px; }
+        #upgrade-screen p { color: var(--muted); margin: 0; line-height: 1.6; }
+
+        .tac-layout { display: flex; flex-direction: column; gap: 18px; }
+
+        /* Lista de tácticas guardadas */
+        .tac-lista { display: flex; flex-wrap: wrap; gap: 8px; }
+        .tac-chip {
+            display: inline-flex; align-items: center; gap: 8px;
+            background: var(--panel-2); border: 1px solid var(--line);
+            color: var(--muted); border-radius: 999px;
+            padding: 7px 14px; font-size: 0.88rem; cursor: pointer;
+            transition: background 0.15s, color 0.15s, border-color 0.15s;
+        }
+        .tac-chip:hover { background: var(--panel-3); color: var(--text); }
+        .tac-chip.activa { background: var(--accent-dim); border-color: var(--accent-line); color: var(--accent); font-weight: 600; }
+        .tac-chip .tac-borrar {
+            background: none; border: none; color: inherit; cursor: pointer;
+            opacity: 0.55; font-size: 1rem; line-height: 1; padding: 0; width: auto;
+        }
+        .tac-chip .tac-borrar:hover { opacity: 1; color: var(--danger); }
+
+        .tac-vacio { color: var(--muted); font-size: 0.9rem; }
+
+        .tac-editor-head {
+            display: flex; justify-content: space-between; align-items: flex-end;
+            gap: 12px; flex-wrap: wrap; margin-bottom: 14px;
+        }
+        .tac-campos { display: flex; gap: 12px; flex-wrap: wrap; flex: 1; min-width: 260px; }
+        .tac-campos .form-group { margin: 0; flex: 1; min-width: 180px; }
+        .tac-acciones { display: flex; gap: 10px; align-items: center; }
+        #msg-tactica { font-size: 0.82rem; font-weight: 600; color: var(--live); }
+        #msg-tactica.sin-guardar { color: var(--accent); }
+
+        .btn-guardar {
+            background: var(--accent); color: var(--accent-ink); border: none;
+            padding: 10px 18px; border-radius: var(--radius-sm);
+            font-weight: 700; cursor: pointer; width: auto; font-family: inherit;
+        }
+        .btn-guardar:hover { filter: brightness(1.08); }
+        .btn-guardar:disabled { opacity: 0.6; cursor: default; }
+        .btn-secundario {
+            background: var(--panel-2); color: var(--text); border: 1px solid var(--line-2);
+            padding: 10px 18px; border-radius: var(--radius-sm);
+            font-weight: 600; cursor: pointer; width: auto; font-family: inherit;
+        }
+        .btn-secundario:hover { background: var(--panel-3); }
+    </style>
+</head>
+
+<body>
+
+    <div id="sidebar-root" data-active="tacticas"></div>
+    <script src="../assets/js/components/ui.js"></script>
+
+    <div class="container-dashboard">
+
+        <!-- Pantalla de upgrade si el club no es Ultra -->
+        <div id="upgrade-screen">
+            <div class="lock">🔒</div>
+            <h2>Táctica</h2>
+            <p>Armar planteos tácticos y enlazarlos a los partidos es una función del plan <strong>Ultra</strong>.
+               Hablá con el administrador del club para mejorar el plan.</p>
+        </div>
+
+        <div id="tac-app" style="display:none;">
+            <div class="header-stats" style="border:none; margin-bottom:18px;">
+                <div>
+                    <div class="eyebrow">Ultra · Entrenamiento</div>
+                    <h2>Táctica</h2>
+                    <p class="subtitle">Armá los planteos una vez y enlazalos a los partidos que quieras.
+                        En el partido se ven en modo lectura, con la cancha limpia.</p>
+                </div>
+            </div>
+
+            <div class="tac-layout">
+                <div class="card">
+                    <h2>Planteos del club</h2>
+                    <div class="tac-lista" id="tac-lista">
+                        <p class="tac-vacio">Cargando…</p>
+                    </div>
+                    <button class="btn-secundario" id="btn-nueva" style="margin-top: 14px;">+ Nuevo planteo</button>
+                </div>
+
+                <div class="card" id="tac-editor" style="display:none;">
+                    <div class="tac-editor-head">
+                        <div class="tac-campos">
+                            <div class="form-group">
+                                <label for="tac-nombre">Nombre</label>
+                                <input type="text" id="tac-nombre" placeholder="Ej: Salida de corner corto">
+                            </div>
+                            <div class="form-group">
+                                <label for="tac-desc">Descripción (opcional)</label>
+                                <input type="text" id="tac-desc" placeholder="Ej: Variante con bloqueo al primer palo">
+                            </div>
+                        </div>
+                        <div class="tac-acciones">
+                            <span id="msg-tactica"></span>
+                            <button class="btn-guardar" id="btn-guardar-tactica">Guardar</button>
+                        </div>
+                    </div>
+
+                    <div id="board-container"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="../assets/js/components/canchaBoard.js"></script>
+    <script type="module">
+        import {
+            db, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, where
+        } from '../assets/js/firebase.js';
+
+        const uid = sessionStorage.getItem('usuarioUID');
+        const clubId = sessionStorage.getItem('clubID');
+        const rol = sessionStorage.getItem('userRole');
+        if (!uid || !clubId) window.location.href = "login.html";
+
+        // Acceso: plan Ultra + solo cuerpo técnico (entrenadora/coordinadora/admin)
+        const esEntrenador = rol === 'trainer' || rol === 'coordinator' || rol === 'club-admin';
+        const up = document.getElementById('upgrade-screen');
+        if (!TL.planes.puedeActual('tacticas')) {
+            up.style.display = 'block';
+        } else if (!esEntrenador) {
+            up.querySelector('h2').textContent = 'Solo para el cuerpo técnico';
+            up.querySelector('p').innerHTML = 'Los planteos tácticos los arma el <strong>cuerpo técnico</strong>. Tu usuario no tiene acceso.';
+            up.style.display = 'block';
+        } else {
+            document.getElementById('tac-app').style.display = 'block';
+            iniciar();
+        }
+
+        function iniciar() {
+            const lista = document.getElementById('tac-lista');
+            const editor = document.getElementById('tac-editor');
+            const inpNombre = document.getElementById('tac-nombre');
+            const inpDesc = document.getElementById('tac-desc');
+            const msg = document.getElementById('msg-tactica');
+            const btnGuardar = document.getElementById('btn-guardar-tactica');
+
+            let tacticas = [];      // [{ id, nombre, descripcion, datos }]
+            let actualId = null;    // id de la táctica abierta (null = nueva sin guardar)
+            let board = null;
+
+            function marcarSinGuardar() {
+                msg.textContent = 'Sin guardar';
+                msg.classList.add('sin-guardar');
+            }
+            function marcarGuardado(txt) {
+                msg.textContent = txt || 'Guardado';
+                msg.classList.remove('sin-guardar');
+                setTimeout(() => { if (!msg.classList.contains('sin-guardar')) msg.textContent = ''; }, 2500);
+            }
+
+            function abrirEditor(t) {
+                actualId = t && t.id ? t.id : null;
+                inpNombre.value = (t && t.nombre) || '';
+                inpDesc.value = (t && t.descripcion) || '';
+                editor.style.display = 'block';
+                msg.textContent = '';
+                msg.classList.remove('sin-guardar');
+
+                const nombreGif = `tactica-${(t && t.nombre) || 'nueva'}`;
+                board = TL.canchaBoard.crear(document.getElementById('board-container'), { editable: true, nombre: nombreGif });
+                board.setDatos((t && t.datos) || {});
+                board.onChange = marcarSinGuardar;
+
+                pintarLista();
+            }
+
+            function pintarLista() {
+                if (!tacticas.length) {
+                    lista.innerHTML = '<p class="tac-vacio">Todavía no armaste ningún planteo. Empezá con “Nuevo planteo”.</p>';
+                    return;
+                }
+                lista.innerHTML = '';
+                tacticas.forEach(t => {
+                    const chip = document.createElement('span');
+                    chip.className = 'tac-chip' + (t.id === actualId ? ' activa' : '');
+                    chip.title = t.descripcion || t.nombre;
+
+                    const txt = document.createElement('span');
+                    txt.textContent = t.nombre;
+                    txt.addEventListener('click', () => abrirEditor(t));
+                    chip.appendChild(txt);
+
+                    const del = document.createElement('button');
+                    del.className = 'tac-borrar';
+                    del.textContent = '×';
+                    del.title = 'Borrar planteo';
+                    del.addEventListener('click', async (e) => {
+                        e.stopPropagation();
+                        if (!confirm(`¿Borrar el planteo "${t.nombre}"? Los partidos que lo tengan enlazado dejarán de mostrarlo.`)) return;
+                        try {
+                            await deleteDoc(doc(db, 'tacticas', t.id));
+                            tacticas = tacticas.filter(x => x.id !== t.id);
+                            if (actualId === t.id) { actualId = null; editor.style.display = 'none'; }
+                            pintarLista();
+                        } catch (err) {
+                            console.error('Error al borrar la táctica:', err);
+                            alert('No se pudo borrar el planteo.');
+                        }
+                    });
+                    chip.appendChild(del);
+
+                    lista.appendChild(chip);
+                });
+            }
+
+            btnGuardar.addEventListener('click', async () => {
+                const nombre = inpNombre.value.trim();
+                if (!nombre) { inpNombre.focus(); return marcarSinGuardar(); }
+
+                btnGuardar.disabled = true;
+                btnGuardar.textContent = 'Guardando…';
+                try {
+                    const payload = {
+                        club_id: clubId,
+                        nombre,
+                        descripcion: inpDesc.value.trim(),
+                        datos: board.getDatos(),
+                        actualizado_en: new Date()
+                    };
+
+                    if (actualId) {
+                        await updateDoc(doc(db, 'tacticas', actualId), payload);
+                        const t = tacticas.find(x => x.id === actualId);
+                        if (t) Object.assign(t, payload);
+                    } else {
+                        const ref = await addDoc(collection(db, 'tacticas'), {
+                            ...payload, creado_por: uid, creado_en: new Date()
+                        });
+                        actualId = ref.id;
+                        tacticas.push({ id: ref.id, ...payload });
+                    }
+                    marcarGuardado();
+                    pintarLista();
+                } catch (e) {
+                    console.error('Error al guardar la táctica:', e);
+                    msg.textContent = 'No se pudo guardar';
+                    msg.classList.add('sin-guardar');
+                } finally {
+                    btnGuardar.disabled = false;
+                    btnGuardar.textContent = 'Guardar';
+                }
+            });
+
+            document.getElementById('btn-nueva').addEventListener('click', () => abrirEditor(null));
+
+            (async function cargar() {
+                try {
+                    const snap = await getDocs(query(collection(db, 'tacticas'), where('club_id', '==', clubId)));
+                    tacticas = [];
+                    snap.forEach(d => tacticas.push({ id: d.id, ...d.data() }));
+                    tacticas.sort((a, b) => (a.nombre || '').localeCompare(b.nombre || ''));
+                    pintarLista();
+                } catch (e) {
+                    console.error('Error al cargar tácticas:', e);
+                    lista.innerHTML = '<p class="tac-vacio">No se pudieron cargar los planteos.</p>';
+                }
+            })();
+        }
+    </script>
+</body>
+
+</html>

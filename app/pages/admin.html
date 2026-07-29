@@ -980,6 +980,8 @@
                 // resumen previo). Si quedara alguno activo, cualquiera con ese
                 // link podría darse de alta en un club que ya no existe.
                 const invitaciones = await contarPorClub('invitaciones', clubId);
+                // Los planteos tácticos también son del club
+                const tacticas = await contarPorClub('tacticas', clubId);
 
                 // Emails de las cuentas de acceso a borrar a mano (ver más abajo)
                 const emails = datos.usuarios.map(u => u.email).filter(Boolean);
@@ -991,6 +993,7 @@
                 datos.ejercicios.forEach(id => refs.push(doc(db, 'ejercicios', id)));
                 datos.entrenamientos.forEach(id => refs.push(doc(db, 'entrenamientos', id)));
                 invitaciones.forEach(id => refs.push(doc(db, 'invitaciones', id)));
+                tacticas.forEach(id => refs.push(doc(db, 'tacticas', id)));
                 refs.push(doc(db, 'facturacion', clubId));
                 refs.push(doc(db, 'estadisticas', clubId));
                 // El doc del club va último, así si algo falla antes no queda huérfano el club

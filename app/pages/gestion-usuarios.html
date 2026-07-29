@@ -394,7 +394,9 @@
                 <p style="color: var(--muted); margin-bottom: 15px;">
                     Generá un link y pasáselo a quien quieras sumar: cada persona crea su propia cuenta
                     con su correo y contraseña, y entra directo a este club con el rol que elijas acá.
-                    El mismo link sirve para varias personas y lo podés desactivar cuando quieras.
+                    El de <strong>jugadora</strong> es reutilizable (sirve para todo el plantel);
+                    los roles pagos son de <strong>un solo uso</strong> y se queman al usarse.
+                    Cualquiera lo podés desactivar o borrar cuando quieras.
                 </p>
 
                 <div class="form-row">
@@ -1121,6 +1123,10 @@
 
                 try {
                     const token = generarToken();
+                    // Los roles pagos van de un solo uso: el link se quema al
+                    // usarse, así no se comparte y suma gente sin querer. El de
+                    // jugadora (que no se cobra) sirve para todo el plantel.
+                    const unSoloUso = rol !== 'player';
                     // club_nombre queda copiado acá a propósito: quien abre el link
                     // todavía no tiene permiso para leer 'clubes', así que sin esta
                     // copia no habría forma de mostrarle a qué club lo invitaron.
@@ -1131,12 +1137,15 @@
                         rol,
                         nota,
                         activa: true,
+                        un_solo_uso: unSoloUso,
                         usos: 0,
                         creado_por: sessionStorage.getItem('usuarioUID') || '',
                         creado_en: new Date()
                     });
 
-                    showMessage(mensajeDiv, 'Link generado. Copialo y pasáselo a quien quieras sumar.', 'exito');
+                    showMessage(mensajeDiv, unSoloUso
+                        ? 'Link generado. Es de un solo uso: sirve para una sola persona.'
+                        : 'Link generado. Podés pasárselo a todo el plantel.', 'exito');
                     document.getElementById('inv-nota').value = '';
                     loadInvitaciones();
                 } catch (error) {
@@ -1172,13 +1181,20 @@
                 container.innerHTML = items.map(inv => {
                     const url = urlInvitacion(inv.token);
                     const rolLabel = ROLES_INV[inv.rol] || inv.rol;
-                    const estado = inv.activa
-                        ? '<span class="role-badge role-analyst">Activo</span>'
-                        : '<span class="role-badge role-player">Desactivado</span>';
+                    // Un link de un solo uso ya usado queda gastado aunque siga "activo"
+                    const gastado = inv.un_solo_uso && (inv.usos || 0) >= 1;
+                    const estado = !inv.activa
+                        ? '<span class="role-badge role-player">Desactivado</span>'
+                        : gastado
+                            ? '<span class="role-badge role-player">Ya usado</span>'
+                            : '<span class="role-badge role-analyst">Activo</span>';
+                    const tipo = inv.un_solo_uso
+                        ? '<span class="role-badge role-coordinator">Un solo uso</span>'
+                        : '<span class="role-badge role-trainer">Reutilizable</span>';
                     return `
                         <div class="user-item">
                             <div class="user-info" style="min-width: 0;">
-                                <h4>${rolLabel} ${estado}</h4>
+                                <h4>${rolLabel} ${estado} ${tipo}</h4>
                                 ${inv.nota ? `<p><strong>Nota:</strong> ${inv.nota}</p>` : ''}
                                 <p><strong>Usos:</strong> ${inv.usos || 0}</p>
                                 <p style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--faint); word-break: break-all;">${url}</p>

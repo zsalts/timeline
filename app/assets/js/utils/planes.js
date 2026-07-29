@@ -55,6 +55,7 @@ window.TL.planes = (function () {
             incluye: [
                 'entrenamientos',    // cargar sesiones de entrenamiento
                 'editor_cancha',     // editor de cancha con conos/pelotas/jugadoras
+                'tacticas',          // biblioteca de planteos tácticos enlazables a partidos
                 'multi_equipo',      // multi-equipo / multi-categoría bajo un club
                 'resumen_auto',      // resumen automático del partido
                 'export_jugadora',   // reportes de jugadora individual exportables

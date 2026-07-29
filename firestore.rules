@@ -64,10 +64,20 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/invitaciones/$(token)).data;
     }
 
+    // Contador de usos de la invitación DESPUÉS de aplicar el batch actual
+    function invitacionUsosDespues(token) {
+      return getAfter(/databases/$(database)/documents/invitaciones/$(token)).data.usos;
+    }
+
     // ¿El doc de usuario que se está creando corresponde a un alta por link?
     // El usuario recién registrado se crea SU propio doc, y club_id y rol
     // tienen que coincidir exactamente con los de una invitación activa. El
     // token queda guardado en el doc para que la regla lo pueda verificar.
+    //
+    // El alta tiene que venir en un batch que además incremente el contador
+    // de usos de la invitación. Eso es lo que hace cumplir el "un solo uso":
+    // se mira el contador YA incrementado (getAfter), así dos altas en
+    // paralelo no pueden colarse las dos por el mismo link.
     function altaPorInvitacion(userId) {
       return request.auth != null &&
              request.auth.uid == userId &&
@@ -75,7 +85,12 @@ service cloud.firestore {
              exists(/databases/$(database)/documents/invitaciones/$(request.resource.data.invitacion)) &&
              invitacionDoc(request.resource.data.invitacion).activa == true &&
              invitacionDoc(request.resource.data.invitacion).club_id == request.resource.data.club_id &&
-             invitacionDoc(request.resource.data.invitacion).rol == request.resource.data.rol;
+             invitacionDoc(request.resource.data.invitacion).rol == request.resource.data.rol &&
+             invitacionUsosDespues(request.resource.data.invitacion) ==
+               invitacionDoc(request.resource.data.invitacion).get('usos', 0) + 1 &&
+             // Link de un solo uso: con el incremento aplicado no puede pasar de 1
+             (invitacionDoc(request.resource.data.invitacion).get('un_solo_uso', false) == false ||
+              invitacionUsosDespues(request.resource.data.invitacion) <= 1);
     }
 
     // ============================================
@@ -295,6 +310,34 @@ service cloud.firestore {
         clubDoc(userDoc().club_id).get('plan', 'free') == 'ultra';
 
       // Borrar: entrenador/admin del mismo club (aunque haya bajado de plan),
+      // o super-admin (borrado del club)
+      allow delete: if isSuper() ||
+        (esEntrenador() && userDoc().club_id == resource.data.club_id);
+    }
+
+    // ============================================
+    // COLECCIÓN: tacticas (planteos tácticos — plan Ultra)
+    // Biblioteca del club: se arman una vez y se enlazan a los partidos que
+    // haga falta, en vez de redibujarlos dentro de cada partido.
+    // ============================================
+    match /tacticas/{tacticaId} {
+      // Leer: cualquier miembro del club, incluidas las jugadoras. Es a
+      // propósito: en el partido la táctica se les muestra en modo lectura.
+      allow read: if isSuper() ||
+        (userExists() && userDoc().club_id == resource.data.club_id);
+
+      // Crear: entrenador/coordinador/admin del club, y el club debe ser Ultra.
+      allow create: if esEntrenador() &&
+        request.resource.data.club_id == userDoc().club_id &&
+        clubDoc(userDoc().club_id).get('plan', 'free') == 'ultra';
+
+      // Actualizar: cuerpo técnico del mismo club (Ultra), sin cambiar de club
+      allow update: if esEntrenador() &&
+        resource.data.club_id == userDoc().club_id &&
+        request.resource.data.club_id == userDoc().club_id &&
+        clubDoc(userDoc().club_id).get('plan', 'free') == 'ultra';
+
+      // Borrar: cuerpo técnico del mismo club (aunque haya bajado de plan),
       // o super-admin (borrado del club)
       allow delete: if isSuper() ||
         (esEntrenador() && userDoc().club_id == resource.data.club_id);

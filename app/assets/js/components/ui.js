@@ -55,6 +55,7 @@
         comparar: '<rect x="3" y="4" width="7" height="16" rx="1"/><rect x="14" y="4" width="7" height="16" rx="1"/>',
         entrenamientos: '<path d="M6.5 6.5 17.5 17.5"/><path d="M21 21l-1-1"/><path d="M3 3l1 1"/><path d="M18 9l3-3-3-3"/><path d="M6 15l-3 3 3 3"/><path d="M9 18l6-6"/>',
         ejercicios: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M12 4v16"/><circle cx="12" cy="12" r="2.5"/>',
+        tacticas: '<circle cx="6" cy="7" r="2"/><circle cx="18" cy="7" r="2"/><circle cx="12" cy="17" r="2"/><path d="M7.6 8.5 10.8 15.4"/><path d="M16.4 8.5 13.2 15.4"/>',
         video: '<rect x="2" y="4" width="20" height="16" rx="2"/><path d="M10 9l5 3-5 3z"/>',
         estadisticas: '<path d="M3 3v18h18"/><rect x="7" y="12" width="3" height="6"/><rect x="12" y="8" width="3" height="10"/><rect x="17" y="5" width="3" height="13"/>',
         usuarios: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'
@@ -78,7 +79,8 @@
         grupos.push({
             titulo: 'Entrenamiento', items: [
                 { id: 'entrenamientos', href: `${toPage}entrenamientos.html`, label: 'Entrenamientos' },
-                { id: 'ejercicios', href: `${toPage}ejercicios.html`, label: 'Ejercicios' }
+                { id: 'ejercicios', href: `${toPage}ejercicios.html`, label: 'Ejercicios' },
+                { id: 'tacticas', href: `${toPage}tacticas.html`, label: 'Táctica' }
             ]
         });
     }

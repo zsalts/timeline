@@ -207,7 +207,7 @@
     <script type="module">
         import {
             auth, db, createUserWithEmailAndPassword,
-            doc, getDoc, setDoc, updateDoc, increment, guardarSesionRecordada
+            doc, getDoc, writeBatch, increment, guardarSesionRecordada
         } from '../assets/js/firebase.js';
 
         const msjError = document.getElementById('mensaje-error');
@@ -255,6 +255,12 @@
                     sub.textContent = 'Invitación desactivada.';
                     return error('Este link ya no está activo. Pedile al club que te genere uno nuevo.');
                 }
+                // Los links de roles pagos son de un solo uso: si ya lo usaron, ni
+                // mostramos el formulario (igual la regla lo frenaría al guardar).
+                if (invitacion.un_solo_uso && (invitacion.usos || 0) >= 1) {
+                    sub.textContent = 'Invitación ya utilizada.';
+                    return error('Este link era de un solo uso y ya lo usaron. Pedile al club uno nuevo.');
+                }
 
                 document.getElementById('invite-club').textContent = invitacion.club_nombre || 'Tu club';
                 document.getElementById('invite-rol').textContent = ROLES[invitacion.rol] || invitacion.rol;
@@ -291,10 +297,14 @@
                 const cred = await createUserWithEmailAndPassword(auth, email, password);
                 const uid = cred.user.uid;
 
-                // 2. Crear el doc de usuario. Guardamos el token de la invitación
-                // porque la regla de Firestore lo relee para confirmar que club_id
-                // y rol son los que fijó el admin (no los elige quien se registra).
-                await setDoc(doc(db, 'usuarios', uid), {
+                // 2. Crear el doc de usuario Y sumar el uso de la invitación en un
+                // solo batch. Va junto a propósito: la regla mira el contador ya
+                // incrementado (getAfter) para hacer cumplir el "un solo uso", así
+                // dos personas no pueden entrar a la vez con el mismo link.
+                // Guardamos el token porque la regla lo relee para confirmar que
+                // club_id y rol son los que fijó el admin.
+                const batch = writeBatch(db);
+                batch.set(doc(db, 'usuarios', uid), {
                     email,
                     club_id: invitacion.club_id,
                     rol: invitacion.rol,
@@ -302,6 +312,8 @@
                     estado: 'activo',
                     invitacion: token
                 });
+                batch.update(doc(db, 'invitaciones', token), { usos: increment(1) });
+                await batch.commit();
 
                 // 3. Recién ahora, con el doc de usuario creado, se puede leer el
                 // club (antes las reglas lo bloquean porque userExists() es false).
@@ -314,13 +326,7 @@
                     }
                 } catch (_) { /* si falla, quedan los datos de la invitación */ }
 
-                // 4. Contador de usos, para que el admin vea cuánta gente entró.
-                // Es informativo: si falla, el alta ya está hecha igual.
-                try {
-                    await updateDoc(doc(db, 'invitaciones', token), { usos: increment(1) });
-                } catch (_) { /* no bloquea el alta */ }
-
-                // 5. Dejar la sesión lista y entrar
+                // 4. Dejar la sesión lista y entrar
                 sessionStorage.setItem('usuarioUID', uid);
                 sessionStorage.setItem('userEmail', email);
                 sessionStorage.setItem('clubID', invitacion.club_id);
@@ -346,7 +352,10 @@
                 } else if (code === 'auth/weak-password') {
                     error('La contraseña es muy débil (mínimo 6 caracteres).');
                 } else if (code === 'permission-denied') {
-                    error('La invitación ya no es válida. Pedile al club un link nuevo.');
+                    // Caso típico: link de un solo uso que alguien ya usó
+                    error(invitacion && invitacion.un_solo_uso
+                        ? 'Este link era de un solo uso y ya lo usaron. Pedile al club uno nuevo.'
+                        : 'La invitación ya no es válida. Pedile al club un link nuevo.');
                 } else {
                     error('No se pudo completar el alta. Revisá tu conexión e intentá de nuevo.');
                 }

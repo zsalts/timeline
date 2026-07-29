@@ -244,7 +244,7 @@
         if (!uid || !clubId) window.location.href = "login.html";
 
         // Acceso: plan Ultra + solo entrenadores (y admin del club).
-        const esEntrenador = rol === 'trainer' || rol === 'club-admin';
+        const esEntrenador = rol === 'trainer' || rol === 'coordinator' || rol === 'club-admin';
         const up = document.getElementById('upgrade-screen');
         if (!TL.planes.puedeActual('editor_cancha')) {
             up.style.display = 'block';
