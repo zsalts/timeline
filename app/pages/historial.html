@@ -7,12 +7,14 @@
     <title>Historial - Timeline Analytics</title>
 
     <link rel="manifest" href="../manifest.json">
+    <link rel="icon" type="image/svg+xml" href="../assets/image/logo-icon.svg">
     <link rel="icon" type="image/png" href="../assets/image/logo-web.png">
     <link rel="apple-touch-icon" href="../assets/image/logo-web.png">
     <meta name="theme-color" content="#0B0E13">
 
     <link rel="stylesheet" href="../assets/css/style.css">
     <script src="../assets/js/utils/tema.js"></script>
+    <script src="../assets/js/utils/html.js"></script>
     <script src="../assets/js/components/timeline.js"></script>
     <style>
         .buscador-row { margin-top: 2px; }
@@ -183,7 +185,7 @@
 
             card.innerHTML = `
                 <div class="match-top">
-                    <div class="match-torneo">${partido.torneo || 'Amistoso'} ${badge}</div>
+                    <div class="match-torneo">${TL.esc(partido.torneo || 'Amistoso')} ${badge}</div>
                     <div class="match-acciones">
                         <button class="icon-btn btn-importante ${esImportante ? 'on' : ''}" title="Marcar como prioritario">${estrella}</button>
                         <button class="icon-btn btn-editar" title="Editar">✎</button>
@@ -191,12 +193,12 @@
                     </div>
                 </div>
                 <div class="match-teams">
-                    <div class="match-eq1">${equipo1}</div>
+                    <div class="match-eq1">${TL.esc(equipo1)}</div>
                     <div class="match-vs">vs</div>
-                    <div class="match-eq2">${equipo2}</div>
+                    <div class="match-eq2">${TL.esc(equipo2)}</div>
                 </div>
                 <div class="match-meta">
-                    <span class="match-fecha">${partido.fecha || 'Sin fecha'}</span>
+                    <span class="match-fecha">${TL.esc(partido.fecha || 'Sin fecha')}</span>
                     <span class="match-count"><b>${res.total}</b> cortes · ${res.categorias} cat</span>
                 </div>
                 <div class="tl-slot"></div>
@@ -285,18 +287,18 @@
 
             card.innerHTML = `
                 <div class="match-top">
-                    <div class="match-torneo">DE: ${item.de_email || 'otra cuenta'}</div>
+                    <div class="match-torneo">DE: ${TL.esc(item.de_email || 'otra cuenta')}</div>
                     <div class="match-acciones">
                         <button class="icon-btn btn-quitar" title="Quitar de mi historial">✕</button>
                     </div>
                 </div>
                 <div class="match-teams">
-                    <div class="match-eq1">${item.mi_equipo || 'Equipo 1'}</div>
+                    <div class="match-eq1">${TL.esc(item.mi_equipo || 'Equipo 1')}</div>
                     <div class="match-vs">vs</div>
-                    <div class="match-eq2">${item.rival || 'Equipo 2'}</div>
+                    <div class="match-eq2">${TL.esc(item.rival || 'Equipo 2')}</div>
                 </div>
                 <div class="match-meta">
-                    <span class="match-fecha">${item.fecha || 'Sin fecha'}</span>
+                    <span class="match-fecha">${TL.esc(item.fecha || 'Sin fecha')}</span>
                     <span class="match-count"><b>${res.total}</b> cortes · ${res.categorias} cat</span>
                 </div>
                 <div class="tl-slot"></div>

@@ -6,10 +6,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Estadísticas - Timeline</title>
     <link rel="manifest" href="../manifest.json">
+    <link rel="icon" type="image/svg+xml" href="../assets/image/logo-icon.svg">
     <link rel="icon" type="image/png" href="../assets/image/logo-web.png">
     <link rel="apple-touch-icon" href="../assets/image/logo-web.png">
     <link rel="stylesheet" href="../assets/css/style.css">
     <script src="../assets/js/utils/tema.js"></script>
+    <script src="../assets/js/utils/html.js"></script>
     <!-- planes.js antes de ui.js para gatear el export según el plan -->
     <script src="../assets/js/utils/planes.js"></script>
     <!-- html2canvas: exportar el tablero como imagen (función Pro) -->
@@ -266,9 +268,9 @@
                 b.style.cssText = 'display:flex; align-items:center; gap:12px; padding:6px 2px 14px; margin-bottom:10px; border-bottom:1px solid var(--line);';
                 const fecha = new Date().toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' });
                 b.innerHTML = `
-                    ${club.logo ? `<img src="${club.logo}" style="width:36px; height:36px; object-fit:contain; background:#fff; border-radius:8px; padding:3px;">` : ''}
+                    ${club.logo ? `<img src="${TL.esc(club.logo)}" style="width:36px; height:36px; object-fit:contain; background:#fff; border-radius:8px; padding:3px;">` : ''}
                     <div style="text-align:left;">
-                        <div style="font-weight:800; font-size:1.02rem; color:var(--text); line-height:1.1;">${club.nombre || 'Timeline'}</div>
+                        <div style="font-weight:800; font-size:1.02rem; color:var(--text); line-height:1.1;">${TL.esc(club.nombre || 'Timeline')}</div>
                         <div style="font-size:0.72rem; color:var(--muted); font-family:var(--font-mono); letter-spacing:0.04em;">REPORTE DE ANÁLISIS · ${fecha}</div>
                     </div>`;
                 return b;
@@ -676,7 +678,7 @@
 
             const strip = `
                 <div class="marcador-strip">
-                    <div class="head-lados"><span class="l-fav">${eqG1} · a favor</span><span class="l-con">en contra · ${eqG2}</span></div>
+                    <div class="head-lados"><span class="l-fav">${TL.esc(eqG1)} · a favor</span><span class="l-con">en contra · ${TL.esc(eqG2)}</span></div>
                     ${tile('Posesión', mx.posFavor + '%', mx.posContra + '%')}
                     ${tile('Goles', mx.goles.favor, mx.goles.contra)}
                     ${tile('Córners cortos', mx.cortos.favor, mx.cortos.contra)}

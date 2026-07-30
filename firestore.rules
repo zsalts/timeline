@@ -40,14 +40,26 @@ service cloud.firestore {
               request.resource.data.partidos_count == resource.data.get('partidos_count', 0) - 1);
     }
 
-    // Tope de partidos según el plan. Pro/Ultra: sin límite. Free: el contador
-    // del club (tras el incremento atómico del batch de creación) no puede pasar
+    // Plan del club ('free' si el club es viejo y no tiene el campo).
+    function planDelClub(clubId) {
+      return clubDoc(clubId).get('plan', 'free');
+    }
+
+    // ¿El plan del club incluye entrenamiento y táctica? (Pizarrón y Ultra).
+    function planConTactica(clubId) {
+      return planDelClub(clubId) == 'pizarron' || planDelClub(clubId) == 'ultra';
+    }
+
+    // Tope de partidos según el plan. Pizarrón: ninguno (es un plan solo de
+    // entrenamiento y táctica). Pro/Ultra: sin límite. Free: el contador del
+    // club (tras el incremento atómico del batch de creación) no puede pasar
     // 10. Exige que la creación incremente el contador en 1, así no se puede
     // crear un partido "suelto" salteando el tope.
     function dentroDelTopePartidos(clubId) {
-      return clubDoc(clubId).get('plan', 'free') != 'free' ||
-             (getAfter(/databases/$(database)/documents/clubes/$(clubId)).data.partidos_count == clubDoc(clubId).get('partidos_count', 0) + 1 &&
-              getAfter(/databases/$(database)/documents/clubes/$(clubId)).data.partidos_count <= 10);
+      return planDelClub(clubId) != 'pizarron' &&
+             (planDelClub(clubId) != 'free' ||
+              (getAfter(/databases/$(database)/documents/clubes/$(clubId)).data.partidos_count == clubDoc(clubId).get('partidos_count', 0) + 1 &&
+               getAfter(/databases/$(database)/documents/clubes/$(clubId)).data.partidos_count <= 10));
     }
 
     // ¿El usuario es del cuerpo técnico? (entrenador, coordinador o admin).
@@ -299,23 +311,23 @@ service cloud.firestore {
     }
 
     // ============================================
-    // COLECCIÓN: entrenamientos (sesiones — plan Ultra)
+    // COLECCIÓN: entrenamientos (sesiones — planes Pizarrón/Ultra)
     // ============================================
     match /entrenamientos/{entId} {
       // Leer: solo el cuerpo técnico del club (entrenador o admin)
       allow read: if isSuper() ||
         (esEntrenador() && userDoc().club_id == resource.data.club_id);
 
-      // Crear: entrenador/admin del club, y el club debe ser Ultra.
+      // Crear: entrenador/admin del club, y el club debe tener un plan con táctica (Pizarrón/Ultra).
       allow create: if esEntrenador() &&
         request.resource.data.club_id == userDoc().club_id &&
-        clubDoc(userDoc().club_id).get('plan', 'free') == 'ultra';
+        planConTactica(userDoc().club_id);
 
-      // Actualizar: entrenador/admin del mismo club (Ultra), sin cambiar de club
+      // Actualizar: entrenador/admin del mismo club (con plan táctico), sin cambiar de club
       allow update: if esEntrenador() &&
         resource.data.club_id == userDoc().club_id &&
         request.resource.data.club_id == userDoc().club_id &&
-        clubDoc(userDoc().club_id).get('plan', 'free') == 'ultra';
+        planConTactica(userDoc().club_id);
 
       // Borrar: entrenador/admin del mismo club, o super-admin (borrado del club)
       allow delete: if isSuper() ||
@@ -323,23 +335,23 @@ service cloud.firestore {
     }
 
     // ============================================
-    // COLECCIÓN: ejercicios (editor de cancha — plan Ultra)
+    // COLECCIÓN: ejercicios (editor de cancha — planes Pizarrón/Ultra)
     // ============================================
     match /ejercicios/{ejId} {
       // Leer: solo el cuerpo técnico del club (entrenador o admin)
       allow read: if isSuper() ||
         (esEntrenador() && userDoc().club_id == resource.data.club_id);
 
-      // Crear: entrenador/admin del club, y el club debe ser Ultra.
+      // Crear: entrenador/admin del club, y el club debe tener un plan con táctica (Pizarrón/Ultra).
       allow create: if esEntrenador() &&
         request.resource.data.club_id == userDoc().club_id &&
-        clubDoc(userDoc().club_id).get('plan', 'free') == 'ultra';
+        planConTactica(userDoc().club_id);
 
-      // Actualizar: entrenador/admin del mismo club (Ultra), sin cambiar de club
+      // Actualizar: entrenador/admin del mismo club (con plan táctico), sin cambiar de club
       allow update: if esEntrenador() &&
         resource.data.club_id == userDoc().club_id &&
         request.resource.data.club_id == userDoc().club_id &&
-        clubDoc(userDoc().club_id).get('plan', 'free') == 'ultra';
+        planConTactica(userDoc().club_id);
 
       // Borrar: entrenador/admin del mismo club (aunque haya bajado de plan),
       // o super-admin (borrado del club)
@@ -427,7 +439,7 @@ service cloud.firestore {
     }
 
     // ============================================
-    // COLECCIÓN: tacticas (planteos tácticos — plan Ultra)
+    // COLECCIÓN: tacticas (planteos tácticos — planes Pizarrón/Ultra)
     // Biblioteca del club: se arman una vez y se enlazan a los partidos que
     // haga falta, en vez de redibujarlos dentro de cada partido.
     // ============================================
@@ -437,16 +449,16 @@ service cloud.firestore {
       allow read: if isSuper() ||
         (userExists() && userDoc().club_id == resource.data.club_id);
 
-      // Crear: entrenador/coordinador/admin del club, y el club debe ser Ultra.
+      // Crear: entrenador/coordinador/admin del club, y el club debe tener un plan con táctica (Pizarrón/Ultra).
       allow create: if esEntrenador() &&
         request.resource.data.club_id == userDoc().club_id &&
-        clubDoc(userDoc().club_id).get('plan', 'free') == 'ultra';
+        planConTactica(userDoc().club_id);
 
-      // Actualizar: cuerpo técnico del mismo club (Ultra), sin cambiar de club
+      // Actualizar: cuerpo técnico del mismo club (con plan táctico), sin cambiar de club
       allow update: if esEntrenador() &&
         resource.data.club_id == userDoc().club_id &&
         request.resource.data.club_id == userDoc().club_id &&
-        clubDoc(userDoc().club_id).get('plan', 'free') == 'ultra';
+        planConTactica(userDoc().club_id);
 
       // Borrar: cuerpo técnico del mismo club (aunque haya bajado de plan),
       // o super-admin (borrado del club)

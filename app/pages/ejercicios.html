@@ -6,10 +6,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ejercicios - Timeline</title>
     <link rel="manifest" href="../manifest.json">
+    <link rel="icon" type="image/svg+xml" href="../assets/image/logo-icon.svg">
     <link rel="icon" type="image/png" href="../assets/image/logo-web.png">
     <link rel="apple-touch-icon" href="../assets/image/logo-web.png">
     <link rel="stylesheet" href="../assets/css/style.css">
     <script src="../assets/js/utils/tema.js"></script>
+    <script src="../assets/js/utils/html.js"></script>
     <!-- Exportar/compartir el ejercicio como imagen o PDF -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -122,19 +124,20 @@
 
     <div class="container-dashboard editor-wrap">
 
-        <!-- Pantalla de upgrade si el club no es Ultra -->
+        <!-- Pantalla de upgrade si el club no tiene un plan con táctica -->
         <div id="upgrade-screen">
             <div class="lock">🔒</div>
             <h2>Editor de cancha</h2>
-            <p>Armar ejercicios con cancha, conos, pelotas y jugadoras es una función del plan <strong>Ultra</strong>.
+            <p>Armar ejercicios con cancha, conos, pelotas y jugadoras es una función de los planes
+               <strong>Pizarrón</strong> y <strong>Ultra</strong>.
                Hablá con el administrador del club para mejorar el plan.</p>
         </div>
 
-        <!-- Editor (solo Ultra) -->
+        <!-- Editor (planes con táctica) -->
         <div id="editor" style="display:none;">
             <div class="header-stats" style="border:none; margin-bottom:18px;">
                 <div>
-                    <div class="eyebrow">Ultra · Entrenamientos</div>
+                    <div class="eyebrow">Entrenamiento</div>
                     <h2>Editor de cancha</h2>
                     <p class="subtitle">Elegí cuántos campos necesitás y ubicá conos, pelotas y jugadoras para armar el ejercicio.
                         Con <strong>Capturar paso</strong> armás la jugada por pasos, la reproducís y la bajás como GIF.</p>
@@ -243,7 +246,7 @@
         const rol = sessionStorage.getItem('userRole');
         if (!uid || !clubId) window.location.href = "login.html";
 
-        // Acceso: plan Ultra + solo entrenadores (y admin del club).
+        // Acceso: plan con táctica (Pizarrón/Ultra) + solo entrenadores (y admin del club).
         const esEntrenador = rol === 'trainer' || rol === 'coordinator' || rol === 'club-admin';
         const up = document.getElementById('upgrade-screen');
         if (!TL.planes.puedeActual('editor_cancha')) {
@@ -303,7 +306,21 @@
                 const b = document.getElementById('ent-banner');
                 if (entrenamientoId) {
                     b.style.display = 'block';
-                    b.innerHTML = `🏋 Ejercicio de la sesión${entrenamientoNombre ? ': <strong>' + entrenamientoNombre + '</strong>' : ''} · <a href="entrenamientos.html" style="color:inherit; text-decoration:underline;">volver a entrenamientos</a>`;
+                    // Construido con nodos y no con innerHTML: el nombre llega por
+                    // querystring (?nombre=), así que es texto de afuera.
+                    b.textContent = '🏋 Ejercicio de la sesión';
+                    if (entrenamientoNombre) {
+                        b.appendChild(document.createTextNode(': '));
+                        const fuerte = document.createElement('strong');
+                        fuerte.textContent = entrenamientoNombre;
+                        b.appendChild(fuerte);
+                    }
+                    b.appendChild(document.createTextNode(' · '));
+                    const volver = document.createElement('a');
+                    volver.href = 'entrenamientos.html';
+                    volver.style.cssText = 'color:inherit; text-decoration:underline;';
+                    volver.textContent = 'volver a entrenamientos';
+                    b.appendChild(volver);
                 } else {
                     b.style.display = 'none';
                 }

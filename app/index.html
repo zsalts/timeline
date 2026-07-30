@@ -9,6 +9,7 @@
         content="Cada jugada del partido, a un clic. El analista corta, el equipo revisa: cortes por categoría en la línea de tiempo del partido, comparador y estadísticas automáticas. Hockey, fútbol, handball y más.">
 
     <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/svg+xml" href="assets/image/logo-icon.svg">
     <link rel="icon" type="image/png" href="assets/image/logo-web.png">
     <link rel="apple-touch-icon" href="assets/image/logo-web.png">
     <meta name="theme-color" content="#061621">
@@ -111,7 +112,7 @@
         }
         .nav-inner { display: flex; justify-content: space-between; align-items: center; padding: 14px 0; }
         .brand { display: flex; align-items: center; gap: 11px; text-decoration: none; }
-        .brand img { width: 36px; height: 36px; object-fit: contain; border-radius: 9px; background: #fff; padding: 3px; }
+        .brand img { height: 28px; width: auto; object-fit: contain; }
         .brand span { color: var(--tiza); font-weight: 800; font-stretch: 112%; font-size: 1.06rem; letter-spacing: -0.01em; }
         .nav-links { display: flex; align-items: center; gap: 24px; }
         .nav-links a.sec { color: var(--neblina); text-decoration: none; font-size: 0.9rem; font-weight: 500; }
@@ -379,7 +380,11 @@
         .nota-precio { color: var(--bruma); font-size: 0.82rem; margin-top: 16px; max-width: 560px; line-height: 1.6; }
 
         @media (min-width: 760px) {
-            .planes { grid-template-columns: repeat(3, 1fr); align-items: start; max-width: 1000px; }
+            .planes { grid-template-columns: repeat(2, 1fr); align-items: start; max-width: 780px; }
+        }
+
+        @media (min-width: 1120px) {
+            .planes { grid-template-columns: repeat(4, 1fr); max-width: 1280px; }
         }
 
         /* CTA final + footer */
@@ -420,7 +425,7 @@
     <nav class="nav">
         <div class="wrap nav-inner">
             <a class="brand" href="index.html">
-                <img src="assets/image/logo-web.png" alt="Timeline" onerror="this.style.visibility='hidden'">
+                <img src="assets/image/logo.svg" alt="Timeline" onerror="this.style.visibility='hidden'">
                 <span>Timeline</span>
             </a>
             <div class="nav-links">
@@ -558,6 +563,22 @@
                     </ul>
                     <a class="btn-cta grande" href="pages/registro.html">Empezar gratis</a>
                 </div>
+                <div class="plan">
+                    <div class="plan-nombre">Pizarrón</div>
+                    <div class="precio">ARS 30.000 <small>/ mes</small></div>
+                    <p class="plan-desc">Para el cuerpo técnico que quiere planificar y dibujar, no analizar video.
+                        Todo lo que pasa en la cancha, sin la parte de partidos.</p>
+                    <ul>
+                        <li><b>Entrenamientos</b>: armá las sesiones de la semana con sus ejercicios</li>
+                        <li><b>Editor de cancha</b> con conos, pelotas y jugadoras para dibujar cada ejercicio</li>
+                        <li><b>Esquemas animados</b>: movés las fichas paso a paso y lo bajás como GIF</li>
+                        <li><b>Biblioteca de planteos</b>: corner corto, salidas y bloqueos siempre a mano</li>
+                        <li>Chat interno del club, incluido</li>
+                        <li>No incluye carga ni análisis de partidos: para eso está Pro</li>
+                    </ul>
+                    <a class="btn-cta grande"
+                        href="mailto:mateotesta2016@gmail.com?subject=Quiero%20Timeline%20Pizarron">Quiero Pizarrón</a>
+                </div>
                 <div class="plan destacado">
                     <div class="plan-nombre">Pro</div>
                     <div class="precio">ARS 30.000 <small>/ mes</small></div>
@@ -579,7 +600,7 @@
                     <p class="plan-desc">Para el cuerpo técnico que además de analizar partidos planifica y revisa
                         sus entrenamientos dentro de la misma plataforma.</p>
                     <ul>
-                        <li><b>Todo lo de Pro</b>, sin ningún límite</li>
+                        <li><b>Todo lo de Pro y todo lo del Pizarrón</b>, sin ningún límite</li>
                         <li><b>Entrenamientos</b>: cargá y analizá videos de práctica, no solo partidos</li>
                         <li><b>Editor de cancha</b> con conos y pelotas para dibujar ejercicios y jugadas</li>
                         <li><b>Esquemas tácticos animados</b>: armá bloqueos y jugadas con los jugadores en la

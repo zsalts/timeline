@@ -7,12 +7,14 @@
     <title>Comparar - Timeline</title>
 
     <link rel="manifest" href="../manifest.json">
+    <link rel="icon" type="image/svg+xml" href="../assets/image/logo-icon.svg">
     <link rel="icon" type="image/png" href="../assets/image/logo-web.png">
     <link rel="apple-touch-icon" href="../assets/image/logo-web.png">
     <meta name="theme-color" content="#0B0E13">
 
     <link rel="stylesheet" href="../assets/css/style.css">
     <script src="../assets/js/utils/tema.js"></script>
+    <script src="../assets/js/utils/html.js"></script>
     <style>
         /* Ocupa exactamente la altura de la ventana en desktop */
         body.app-shell { overflow: hidden; }
@@ -420,13 +422,13 @@
                 const eq2 = partido.rival || 'Rival';
 
                 card.innerHTML = `
-                    <div class="match-torneo">${partido.torneo || 'Amistoso'} ${esImportante ? '<span class="badge-proximo">PRÓXIMO</span>' : ''}</div>
+                    <div class="match-torneo">${TL.esc(partido.torneo || 'Amistoso')} ${esImportante ? '<span class="badge-proximo">PRÓXIMO</span>' : ''}</div>
                     <div class="match-teams" style="margin: 10px 0 4px;">
-                        <div class="match-eq1" style="font-size: 1.05rem;">${eq1}</div>
+                        <div class="match-eq1" style="font-size: 1.05rem;">${TL.esc(eq1)}</div>
                         <div class="match-vs">vs</div>
-                        <div class="match-eq2" style="font-size: 0.92rem;">${eq2}</div>
+                        <div class="match-eq2" style="font-size: 0.92rem;">${TL.esc(eq2)}</div>
                     </div>
-                    <div class="match-fecha" style="margin-top: 8px; display: block;">${partido.fecha || 'Sin fecha'}</div>
+                    <div class="match-fecha" style="margin-top: 8px; display: block;">${TL.esc(partido.fecha || 'Sin fecha')}</div>
                     <div class="tl-slot" style="margin-top: 10px;"></div>
                 `;
 
@@ -447,7 +449,12 @@
             col.dataset.partidoId = partidoId;
 
             const btn = document.getElementById(`btn-elegir-${columnaActivaParaModal}`);
-            btn.innerHTML = `${eq1} vs ${eq2} <span style="color: var(--muted); font-weight: normal; font-size: 0.8rem;">(${partido.fecha})</span>`;
+            // textContent: nombres de equipo y fecha los escribe el usuario
+            btn.textContent = `${eq1} vs ${eq2} `;
+            const btnFecha = document.createElement('span');
+            btnFecha.style.cssText = 'color: var(--muted); font-weight: normal; font-size: 0.8rem;';
+            btnFecha.textContent = `(${partido.fecha})`;
+            btn.appendChild(btnFecha);
 
             cargarPartidoEnColumna(partidoId, columnaActivaParaModal);
             cerrarModal();
@@ -540,7 +547,7 @@
                 const p = v.partido;
                 const nombre = `${p.mi_equipo || 'Eq1'} vs ${p.rival || 'Eq2'}`;
                 const color = COLORES_VIDEO[i % COLORES_VIDEO.length];
-                return `<span class="leyenda-chip"><b style="background:${color}">V${i + 1}</b> ${nombre}</span>`;
+                return `<span class="leyenda-chip"><b style="background:${color}">V${i + 1}</b> ${TL.esc(nombre)}</span>`;
             }).join('');
 
             if (videos.length === 0) {
@@ -573,7 +580,12 @@
                 // Unión de descriptores de esta categoría entre todos los videos
                 const descriptores = new Set();
                 grupos.forEach(g => { if (g[cat]) Object.keys(g[cat]).forEach(d => descriptores.add(d)); });
-                catSummary.innerHTML = `📁 ${cat} <span style="color:var(--faint); font-size:0.8rem; font-weight:500;">(${descriptores.size})</span>`;
+                // textContent: el nombre de categoría sale del archivo subido
+                catSummary.textContent = `📁 ${cat} `;
+                const catCuenta = document.createElement('span');
+                catCuenta.style.cssText = 'color:var(--faint); font-size:0.8rem; font-weight:500;';
+                catCuenta.textContent = `(${descriptores.size})`;
+                catSummary.appendChild(catCuenta);
 
                 [...descriptores].sort().forEach(desc => {
                     const descDetails = document.createElement('details');
@@ -583,7 +595,11 @@
 
                     // Cuántas ocurrencias como máximo tiene este descriptor entre los videos
                     const maxLen = Math.max(...grupos.map(g => (g[cat] && g[cat][desc]) ? g[cat][desc].length : 0));
-                    descSummary.innerHTML = `📂 ${desc} <span style="color:var(--faint); font-size:0.8rem;">(${maxLen})</span>`;
+                    descSummary.textContent = `📂 ${desc} `;
+                    const descCuenta = document.createElement('span');
+                    descCuenta.style.cssText = 'color:var(--faint); font-size:0.8rem;';
+                    descCuenta.textContent = `(${maxLen})`;
+                    descSummary.appendChild(descCuenta);
                     descDetails.appendChild(descSummary);
 
                     for (let i = 0; i < maxLen; i++) {

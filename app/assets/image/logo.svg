@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 148 120" role="img" aria-label="Timeline">
+  <title>Timeline</title>
+  <!--
+    La marca es la tira de timeline del partido, que es la firma que declara
+    el sistema de diseño.
+
+    Los ticks caen en tiempos reales de la lista de cortes del demo del
+    landing (3, 9, 21, 33, 51, 66, 76, 92): se agrupan y dejan huecos porque
+    las jugadas pasan cuando pasan, no en una grilla. Repartidos parejos el
+    dibujo se leería como ecualizador y perdería el sentido.
+
+    Son ocho y no más: en la barra lateral esto mide unos 40px de ancho, y con
+    más ticks se empastan en una textura y el ámbar deja de notarse.
+
+    El ámbar es el corte abierto — más alto, más ancho y el único con color,
+    como el resaltador del analista. Los demás bajan hacia los bordes.
+  -->
+  <g fill="#98A2B2">
+    <rect x="3.5"   y="26" width="5" height="68" rx="2.5" opacity="0.55"/>
+    <rect x="12.7"  y="26" width="5" height="68" rx="2.5" opacity="0.61"/>
+    <rect x="31"    y="26" width="5" height="68" rx="2.5" opacity="0.72"/>
+    <rect x="49.3"  y="26" width="5" height="68" rx="2.5" opacity="0.83"/>
+    <rect x="99.8"  y="26" width="5" height="68" rx="2.5" opacity="0.86"/>
+    <rect x="115.1" y="26" width="5" height="68" rx="2.5" opacity="0.77"/>
+    <rect x="139.5" y="26" width="5" height="68" rx="2.5" opacity="0.62"/>
+  </g>
+
+  <!-- El corte abierto -->
+  <rect x="75.9" y="4" width="7" height="112" rx="3.5" fill="#F7C948"/>
+</svg>

@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Administración - Timeline</title>
+    <link rel="icon" type="image/svg+xml" href="../assets/image/logo-icon.svg">
     <link rel="icon" type="image/png" href="../assets/image/logo-web.png">
     <link rel="stylesheet" href="../assets/css/style.css">
     <script src="../assets/js/utils/planes.js"></script>
@@ -211,6 +212,7 @@
                             <label>Plan de suscripción</label>
                             <select id="club-plan">
                                 <option value="free" selected>Free — 10 partidos, para probar</option>
+                                <option value="pizarron">Pizarrón — solo entrenamientos y táctica (sin partidos)</option>
                                 <option value="pro">Pro — partidos ilimitados + tablero completo</option>
                                 <option value="ultra">Ultra — todo Pro + entrenamientos y editor de cancha</option>
                             </select>
@@ -609,7 +611,7 @@
                     bloque.innerHTML = `
                         <div style="display:flex; justify-content:space-between; align-items:flex-start; width:100%;">
                             <div class="club-info" style="display:flex; gap:12px; align-items:center;">
-                                ${club.logo ? `<img src="${club.logo}" alt="logo" style="width:48px; height:48px; object-fit:contain; border:1px solid var(--line); border-radius:8px; background:#fff; padding:2px;">` : ''}
+                                ${club.logo ? `<img src="${esc(club.logo)}" alt="logo" style="width:48px; height:48px; object-fit:contain; border:1px solid var(--line); border-radius:8px; background:#fff; padding:2px;">` : ''}
                                 <div>
                                     <h3>${esc(club.nombre)} <span style="font-size:0.72rem; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; color:var(--accent-ink); background:var(--accent); padding:2px 8px; border-radius:999px; vertical-align:middle;">${TL.planes.info(club.plan).nombre}</span></h3>
                                     <p><strong>ID:</strong> ${clubId}</p>
@@ -640,6 +642,7 @@
                                     <label>Plan de suscripción</label>
                                     <select id="edit-plan-${clubId}">
                                         <option value="free" ${TL.planes.normalizar(club.plan) === 'free' ? 'selected' : ''}>Free — 10 partidos, para probar</option>
+                                        <option value="pizarron" ${TL.planes.normalizar(club.plan) === 'pizarron' ? 'selected' : ''}>Pizarrón — solo entrenamientos y táctica (sin partidos)</option>
                                         <option value="pro" ${TL.planes.normalizar(club.plan) === 'pro' ? 'selected' : ''}>Pro — partidos ilimitados + tablero completo</option>
                                         <option value="ultra" ${TL.planes.normalizar(club.plan) === 'ultra' ? 'selected' : ''}>Ultra — todo Pro + entrenamientos y editor de cancha</option>
                                     </select>
@@ -647,7 +650,7 @@
                                 <div class="form-group">
                                     <label>Logo del club (dejá vacío para conservar el actual)</label>
                                     <input type="file" id="edit-logo-${clubId}" accept="image/png, image/jpeg">
-                                    ${club.logo ? `<div style="margin-top:8px;"><img src="${club.logo}" alt="logo actual" style="max-width:80px; max-height:80px; border:1px solid var(--line); border-radius:6px; background:#fff; padding:3px;"></div>` : ''}
+                                    ${club.logo ? `<div style="margin-top:8px;"><img src="${esc(club.logo)}" alt="logo actual" style="max-width:80px; max-height:80px; border:1px solid var(--line); border-radius:6px; background:#fff; padding:3px;"></div>` : ''}
                                 </div>
                                 <button class="btn-primary" style="width:auto; padding:8px 14px;" onclick="guardarClub('${clubId}')">Guardar cambios</button>
 

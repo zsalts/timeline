@@ -19,14 +19,17 @@
     const toRoot = enPages ? '../' : '';        // para /assets
     const toPage = enPages ? '' : 'pages/';      // para páginas dentro de /pages/
 
-    // Marca del club (nombre) desde la sesión
+    // Marca del club (nombre) desde la sesión.
+    // Nombre y email se escapan acá porque más abajo entran en el HTML de la
+    // barra, que se arma con template literals: los pone el usuario y esta
+    // barra se dibuja en todas las páginas.
     let nombreClub = 'Timeline';
     try {
         const cfg = JSON.parse(sessionStorage.getItem('configClub') || '{}');
-        if (cfg.nombre) nombreClub = cfg.nombre;
+        if (cfg.nombre) nombreClub = TL.esc(cfg.nombre);
     } catch (e) { /* sin config: nombre por defecto */ }
 
-    const email = sessionStorage.getItem('userEmail') || '';
+    const email = TL.esc(sessionStorage.getItem('userEmail') || '');
     const esClubAdmin = sessionStorage.getItem('isClubAdmin') === 'true';
     // Las jugadoras son espectadoras: ven los partidos pero no cargan
     const esJugadora = sessionStorage.getItem('userRole') === 'player';
@@ -34,15 +37,20 @@
     // (entrenador, coordinador o admin del club)
     const rolActual = sessionStorage.getItem('userRole');
     const esEntrenador = rolActual === 'trainer' || rolActual === 'coordinator' || rolActual === 'club-admin';
-    // Editor de cancha (armar ejercicios) es una función del plan Ultra.
+    // Qué habilita el plan del club: el editor de cancha es de los planes con
+    // táctica (Pizarrón/Ultra) y los partidos NO están en el plan Pizarrón.
     // Se resuelve con TL.planes si está cargado; si no, se mira el plan directo.
     let puedeEjercicios = false;
+    let puedePartidos = true;
     try {
         if (window.TL && window.TL.planes) {
             puedeEjercicios = window.TL.planes.puedeActual('editor_cancha');
+            puedePartidos = window.TL.planes.puedeActual('partidos');
         } else {
             const cfg = JSON.parse(sessionStorage.getItem('configClub') || '{}');
-            puedeEjercicios = (cfg.plan || 'free').toLowerCase() === 'ultra';
+            const plan = (cfg.plan || 'free').toLowerCase();
+            puedeEjercicios = plan === 'ultra' || plan === 'pizarron';
+            puedePartidos = plan !== 'pizarron';
         }
     } catch (e) { /* sin config: sin acceso */ }
     // "Contexto de partido": al abrir un partido aparecen Video y Estadísticas
@@ -67,13 +75,16 @@
     // links visibles según rol/plan/contexto.
     const grupos = [];
 
-    // Partidos: lo básico que ve todo el mundo (las jugadoras solo el historial)
-    const partidos = [{ id: 'historial', href: `${toPage}historial.html`, label: 'Historial' }];
-    if (!esJugadora) {
-        partidos.push({ id: 'carga', href: `${toPage}carga.html`, label: 'Cargar partido' });
-        partidos.push({ id: 'comparar', href: `${toPage}comparar.html`, label: 'Comparar' });
+    // Partidos: lo básico que ve todo el mundo (las jugadoras solo el
+    // historial). El plan Pizarrón no incluye partidos: no se muestra nada.
+    if (puedePartidos) {
+        const partidos = [{ id: 'historial', href: `${toPage}historial.html`, label: 'Historial' }];
+        if (!esJugadora) {
+            partidos.push({ id: 'carga', href: `${toPage}carga.html`, label: 'Cargar partido' });
+            partidos.push({ id: 'comparar', href: `${toPage}comparar.html`, label: 'Comparar' });
+        }
+        grupos.push({ titulo: 'Partidos', items: partidos });
     }
-    grupos.push({ titulo: 'Partidos', items: partidos });
 
     // Chat interno: lo tiene todo el club, jugadoras incluidas, en cualquier plan
     grupos.push({
@@ -82,7 +93,7 @@
         ]
     });
 
-    // Entrenamiento (plan Ultra + solo cuerpo técnico)
+    // Entrenamiento (planes con táctica: Pizarrón/Ultra + solo cuerpo técnico)
     if (!esJugadora && puedeEjercicios && esEntrenador) {
         grupos.push({
             titulo: 'Entrenamiento', items: [
@@ -94,7 +105,7 @@
     }
 
     // Contexto del partido abierto: Video (+ Estadísticas para el cuerpo técnico)
-    if (hayPartido) {
+    if (hayPartido && puedePartidos) {
         const abierto = [{ id: 'video', href: `${toPage}video.html`, label: 'Video' }];
         if (!esJugadora) abierto.push({ id: 'estadisticas', href: `${toPage}estadisticas.html`, label: 'Estadísticas' });
         grupos.push({ titulo: 'Partido abierto', items: abierto });
@@ -122,13 +133,13 @@
                 <svg class="ico-abrir" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h16"/></svg>
                 <svg class="ico-cerrar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg>
             </button>
-            <img src="${toRoot}assets/image/logo-web.png" alt="" class="logo" onerror="this.style.visibility='hidden'">
+            <img src="${toRoot}assets/image/logo.svg" alt="" class="logo" onerror="this.style.visibility='hidden'">
             <span class="brand-name">${nombreClub}</span>
         </header>
         <div class="nav-scrim" id="nav-scrim"></div>
         <aside class="sidebar" id="sidebar-nav">
             <div class="sidebar-brand">
-                <img src="${toRoot}assets/image/logo-web.png" alt="Logo" class="logo" onerror="this.style.visibility='hidden'">
+                <img src="${toRoot}assets/image/logo.svg" alt="Logo" class="logo" onerror="this.style.visibility='hidden'">
                 <span class="brand-name">${nombreClub}</span>
             </div>
             <nav class="sidebar-nav">

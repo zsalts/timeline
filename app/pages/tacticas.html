@@ -6,10 +6,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Táctica - Timeline</title>
     <link rel="manifest" href="../manifest.json">
+    <link rel="icon" type="image/svg+xml" href="../assets/image/logo-icon.svg">
     <link rel="icon" type="image/png" href="../assets/image/logo-web.png">
     <link rel="apple-touch-icon" href="../assets/image/logo-web.png">
     <link rel="stylesheet" href="../assets/css/style.css">
     <script src="../assets/js/utils/tema.js"></script>
+    <script src="../assets/js/utils/html.js"></script>
     <script src="../assets/js/utils/planes.js"></script>
     <script src="../assets/js/utils/tacticas.js"></script>
     <style>
@@ -90,18 +92,19 @@
 
     <div class="container-dashboard">
 
-        <!-- Pantalla de upgrade si el club no es Ultra -->
+        <!-- Pantalla de upgrade si el club no tiene un plan con táctica -->
         <div id="upgrade-screen">
             <div class="lock">🔒</div>
             <h2>Táctica</h2>
-            <p>Armar planteos tácticos y enlazarlos a los partidos es una función del plan <strong>Ultra</strong>.
+            <p>Armar planteos tácticos y enlazarlos a los partidos es una función de los planes
+               <strong>Pizarrón</strong> y <strong>Ultra</strong>.
                Hablá con el administrador del club para mejorar el plan.</p>
         </div>
 
         <div id="tac-app" style="display:none;">
             <div class="header-stats" style="border:none; margin-bottom:18px;">
                 <div>
-                    <div class="eyebrow">Ultra · Entrenamiento</div>
+                    <div class="eyebrow">Entrenamiento</div>
                     <h2>Táctica</h2>
                     <p class="subtitle">Armá los planteos una vez y enlazalos a los partidos que quieras.
                         En el partido se ven en modo lectura, con la cancha limpia.</p>
@@ -156,7 +159,7 @@
         const rol = sessionStorage.getItem('userRole');
         if (!uid || !clubId) window.location.href = "login.html";
 
-        // Acceso: plan Ultra + solo cuerpo técnico (entrenadora/coordinadora/admin)
+        // Acceso: plan con táctica (Pizarrón/Ultra) + solo cuerpo técnico (entrenadora/coordinadora/admin)
         const esEntrenador = rol === 'trainer' || rol === 'coordinator' || rol === 'club-admin';
         const up = document.getElementById('upgrade-screen');
         if (!TL.planes.puedeActual('tacticas')) {

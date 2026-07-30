@@ -4,8 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gestión de Usuarios - Timeline</title>
+    <link rel="manifest" href="../manifest.json">
+    <link rel="icon" type="image/svg+xml" href="../assets/image/logo-icon.svg">
+    <link rel="icon" type="image/png" href="../assets/image/logo-web.png">
+    <link rel="apple-touch-icon" href="../assets/image/logo-web.png">
     <link rel="stylesheet" href="../assets/css/style.css">
     <script src="../assets/js/utils/tema.js"></script>
+    <script src="../assets/js/utils/html.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { min-height: 100vh; }
@@ -355,7 +360,7 @@
             <!-- Agregar nuevo usuario -->
             <div class="card">
                 <h2>Agregar usuario</h2>
-                <p style="color: var(--muted); margin-bottom: 15px;">Los planes Pro y Ultra ya incluyen una entrenadora. Cada entrenadora adicional cuesta <strong>$10.000/mes</strong>. Las <strong>jugadoras</strong> son espectadoras y no se cobran.</p>
+                <p style="color: var(--muted); margin-bottom: 15px;">Los planes pagos (Pizarrón, Pro y Ultra) ya incluyen una entrenadora. Cada entrenadora adicional cuesta <strong>$10.000/mes</strong>. Las <strong>jugadoras</strong> son espectadoras y no se cobran.</p>
 
                 <div class="form-row">
                     <div class="form-group">
@@ -451,7 +456,15 @@
             const isClubAdmin = sessionStorage.getItem('isClubAdmin');
             const userRole = sessionStorage.getItem('userRole');
 
-            if (!clubID || !isClubAdmin || userRole !== 'club-admin') {
+            // Sin sesión no hay a quién negarle nada: va al login como el resto
+            // de las páginas. La pantalla de "acceso denegado" queda para el
+            // caso real de estar logueado pero sin el rol de admin del club.
+            if (!sessionStorage.getItem('usuarioUID') || !clubID) {
+                window.location.href = 'login.html';
+                return false;
+            }
+
+            if (!isClubAdmin || userRole !== 'club-admin') {
                 mainContent.style.display = 'none';
                 unauthorizedScreen.style.display = 'block';
                 return false;
@@ -596,7 +609,7 @@
                 const lado = sug.lado || 'auto';
                 return `
                     <div class="mapeo-row">
-                        <span class="mapeo-cat" title="${cat}">${cat}</span>
+                        <span class="mapeo-cat" title="${TL.esc(cat)}">${TL.esc(cat)}</span>
                         <select data-imp-lado="${i}">
                             <option value="auto" ${lado === 'auto' ? 'selected' : ''}>Auto (por nombre)</option>
                             <option value="nuestro" ${lado === 'nuestro' ? 'selected' : ''}>Nuestro</option>
@@ -608,7 +621,7 @@
 
             const filasDesc = importPropuesta.descriptores.map((desc, i) =>
                 `<div class="mapeo-row mapeo-row-desc">
-                    <span class="mapeo-cat" title="${desc}">${desc}</span>
+                    <span class="mapeo-cat" title="${TL.esc(desc)}">${TL.esc(desc)}</span>
                     ${selectDescriptor(descriptoresActuales[desc] || sugerirDescriptor(desc), `data-imp-desc="${i}"`)}
                 </div>`).join('');
 
@@ -754,7 +767,7 @@
                 const opts = roles.map(([v, l]) => `<option value="${v}" ${v === rol ? 'selected' : ''}>${l}</option>`).join('');
                 return `
                     <div class="mapeo-row">
-                        <span class="mapeo-cat" title="${cat}">${cat}</span>
+                        <span class="mapeo-cat" title="${TL.esc(cat)}">${TL.esc(cat)}</span>
                         <select data-lado="${i}">
                             <option value="auto" ${lado === 'auto' ? 'selected' : ''}>Auto (por nombre)</option>
                             <option value="nuestro" ${lado === 'nuestro' ? 'selected' : ''}>Nuestro</option>
@@ -766,7 +779,7 @@
 
             const filasDesc = descriptoresDetectados.map((desc, i) => `
                     <div class="mapeo-row mapeo-row-desc">
-                        <span class="mapeo-cat" title="${desc}">${desc}</span>
+                        <span class="mapeo-cat" title="${TL.esc(desc)}">${TL.esc(desc)}</span>
                         ${selectDescriptor(descriptoresActuales[desc] || '', `data-desc="${i}"`)}
                     </div>`).join('');
 
@@ -837,7 +850,7 @@
                 return;
             }
             cont.innerHTML = equiposActuales.map(t =>
-                `<span class="team-chip">${t}<button data-team="${t.replace(/"/g, '&quot;')}" title="Quitar">×</button></span>`
+                `<span class="team-chip">${TL.esc(t)}<button data-team="${TL.esc(t)}" title="Quitar">×</button></span>`
             ).join('');
             cont.querySelectorAll('button[data-team]').forEach(b => {
                 b.addEventListener('click', () => removeTeam(b.getAttribute('data-team')));
@@ -932,9 +945,9 @@
                     container.innerHTML += `
                         <div class="user-item">
                             <div class="user-info">
-                                <h4>${user.nombre}</h4>
-                                <p><strong>Email:</strong> ${user.email}</p>
-                                <p><strong>Rol:</strong> <span class="role-badge ${roleClass}">${roleName}</span></p>
+                                <h4>${TL.esc(user.nombre)}</h4>
+                                <p><strong>Email:</strong> ${TL.esc(user.email)}</p>
+                                <p><strong>Rol:</strong> <span class="role-badge ${roleClass}">${TL.esc(roleName)}</span></p>
                                 <p><strong>Estado:</strong> ${user.estado === 'activo' ? 'Activo' : 'Inactivo'}</p>
                             </div>
                             <div class="user-actions">
@@ -1180,7 +1193,8 @@
 
                 container.innerHTML = items.map(inv => {
                     const url = urlInvitacion(inv.token);
-                    const rolLabel = ROLES_INV[inv.rol] || inv.rol;
+                    // El fallback es el rol crudo de Firestore, así que se escapa
+                    const rolLabel = TL.esc(ROLES_INV[inv.rol] || inv.rol);
                     // Un link de un solo uso ya usado queda gastado aunque siga "activo"
                     const gastado = inv.un_solo_uso && (inv.usos || 0) >= 1;
                     const estado = !inv.activa
@@ -1195,7 +1209,7 @@
                         <div class="user-item">
                             <div class="user-info" style="min-width: 0;">
                                 <h4>${rolLabel} ${estado} ${tipo}</h4>
-                                ${inv.nota ? `<p><strong>Nota:</strong> ${inv.nota}</p>` : ''}
+                                ${inv.nota ? `<p><strong>Nota:</strong> ${TL.esc(inv.nota)}</p>` : ''}
                                 <p><strong>Usos:</strong> ${inv.usos || 0}</p>
                                 <p style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--faint); word-break: break-all;">${url}</p>
                             </div>

@@ -1,8 +1,14 @@
 // =========================================================
 // utils/planes.js
-// Fuente única de verdad de los planes de suscripción (Free / Pro / Ultra).
+// Fuente única de verdad de los planes de suscripción
+// (Free / Pizarrón / Pro / Ultra).
 // Define qué incluye cada plan, sus límites y los feature-flags que gatean
 // funciones a lo largo de la app.
+//
+// Los planes NO son una escalera lineal: Pizarrón es un camino lateral
+// (solo entrenamiento y táctica, sin partidos) y no hereda de Free. Por eso
+// cada plan declara de quién hereda con `hereda` en vez de apoyarse en el
+// orden del array.
 //
 // El plan vive en clubes/{clubId}.plan (legible por cualquier miembro del
 // club) y queda cacheado en sessionStorage.configClub al hacer login.
@@ -13,16 +19,27 @@
 window.TL = window.TL || {};
 window.TL.planes = (function () {
 
-    // Orden jerárquico: cada plan incluye todo lo del anterior.
-    const ORDEN = ['free', 'pro', 'ultra'];
+    // Orden en que se muestran los planes (admin, landing). NO implica
+    // herencia: para eso está el campo `hereda` de cada plan.
+    const ORDEN = ['free', 'pizarron', 'pro', 'ultra'];
+
+    // Bloque de features de entrenamiento y táctica. Lo comparten el plan
+    // Pizarrón (que es solo esto) y el Ultra (que lo suma a todo lo de Pro).
+    const TACTICO = [
+        'entrenamientos',    // cargar sesiones de entrenamiento
+        'editor_cancha',     // editor de cancha con conos/pelotas/jugadoras
+        'tacticas',          // biblioteca de planteos tácticos
+        'pizarra',           // pizarra táctica (alineación/bloqueos/rival)
+    ];
 
     // Definición de cada plan. `limites` son topes duros; `incluye` es la
-    // lista de features (flags) que ese plan habilita, ACUMULATIVA respecto
-    // del plan anterior (pro incluye lo de free, ultra lo de pro).
+    // lista de features (flags) que ese plan habilita; `hereda` es el plan
+    // del que además toma features y límites (null = arranca de cero).
     const PLANES = {
         free: {
             id: 'free',
             nombre: 'Free',
+            hereda: null,
             descripcion: 'Para probar la app.',
             limites: { partidos: 10 },
             incluye: [
@@ -32,9 +49,21 @@ window.TL.planes = (function () {
                 'chat',              // chat interno (mensajes directos del club)
             ],
         },
+        pizarron: {
+            id: 'pizarron',
+            nombre: 'Pizarrón',
+            hereda: null,            // camino lateral: NO incluye lo de Free
+            descripcion: 'Solo entrenamiento y táctica, sin partidos.',
+            limites: { partidos: 0 },
+            incluye: [
+                'chat',              // el club sigue teniendo su chat interno
+                ...TACTICO,
+            ],
+        },
         pro: {
             id: 'pro',
             nombre: 'Pro',
+            hereda: 'free',
             descripcion: 'Para el club que ya usa la app en serio.',
             limites: { partidos: Infinity },
             incluye: [
@@ -51,12 +80,11 @@ window.TL.planes = (function () {
         ultra: {
             id: 'ultra',
             nombre: 'Ultra',
+            hereda: 'pro',
             descripcion: 'Todo, para instituciones con varias categorías.',
             limites: { partidos: Infinity },
             incluye: [
-                'entrenamientos',    // cargar sesiones de entrenamiento
-                'editor_cancha',     // editor de cancha con conos/pelotas/jugadoras
-                'tacticas',          // biblioteca de planteos tácticos enlazables a partidos
+                ...TACTICO,          // todo lo del Pizarrón
                 'multi_equipo',      // multi-equipo / multi-categoría bajo un club
                 'resumen_auto',      // resumen automático del partido
                 'export_jugadora',   // reportes de jugadora individual exportables
@@ -74,14 +102,22 @@ window.TL.planes = (function () {
         return PLANES[p] ? p : 'free';
     }
 
-    // Todas las features acumuladas hasta un plan dado (incluye las de los
-    // planes inferiores por la jerarquía free < pro < ultra).
-    function featuresDe(plan) {
-        const idx = ORDEN.indexOf(normalizar(plan));
-        const set = new Set();
-        for (let i = 0; i <= idx; i++) {
-            PLANES[ORDEN[i]].incluye.forEach(f => set.add(f));
+    // Cadena de herencia de un plan, de la raíz hacia abajo.
+    // Ej: 'ultra' → ['free', 'pro', 'ultra']; 'pizarron' → ['pizarron'].
+    function cadena(plan) {
+        const lista = [];
+        let id = normalizar(plan);
+        while (id) {
+            lista.unshift(id);
+            id = PLANES[id].hereda;
         }
+        return lista;
+    }
+
+    // Todas las features de un plan, sumando las que hereda.
+    function featuresDe(plan) {
+        const set = new Set();
+        cadena(plan).forEach(id => PLANES[id].incluye.forEach(f => set.add(f)));
         return set;
     }
 
@@ -90,10 +126,14 @@ window.TL.planes = (function () {
         return featuresDe(plan).has(feature);
     }
 
-    // Tope de una métrica (ej. 'partidos') para un plan. Infinity = ilimitado.
+    // Tope de una métrica (ej. 'partidos') para un plan: gana el valor del
+    // plan más específico de la cadena. Infinity = ilimitado, 0 = no incluido.
     function limite(plan, metrica) {
-        const def = PLANES[normalizar(plan)];
-        const val = def.limites[metrica];
+        let val;
+        cadena(plan).forEach(id => {
+            const v = PLANES[id].limites[metrica];
+            if (v !== undefined) val = v;
+        });
         return val === undefined ? Infinity : val;
     }
 
@@ -126,6 +166,7 @@ window.TL.planes = (function () {
         ORDEN,
         PLANES,
         normalizar,
+        cadena,
         featuresDe,
         puede,
         limite,

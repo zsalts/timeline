@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - Timeline</title>
+    <link rel="icon" type="image/svg+xml" href="../assets/image/logo-icon.svg">
     <link rel="icon" type="image/png" href="../assets/image/logo-web.png">
     <link rel="stylesheet" href="../assets/css/style.css">
     <style>
@@ -30,7 +31,7 @@
         }
 
         .hero-brand { display: flex; align-items: center; gap: 12px; }
-        .hero-brand img { width: 40px; height: 40px; object-fit: contain; border-radius: 10px; background: #fff; padding: 3px; }
+        .hero-brand img { height: 30px; width: auto; object-fit: contain; }
         .hero-brand span { font-weight: 700; font-size: 1.02rem; letter-spacing: -0.01em; color: var(--text); }
 
         .hero-copy .eyebrow { margin-bottom: 18px; color: var(--accent); }
@@ -63,7 +64,7 @@
 
         .login-box { width: 100%; max-width: 360px; }
 
-        .login-logo { width: 52px; height: 52px; object-fit: contain; margin-bottom: 20px; border-radius: 12px; background: #fff; padding: 4px; }
+        .login-logo { height: 44px; width: auto; object-fit: contain; margin-bottom: 20px; }
 
         .login-eyebrow { margin-bottom: 10px; }
         .login-title { color: var(--text); margin: 0 0 4px; font-size: 1.6rem; font-weight: 800; letter-spacing: -0.02em; }
@@ -142,7 +143,7 @@
 
     <section class="login-hero">
         <div class="hero-brand">
-            <img src="../assets/image/logo-web.png" alt="Timeline" onerror="this.style.visibility='hidden'">
+            <img src="../assets/image/logo.svg" alt="Timeline" onerror="this.style.visibility='hidden'">
             <span>Timeline</span>
         </div>
         <div class="hero-copy">
@@ -166,7 +167,7 @@
 
     <section class="login-panel">
         <div class="login-box">
-            <img src="../assets/image/logo-web.png" alt="Timeline" class="login-logo" onerror="this.style.display='none'">
+            <img src="../assets/image/logo.svg" alt="Timeline" class="login-logo" onerror="this.style.display='none'">
             <div class="eyebrow login-eyebrow">Acceso</div>
             <h2 class="login-title">Bienvenido</h2>
             <p class="login-sub">Ingresá con tu cuenta del club</p>
@@ -197,9 +198,15 @@
         </div>
     </section>
 
+    <script src="../assets/js/utils/planes.js"></script>
     <script type="module">
         import { auth, db, signInWithEmailAndPassword, sendPasswordResetEmail, doc, getDoc, MASTER_EMAIL, isMasterAdmin,
             onAuthStateChanged, setPersistence, browserLocalPersistence, browserSessionPersistence, guardarSesionRecordada } from '../assets/js/firebase.js';
+
+        // A dónde entra el usuario según el plan del club: el plan Pizarrón no
+        // tiene partidos, así que arranca en Entrenamientos y no en el historial.
+        const paginaInicio = () =>
+            TL.planes.puedeActual('partidos') ? 'historial.html' : 'entrenamientos.html';
 
         const btnIngresar = document.getElementById('btn-ingresar');
         const msjError = document.getElementById('mensaje-error');
@@ -210,7 +217,7 @@
         // la sesión de la app en sessionStorage al importar.)
         onAuthStateChanged(auth, (user) => {
             if (user && localStorage.getItem('recordarSesion') === '1' && sessionStorage.getItem('usuarioUID')) {
-                window.location.href = isMasterAdmin(user.email) ? 'admin.html' : 'historial.html';
+                window.location.href = isMasterAdmin(user.email) ? 'admin.html' : paginaInicio();
             }
         });
 
@@ -308,7 +315,7 @@
                 }
 
                 guardarSesionRecordada(recordar);
-                window.location.href = "historial.html";
+                window.location.href = paginaInicio();
 
             } catch (error) {
                 console.error("Error al ingresar:", error);

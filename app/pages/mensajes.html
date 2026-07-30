@@ -6,10 +6,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mensajes - Timeline</title>
     <link rel="manifest" href="../manifest.json">
+    <link rel="icon" type="image/svg+xml" href="../assets/image/logo-icon.svg">
     <link rel="icon" type="image/png" href="../assets/image/logo-web.png">
     <link rel="apple-touch-icon" href="../assets/image/logo-web.png">
     <link rel="stylesheet" href="../assets/css/style.css">
     <script src="../assets/js/utils/tema.js"></script>
+    <script src="../assets/js/utils/html.js"></script>
     <style>
         .chat-layout {
             display: grid;
@@ -289,12 +291,12 @@
             const b = document.createElement('button');
             b.className = 'persona' + (convActual && convActual.otroUid === p.uid ? ' activa' : '');
             b.innerHTML = `
-                <span class="avatar">${iniciales(p.nombre)}</span>
+                <span class="avatar">${TL.esc(iniciales(p.nombre))}</span>
                 <span class="persona-datos">
-                    <span class="persona-nombre">${p.nombre || p.email || 'Sin nombre'}</span>
-                    <span class="persona-sub">${sub || ''}</span>
+                    <span class="persona-nombre">${TL.esc(p.nombre || p.email || 'Sin nombre')}</span>
+                    <span class="persona-sub">${TL.esc(sub || '')}</span>
                 </span>
-                ${badge ? `<span class="sin-leer">${badge}</span>` : ''}`;
+                ${badge ? `<span class="sin-leer">${TL.esc(badge)}</span>` : ''}`;
             b.onclick = () => abrirConversacion(p.uid);
             return b;
         }

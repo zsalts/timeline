@@ -6,10 +6,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cargar partido - Timeline</title>
     <link rel="manifest" href="../manifest.json">
+    <link rel="icon" type="image/svg+xml" href="../assets/image/logo-icon.svg">
     <link rel="icon" type="image/png" href="../assets/image/logo-web.png">
     <link rel="apple-touch-icon" href="../assets/image/logo-web.png">
     <link rel="stylesheet" href="../assets/css/style.css">
     <script src="../assets/js/utils/tema.js"></script>
+    <script src="../assets/js/utils/html.js"></script>
 </head>
 
 <body>
@@ -130,8 +132,10 @@
         })();
 
         // ---- Límite de partidos según el plan del club ----
-        // El plan Free tope de 10 partidos (total). Pro/Ultra: ilimitado.
+        // Free: 10 partidos (total). Pro/Ultra: ilimitado. Pizarrón: ninguno,
+        // es un plan solo de entrenamiento y táctica.
         const limitePartidos = TL.planes.limiteActual('partidos');
+        const nombrePlan = TL.planes.info(TL.planes.planActual()).nombre;
         const aviso = document.getElementById('aviso-limite');
 
         async function contarPartidos() {
@@ -154,21 +158,25 @@
             }
         }
 
-        function bloquearFormulario() {
+        function bloquearFormulario(texto) {
             btn.disabled = true;
-            btn.textContent = "Límite alcanzado";
+            btn.textContent = texto || "Límite alcanzado";
         }
 
-        // Solo mostramos aviso/bloqueo cuando hay tope (plan Free).
-        if (limitePartidos !== Infinity) {
+        // El plan no incluye partidos (Pizarrón): ni contamos, se bloquea.
+        if (limitePartidos === 0) {
+            pintarAviso(`El plan ${nombrePlan} es solo de entrenamiento y táctica: no incluye carga de partidos. Pasá a Pro o Ultra para analizar video.`, 'bloqueo');
+            bloquearFormulario("No incluido en tu plan");
+        } else if (limitePartidos !== Infinity) {
+            // Hay tope pero se pueden cargar (plan Free).
             (async function chequearLimite() {
                 try {
                     const usados = await contarPartidos();
                     if (usados >= limitePartidos) {
-                        pintarAviso(`Llegaste al límite del plan Free (${limitePartidos} partidos). Pasá a Pro para cargar partidos ilimitados.`, 'bloqueo');
+                        pintarAviso(`Llegaste al límite del plan ${nombrePlan} (${limitePartidos} partidos). Pasá a Pro para cargar partidos ilimitados.`, 'bloqueo');
                         bloquearFormulario();
                     } else {
-                        pintarAviso(`Plan Free: ${usados} de ${limitePartidos} partidos usados.`, 'info');
+                        pintarAviso(`Plan ${nombrePlan}: ${usados} de ${limitePartidos} partidos usados.`, 'info');
                     }
                 } catch (e) {
                     console.error("No se pudo verificar el límite de partidos:", e);
@@ -180,11 +188,16 @@
             e.preventDefault();
 
             // Reverificar el tope justo antes de guardar (evita saltarlo).
+            if (limitePartidos === 0) {
+                pintarAviso(`El plan ${nombrePlan} es solo de entrenamiento y táctica: no incluye carga de partidos. Pasá a Pro o Ultra para analizar video.`, 'bloqueo');
+                bloquearFormulario("No incluido en tu plan");
+                return;
+            }
             if (limitePartidos !== Infinity) {
                 try {
                     const usados = await contarPartidos();
                     if (usados >= limitePartidos) {
-                        pintarAviso(`Llegaste al límite del plan Free (${limitePartidos} partidos). Pasá a Pro para cargar partidos ilimitados.`, 'bloqueo');
+                        pintarAviso(`Llegaste al límite del plan ${nombrePlan} (${limitePartidos} partidos). Pasá a Pro para cargar partidos ilimitados.`, 'bloqueo');
                         bloquearFormulario();
                         return;
                     }

@@ -52,7 +52,9 @@ window.TL.cortes = (function () {
             const catDetails = document.createElement('details');
             catDetails.className = 'cat-details';
             const catSummary = document.createElement('summary');
-            catSummary.innerHTML = `📁 ${cat}`;
+            // textContent y no innerHTML: los nombres de categoría vienen del
+            // archivo que sube el analista, así que son texto ajeno.
+            catSummary.textContent = `📁 ${cat}`;
             catDetails.appendChild(catSummary);
 
             const subGrupos = agrupado[cat];
@@ -61,7 +63,11 @@ window.TL.cortes = (function () {
                 const descDetails = document.createElement('details');
                 descDetails.className = 'desc-details';
                 const descSummary = document.createElement('summary');
-                descSummary.innerHTML = `📂 ${desc} <span style="color:#888; font-size:0.8rem;">(${grupo.length})</span>`;
+                descSummary.textContent = `📂 ${desc} `;
+                const descCuenta = document.createElement('span');
+                descCuenta.style.cssText = 'color:#888; font-size:0.8rem;';
+                descCuenta.textContent = `(${grupo.length})`;
+                descSummary.appendChild(descCuenta);
                 descDetails.appendChild(descSummary);
 
                 const divBotones = document.createElement('div');

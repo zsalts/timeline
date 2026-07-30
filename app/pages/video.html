@@ -6,9 +6,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Video Análisis - Timeline</title>
     <link rel="manifest" href="../manifest.json">
-    <link rel="apple-touch-icon" href="../assets/image/logo.jpg">
+    <link rel="icon" type="image/svg+xml" href="../assets/image/logo-icon.svg">
+    <link rel="icon" type="image/png" href="../assets/image/logo-web.png">
+    <link rel="apple-touch-icon" href="../assets/image/logo-web.png">
     <link rel="stylesheet" href="../assets/css/style.css">
     <script src="../assets/js/utils/tema.js"></script>
+    <script src="../assets/js/utils/html.js"></script>
     <!-- Rol jugadora (espectadora): solo ve el partido, sin cortes ni notas del
          cuerpo técnico. Se marca en <html> antes de pintar para evitar parpadeo. -->
     <script>
@@ -439,7 +442,7 @@
             // Agrupado por tipo de jugada, igual que la biblioteca
             const grupos = TL.tacticas.agrupar(libres).map(g =>
                 `<optgroup label="${g.label}">` +
-                g.items.map(t => `<option value="${t.id}">${t.nombre}</option>`).join('') +
+                g.items.map(t => `<option value="${TL.esc(t.id)}">${TL.esc(t.nombre)}</option>`).join('') +
                 `</optgroup>`
             ).join('');
             sel.innerHTML = '<option value="">+ Enlazar planteo…</option>' + grupos;
@@ -477,7 +480,7 @@
 
         async function setupPizarra(partido) {
             const sec = document.getElementById('seccion-pizarra');
-            const puedeTacticas = TL.planes.puedeActual('tacticas');   // Ultra
+            const puedeTacticas = TL.planes.puedeActual('tacticas');   // Pizarrón/Ultra
             equipoNombre = `${(partido.mi_equipo || 'eq1')}-vs-${(partido.rival || 'eq2')}`;
             heredadasCache = cargarHeredadas(partido);
             idsEnlazadas = Array.isArray(partido.tacticas) ? partido.tacticas.slice() : [];
@@ -519,7 +522,7 @@
                 }
             } else if (!esJugadora && !puedeTacticas) {
                 document.querySelector('#seccion-pizarra .pizarra-sub').innerHTML =
-                    '🔒 Armar y enlazar planteos tácticos es una función del plan <strong>Ultra</strong>. ' +
+                    '🔒 Armar y enlazar planteos tácticos es una función de los planes <strong>Pizarrón</strong> y <strong>Ultra</strong>. ' +
                     'Hablá con el administrador del club para mejorar el plan.';
             }
         }
@@ -606,7 +609,7 @@
                 ? cats.map((c, i) => `
                     <label class="share-cat">
                         <input type="checkbox" data-share-cat="${i}" checked>
-                        <b>${c}</b><span>${(est[c] || []).length} cortes</span>
+                        <b>${TL.esc(c)}</b><span>${(est[c] || []).length} cortes</span>
                     </label>`).join('')
                 : '<p style="color: var(--muted);">Este partido no tiene cortes para compartir.</p>';
             cont.dataset.cats = JSON.stringify(cats);

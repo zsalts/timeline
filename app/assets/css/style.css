@@ -120,13 +120,12 @@ body.app-shell {
     border-bottom: 1px solid var(--line);
     margin-bottom: 16px;
 }
+/* La marca es un SVG con fondo transparente, así que va directo sobre el
+   panel: no lleva la chapita blanca que necesitaba el logo anterior. */
 .sidebar-brand img.logo {
-    height: 36px;
-    width: 36px;
+    height: 30px;
+    width: auto;
     object-fit: contain;
-    border-radius: 9px;
-    background: #fff;
-    padding: 3px;
 }
 .sidebar-brand .brand-name {
     color: var(--text);
@@ -468,8 +467,7 @@ label { font-weight: 600; color: var(--text); font-size: 0.85rem; }
         border-bottom: 1px solid var(--line);
     }
     .topbar .logo {
-        height: 30px; width: 30px; object-fit: contain;
-        border-radius: 8px; background: #fff; padding: 3px; flex-shrink: 0;
+        height: 24px; width: auto; object-fit: contain; flex-shrink: 0;
     }
     .topbar .brand-name {
         color: var(--text); font-weight: 700; font-size: 0.95rem;
