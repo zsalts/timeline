@@ -201,7 +201,8 @@
     <script src="../assets/js/utils/planes.js"></script>
     <script type="module">
         import { auth, db, signInWithEmailAndPassword, sendPasswordResetEmail, doc, getDoc, MASTER_EMAIL, isMasterAdmin,
-            onAuthStateChanged, setPersistence, browserLocalPersistence, browserSessionPersistence, guardarSesionRecordada } from '../assets/js/firebase.js';
+            onAuthStateChanged, setPersistence, browserLocalPersistence, browserSessionPersistence, guardarSesionRecordada,
+            limpiarSesion } from '../assets/js/firebase.js';
 
         // A dónde entra el usuario según el plan del club: el plan Pizarrón no
         // tiene partidos, así que arranca en Entrenamientos y no en el historial.
@@ -216,9 +217,24 @@
         // directo sin pedir usuario/contraseña de nuevo. (firebase.js ya restauró
         // la sesión de la app en sessionStorage al importar.)
         onAuthStateChanged(auth, (user) => {
-            if (user && localStorage.getItem('recordarSesion') === '1' && sessionStorage.getItem('usuarioUID')) {
-                window.location.href = isMasterAdmin(user.email) ? 'admin.html' : paginaInicio();
+            if (!user || localStorage.getItem('recordarSesion') !== '1') return;
+            if (!sessionStorage.getItem('usuarioUID')) return;
+
+            if (isMasterAdmin(user.email)) {
+                window.location.href = 'admin.html';
+                return;
             }
+
+            // La sesión recordada tiene que traer TODO lo que piden las páginas
+            // de la app (uid + club). Si quedó a medias, mandarla al historial
+            // hace que el historial nos devuelva acá y el login rebote de nuevo:
+            // un bucle infinito. Preferimos limpiarla y pedir el login a mano.
+            if (!sessionStorage.getItem('clubID')) {
+                limpiarSesion();
+                return;
+            }
+
+            window.location.href = paginaInicio();
         });
 
         // Recuperar contraseña: manda el email de restablecimiento de Firebase
@@ -291,6 +307,17 @@
                     const userData = userDoc.data();
                     const clubIdDelUsuario = userData.club_id;
                     const rol = userData.rol || 'user';
+
+                    // Sin club no hay app: todas las páginas piden clubID y nos
+                    // devolverían al login. Cortamos acá con un mensaje claro en
+                    // vez de dejar una sesión a medias dando vueltas.
+                    if (!clubIdDelUsuario) {
+                        limpiarSesion();
+                        msjError.style.display = 'block';
+                        msjError.textContent = "Tu usuario no está asociado a ningún club. Hablá con el administrador.";
+                        btnIngresar.textContent = "Ingresar";
+                        return;
+                    }
 
                     sessionStorage.setItem('clubID', clubIdDelUsuario);
                     sessionStorage.setItem('userRole', rol);
