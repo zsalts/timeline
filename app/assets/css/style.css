@@ -136,6 +136,20 @@ body.app-shell {
     overflow: hidden;
     text-overflow: ellipsis;
 }
+/* La marca es el link a la pantalla de inicio del club (historial, o
+   entrenamientos en los planes sin partidos). Toma la fila que antes armaba
+   el contenedor, así el dibujo no cambia. */
+.brand-link {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    min-width: 0;
+    text-decoration: none;
+    color: inherit;
+    border-radius: 8px;
+}
+.brand-link:hover { opacity: 0.82; }
+.brand-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 
 .sidebar-nav { display: flex; flex-direction: column; gap: 18px; flex: 1; }
 .nav-group { display: flex; flex-direction: column; gap: 2px; }
@@ -465,6 +479,10 @@ label { font-weight: 600; color: var(--text); font-size: 0.85rem; }
         padding: 0 12px;
         background: var(--panel);
         border-bottom: 1px solid var(--line);
+    }
+    .topbar .brand-link {
+        gap: 10px;
+        flex: 1;
     }
     .topbar .logo {
         height: 24px; width: auto; object-fit: contain; flex-shrink: 0;

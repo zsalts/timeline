@@ -56,6 +56,14 @@
     // "Contexto de partido": al abrir un partido aparecen Video y Estadísticas
     const hayPartido = !!sessionStorage.getItem('partidoSeleccionadoId');
 
+    // A dónde lleva tocar la marca: la misma "casa" a la que entra el usuario
+    // al loguearse. Con partidos es el historial; en el plan Pizarrón no hay
+    // partidos y la casa es Entrenamientos. Si tampoco tiene entrenamiento
+    // (una jugadora en Pizarrón) le queda Mensajes, que lo tiene todo el club.
+    let inicio = `${toPage}mensajes.html`;
+    if (puedePartidos) inicio = `${toPage}historial.html`;
+    else if (!esJugadora && puedeEjercicios && esEntrenador) inicio = `${toPage}entrenamientos.html`;
+
     // Íconos (SVG stroke, heredan color con currentColor)
     const ICON = {
         historial: '<path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l3 3"/>',
@@ -133,14 +141,18 @@
                 <svg class="ico-abrir" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h16"/></svg>
                 <svg class="ico-cerrar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg>
             </button>
-            <img src="${toRoot}assets/image/logo.svg" alt="" class="logo" onerror="this.style.visibility='hidden'">
-            <span class="brand-name">${nombreClub}</span>
+            <a href="${inicio}" class="brand-link" aria-label="Ir al inicio">
+                <img src="${toRoot}assets/image/logo.svg" alt="" class="logo" onerror="this.style.visibility='hidden'">
+                <span class="brand-name">${nombreClub}</span>
+            </a>
         </header>
         <div class="nav-scrim" id="nav-scrim"></div>
         <aside class="sidebar" id="sidebar-nav">
             <div class="sidebar-brand">
-                <img src="${toRoot}assets/image/logo.svg" alt="Logo" class="logo" onerror="this.style.visibility='hidden'">
-                <span class="brand-name">${nombreClub}</span>
+                <a href="${inicio}" class="brand-link" aria-label="Ir al inicio">
+                    <img src="${toRoot}assets/image/logo.svg" alt="Logo" class="logo" onerror="this.style.visibility='hidden'">
+                    <span class="brand-name">${nombreClub}</span>
+                </a>
             </div>
             <nav class="sidebar-nav">
                 ${grupos.map(grupoHTML).join('')}
@@ -168,7 +180,7 @@
     btnMenu.addEventListener('click', () => abrirMenu(!document.body.classList.contains('nav-open')));
     scrim.addEventListener('click', () => abrirMenu(false));
     // Navegar cierra el cajón (si el link va a la página actual no hay recarga)
-    aside.addEventListener('click', (e) => { if (e.target.closest('a.nav-link')) abrirMenu(false); });
+    aside.addEventListener('click', (e) => { if (e.target.closest('a.nav-link, a.brand-link')) abrirMenu(false); });
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape' && document.body.classList.contains('nav-open')) {
             abrirMenu(false);

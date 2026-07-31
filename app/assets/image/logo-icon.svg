@@ -6,19 +6,28 @@
     círculo: el fondo va a sangre y la marca entra holgada en el 80% central.
     De acá sale logo-web.png (512x512).
     La marca sin fondo, para usar dentro de la app, vive en logo.svg.
+
+    Esta NO es logo.svg escalada. En la pestaña el ícono se ve a 16px: las
+    ocho barras de la marca caían a 0,3px cada una y se empastaban en una
+    mancha gris con una raya amarilla encima. Acá quedan cuatro barras y el
+    corte, más gruesas y más separadas, que a 16px todavía se leen sueltas.
+
+    Los huecos van parejos y el corte centrado. En la marca grande la
+    irregularidad es el sentido (las jugadas pasan cuando pasan), pero acá
+    un hueco chico mide medio pixel: las barras agrupadas se fusionan en un
+    bloque y el dibujo se ensucia. A 16px el hueco tiene que medir más de un
+    pixel o no existe. Lo que sostiene la lectura es el corte, más ancho y
+    más alto que el resto, que es lo único que se distingue igual.
   -->
   <rect width="512" height="512" fill="#12161D"/>
 
-  <g transform="translate(98.6 129.25) scale(2.113)">
-    <g fill="#98A2B2">
-      <rect x="3.5"   y="26" width="5" height="68" rx="2.5" opacity="0.55"/>
-      <rect x="12.7"  y="26" width="5" height="68" rx="2.5" opacity="0.61"/>
-      <rect x="31"    y="26" width="5" height="68" rx="2.5" opacity="0.72"/>
-      <rect x="49.3"  y="26" width="5" height="68" rx="2.5" opacity="0.83"/>
-      <rect x="99.8"  y="26" width="5" height="68" rx="2.5" opacity="0.86"/>
-      <rect x="115.1" y="26" width="5" height="68" rx="2.5" opacity="0.77"/>
-      <rect x="139.5" y="26" width="5" height="68" rx="2.5" opacity="0.62"/>
-    </g>
-    <rect x="75.9" y="4" width="7" height="112" rx="3.5" fill="#F7C948"/>
+  <g fill="#98A2B2">
+    <rect x="96"  y="166" width="28" height="180" rx="14" opacity="0.60"/>
+    <rect x="166" y="166" width="28" height="180" rx="14" opacity="0.85"/>
+    <rect x="318" y="166" width="28" height="180" rx="14" opacity="0.85"/>
+    <rect x="388" y="166" width="28" height="180" rx="14" opacity="0.60"/>
   </g>
+
+  <!-- El corte abierto -->
+  <rect x="236" y="126" width="40" height="260" rx="20" fill="#F7C948"/>
 </svg>
