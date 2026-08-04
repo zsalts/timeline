@@ -272,6 +272,71 @@
         }
     }
 
+    // --- Aviso de correo sin confirmar ---
+    // Al darse de alta sale un correo de confirmación. No bloquea nada: la app
+    // anda igual y esta barra insiste hasta que confirme. Una vez confirmado se
+    // marca en sessionStorage para no volver a preguntarle a Firebase en cada
+    // página.
+    if (sessionStorage.getItem('emailConfirmado') !== '1') {
+        import(`${toRoot}assets/js/firebase.js`).then((fb) => {
+            fb.onAuthStateChanged(fb.auth, async (user) => {
+                if (!user) return;
+                // reload() trae el estado fresco: si confirmó en otra pestaña,
+                // el `user` que tenemos en memoria sigue diciendo que no.
+                try { await user.reload(); } catch (_) { }
+                const actual = fb.auth.currentUser || user;
+                if (actual.emailVerified) {
+                    sessionStorage.setItem('emailConfirmado', '1');
+                    return;
+                }
+                pintarAvisoCorreo(fb, actual);
+            });
+        });
+    }
+
+    function pintarAvisoCorreo(fb, user) {
+        if (document.getElementById('aviso-correo')) return;
+        const aviso = document.createElement('div');
+        aviso.className = 'aviso-correo';
+        aviso.id = 'aviso-correo';
+        aviso.innerHTML = `
+            <span class="aviso-correo-texto">
+                Confirmá tu correo: te mandamos un mail a <b>${email}</b>. Revisá también el correo no deseado.
+            </span>
+            <button type="button" class="aviso-correo-btn" id="aviso-correo-reenviar">Reenviar</button>
+            <button type="button" class="aviso-correo-btn" id="aviso-correo-listo">Ya lo confirmé</button>`;
+
+        const meter = () => {
+            const cont = document.querySelector('.container-dashboard') || document.querySelector('.container') || document.body;
+            cont.insertBefore(aviso, cont.firstChild);
+        };
+        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', meter);
+        else meter();
+
+        const decir = (txt) => { aviso.querySelector('.aviso-correo-texto').textContent = txt; };
+
+        document.getElementById('aviso-correo-reenviar').addEventListener('click', async (e) => {
+            const btn = e.currentTarget;
+            btn.disabled = true;
+            const ok = await fb.mandarCorreoDeConfirmacion(fb.auth.currentUser || user);
+            decir(ok
+                ? 'Listo, te lo mandamos de nuevo. Puede tardar un par de minutos.'
+                : 'No pudimos mandarlo ahora. Probá de nuevo en un rato.');
+            // Firebase limita los reenvíos seguidos: damos un minuto de aire.
+            setTimeout(() => { btn.disabled = false; }, 60000);
+        });
+
+        document.getElementById('aviso-correo-listo').addEventListener('click', async () => {
+            try { await (fb.auth.currentUser || user).reload(); } catch (_) { }
+            if (fb.auth.currentUser && fb.auth.currentUser.emailVerified) {
+                sessionStorage.setItem('emailConfirmado', '1');
+                aviso.remove();
+            } else {
+                decir('Todavía no nos figura confirmado. Abrí el link del correo y volvé a probar.');
+            }
+        });
+    }
+
     // --- Chat interno (burbuja flotante) ---
     // Se monta acá para que viaje con el shell: aparece en todas las páginas
     // de la app. El widget es un módulo (usa firebase.js) y se planta solo si

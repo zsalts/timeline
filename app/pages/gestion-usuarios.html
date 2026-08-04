@@ -439,7 +439,7 @@
     </div>
 
     <script type="module">
-        import { auth, db, getDocs, collection, doc, getDoc, setDoc, updateDoc, deleteDoc, query, where, signInWithEmailAndPassword, miembrosDelClub } from '../assets/js/firebase.js';
+        import { auth, db, getDocs, collection, doc, getDoc, setDoc, updateDoc, deleteDoc, query, where, signInWithEmailAndPassword, miembrosDelClub, mandarCorreoDeConfirmacionPorToken } from '../assets/js/firebase.js';
 
         const mainContent = document.getElementById('main-content');
         const unauthorizedScreen = document.getElementById('unauthorized-screen');
@@ -1009,6 +1009,9 @@
                     }
 
                     const newUserUid = userResult.localId;
+                    // Correo de confirmación para la persona recién dada de alta.
+                    // No bloquea nada: entra igual y la barra de aviso insiste.
+                    mandarCorreoDeConfirmacionPorToken(userResult.idToken);
                     // Las jugadoras son espectadoras: no se cobran ni cuentan como usuario pago
                     const esPago = role !== 'player';
 

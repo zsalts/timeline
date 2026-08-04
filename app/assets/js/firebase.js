@@ -1,7 +1,7 @@
 // assets/js/firebase.js
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
 import { getFirestore, collection, addDoc, getDocs, doc, getDoc, updateDoc, deleteDoc, setDoc, query, where, orderBy, limit, onSnapshot, serverTimestamp, writeBatch, increment, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, setPersistence, browserLocalPersistence, browserSessionPersistence } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, sendEmailVerification, setPersistence, browserLocalPersistence, browserSessionPersistence } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
 
 // Configuración de Firebase desde variables de ambiente
 // Actualizar estos valores desde .env.local en la raíz del proyecto
@@ -23,6 +23,11 @@ export const MASTER_EMAIL = "mateotesta2016@gmail.com";
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
 export const auth = getAuth(app);
+// Los correos que manda Firebase (confirmar dirección, restablecer contraseña)
+// salen en español. Sin esto van en inglés, que es el idioma por defecto del
+// proyecto. El texto en sí se edita en la consola de Firebase (Authentication →
+// Templates), no acá.
+auth.languageCode = 'es';
 
 // ---------- Sesión "Recordarme" ----------
 // La app guarda su sesión en sessionStorage (se borra al cerrar la pestaña).
@@ -116,6 +121,38 @@ export const miembrosDelClub = async (clubId) => {
   return [...porId.values()];
 };
 
+// ---------- Confirmación del correo ----------
+// Al darse de alta se manda un correo de confirmación. No bloquea el uso de
+// la app: sirve para saber que la dirección existe y es de quien dice ser
+// (la barra de aviso de ui.js insiste hasta que confirme).
+// Nunca frena el alta: si el correo no sale, se avisa y se sigue.
+export const mandarCorreoDeConfirmacion = async (user) => {
+  try {
+    await sendEmailVerification(user);
+    return true;
+  } catch (e) {
+    console.error('No se pudo mandar el correo de confirmación:', e);
+    return false;
+  }
+};
+
+// Igual que la anterior pero para las altas que hace un admin: esas cuentas
+// se crean por REST (accounts:signUp) para no desloguear al admin, así que
+// acá tampoco hay un `user` del SDK, solo el idToken que devolvió el alta.
+export const mandarCorreoDeConfirmacionPorToken = async (idToken) => {
+  try {
+    const r = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=${firebaseConfig.apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requestType: 'VERIFY_EMAIL', idToken })
+    });
+    return r.ok;
+  } catch (e) {
+    console.error('No se pudo mandar el correo de confirmación:', e);
+    return false;
+  }
+};
+
 // Función para obtener información del usuario
 export const getUserData = async (userId) => {
   try {
@@ -138,4 +175,4 @@ export const getClubData = async (clubId) => {
   }
 };
 
-export { collection, addDoc, getDocs, doc, getDoc, updateDoc, deleteDoc, setDoc, query, where, orderBy, limit, onSnapshot, serverTimestamp, writeBatch, increment, arrayUnion, arrayRemove, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, setPersistence, browserLocalPersistence, browserSessionPersistence };
+export { collection, addDoc, getDocs, doc, getDoc, updateDoc, deleteDoc, setDoc, query, where, orderBy, limit, onSnapshot, serverTimestamp, writeBatch, increment, arrayUnion, arrayRemove, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, sendEmailVerification, setPersistence, browserLocalPersistence, browserSessionPersistence };

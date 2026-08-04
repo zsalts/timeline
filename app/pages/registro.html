@@ -190,7 +190,7 @@
     <script type="module">
         import {
             auth, db, createUserWithEmailAndPassword,
-            doc, setDoc, guardarSesionRecordada
+            doc, setDoc, guardarSesionRecordada, mandarCorreoDeConfirmacion
         } from '../assets/js/firebase.js';
 
         const btn = document.getElementById('btn-registrar');
@@ -302,6 +302,10 @@
                 // 6. Dejar la sesión lista y entrar
                 sessionStorage.setItem('usuarioUID', uid);
                 sessionStorage.setItem('userEmail', email);
+                // Correo de confirmación. No bloquea nada: la app entra igual y
+                // la barra de aviso insiste hasta que confirme.
+                mandarCorreoDeConfirmacion(cred.user);
+
                 sessionStorage.setItem('clubID', clubId);
                 sessionStorage.setItem('clubesUsuario', JSON.stringify([clubId]));
                 sessionStorage.setItem('userRole', 'club-admin');
@@ -313,7 +317,7 @@
                 guardarSesionRecordada(true);
 
                 msjInfo.style.display = 'block';
-                msjInfo.textContent = '¡Listo! Tu club está creado. Entrando…';
+                msjInfo.textContent = '¡Listo! Tu club está creado. Te mandamos un correo para confirmar tu dirección. Entrando…';
                 window.location.href = 'historial.html';
 
             } catch (e) {

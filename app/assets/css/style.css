@@ -485,6 +485,46 @@ label { font-weight: 600; color: var(--text); font-size: 0.85rem; }
 .winner-bg { background-color: var(--accent-dim) !important; border-bottom: none; }
 
 /* =========================================================
+   AVISO DE CORREO SIN CONFIRMAR (components/ui.js)
+   Barra al tope del contenido. No bloquea nada: insiste hasta que la
+   persona abre el link que le llegó por mail.
+   ========================================================= */
+.aviso-correo {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 0 0 20px;
+    padding: 11px 14px;
+    background: var(--accent-dim);
+    border: 1px solid var(--accent-line);
+    border-radius: var(--radius-sm);
+}
+.aviso-correo-texto {
+    flex: 1;
+    min-width: 200px;
+    color: var(--text);
+    font-size: 0.88rem;
+    line-height: 1.45;
+}
+.aviso-correo-texto b { color: var(--accent); font-weight: 600; }
+.aviso-correo-btn {
+    flex-shrink: 0;
+    width: auto;
+    padding: 6px 12px;
+    background: transparent;
+    color: var(--text);
+    border: 1px solid var(--line-2);
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+.aviso-correo-btn:hover { border-color: var(--accent); color: var(--accent); }
+.aviso-correo-btn:disabled { opacity: 0.5; cursor: default; }
+
+/* =========================================================
    CHAT FLOTANTE (components/chatWidget.js)
    Burbuja fija abajo a la derecha + panel del chat interno del club.
    Todo va anclado a .chat-widget para no pisar estilos de las páginas.

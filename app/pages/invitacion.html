@@ -212,7 +212,8 @@
     <script type="module">
         import {
             auth, db, createUserWithEmailAndPassword, signInWithEmailAndPassword,
-            doc, getDoc, writeBatch, increment, guardarSesionRecordada, clubesDeUsuario
+            doc, getDoc, writeBatch, increment, guardarSesionRecordada, clubesDeUsuario,
+            mandarCorreoDeConfirmacion
         } from '../assets/js/firebase.js';
 
         const msjError = document.getElementById('mensaje-error');
@@ -365,6 +366,10 @@
                 } catch (_) { /* si falla, quedan los datos de la invitación */ }
 
                 // 4. Dejar la sesión lista y entrar
+                // Correo de confirmación. No bloquea nada: entra igual y la
+                // barra de aviso insiste hasta que confirme.
+                mandarCorreoDeConfirmacion(cred.user);
+
                 sessionStorage.setItem('usuarioUID', uid);
                 sessionStorage.setItem('userEmail', email);
                 sessionStorage.setItem('clubID', invitacion.club_id);
@@ -375,7 +380,7 @@
                 guardarSesionRecordada(true);
 
                 msjInfo.style.display = 'block';
-                msjInfo.textContent = '¡Listo! Ya sos parte del club. Entrando…';
+                msjInfo.textContent = '¡Listo! Ya sos parte del club. Te mandamos un correo para confirmar tu dirección. Entrando…';
                 window.location.href = 'historial.html';
 
             } catch (e) {

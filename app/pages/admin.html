@@ -334,7 +334,7 @@
     </div>
 
     <script type="module">
-        import { auth, db, signOut, onAuthStateChanged, doc, getDoc, setDoc, updateDoc, deleteDoc, writeBatch, getDocs, collection, query, where, signInWithEmailAndPassword, isMasterAdmin, limpiarSesion } from '../assets/js/firebase.js';
+        import { auth, db, signOut, onAuthStateChanged, doc, getDoc, setDoc, updateDoc, deleteDoc, writeBatch, getDocs, collection, query, where, signInWithEmailAndPassword, isMasterAdmin, limpiarSesion, mandarCorreoDeConfirmacionPorToken } from '../assets/js/firebase.js';
 
         // API key de Firebase (usada para crear usuarios vía REST sin desloguear al admin)
         const API_KEY = "AIzaSyAm7hCCz4pIHb9DER9AhVYZEON_3pt7ChU";
@@ -519,6 +519,8 @@
                     }
 
                     const adminUid = userResult.localId;
+                    // Correo de confirmación para el admin del club recién creado
+                    mandarCorreoDeConfirmacionPorToken(userResult.idToken);
 
                     // Crear documento del club
                     await setDoc(doc(db, "clubes", clubId), {
@@ -891,6 +893,9 @@
                     return;
                 }
                 const newUid = result.localId;
+                // Correo de confirmación para la persona recién dada de alta.
+                // No bloquea nada: entra igual y la barra de aviso insiste.
+                mandarCorreoDeConfirmacionPorToken(result.idToken);
                 // Las jugadoras son espectadoras: no se cobran ni suman al conteo pago
                 const esPago = rol !== 'player';
 
