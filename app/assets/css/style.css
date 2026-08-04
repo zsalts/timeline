@@ -151,6 +151,31 @@ body.app-shell {
 .brand-link:hover { opacity: 0.82; }
 .brand-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 
+/* Selector de club: solo se dibuja para quien trabaja en más de uno */
+.club-switch { margin: -6px 0 16px; padding: 0 4px; }
+.club-switch-label {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--faint);
+    margin-bottom: 5px;
+}
+.club-switch-select {
+    width: 100%;
+    padding: 7px 9px;
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid var(--line-2);
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+.club-switch-select:hover { border-color: var(--accent); }
+.club-switch-select:disabled { opacity: 0.6; cursor: progress; }
+
 .sidebar-nav { display: flex; flex-direction: column; gap: 18px; flex: 1; }
 .nav-group { display: flex; flex-direction: column; gap: 2px; }
 .nav-group-label {

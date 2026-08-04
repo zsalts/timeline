@@ -202,7 +202,7 @@
     <script type="module">
         import { auth, db, signInWithEmailAndPassword, sendPasswordResetEmail, doc, getDoc, MASTER_EMAIL, isMasterAdmin,
             onAuthStateChanged, setPersistence, browserLocalPersistence, browserSessionPersistence, guardarSesionRecordada,
-            limpiarSesion } from '../assets/js/firebase.js';
+            limpiarSesion, clubesDeUsuario } from '../assets/js/firebase.js';
 
         // A dónde entra el usuario según el plan del club: el plan Pizarrón no
         // tiene partidos, así que arranca en Entrenamientos y no en el historial.
@@ -305,7 +305,12 @@
 
                 if (userDoc.exists()) {
                     const userData = userDoc.data();
-                    const clubIdDelUsuario = userData.club_id;
+                    // Una persona puede trabajar para varios clubes (el caso
+                    // típico es la analista). Entra al último que estuvo usando
+                    // y desde la barra puede cambiar.
+                    const clubes = clubesDeUsuario(userData);
+                    const ultimo = localStorage.getItem('ultimoClub');
+                    const clubIdDelUsuario = clubes.includes(ultimo) ? ultimo : clubes[0];
                     const rol = userData.rol || 'user';
 
                     // Sin club no hay app: todas las páginas piden clubID y nos
@@ -320,7 +325,9 @@
                     }
 
                     sessionStorage.setItem('clubID', clubIdDelUsuario);
+                    sessionStorage.setItem('clubesUsuario', JSON.stringify(clubes));
                     sessionStorage.setItem('userRole', rol);
+                    try { localStorage.setItem('ultimoClub', clubIdDelUsuario); } catch (_) { }
 
                     // Si es admin del club, permitir acceso a gestion-usuarios
                     if (rol === 'club-admin') {

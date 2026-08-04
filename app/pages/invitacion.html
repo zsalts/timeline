@@ -173,7 +173,7 @@
 
             <!-- Formulario (oculto hasta validar la invitación) -->
             <div id="form-alta" style="display: none;">
-                <div class="input-group">
+                <div class="input-group" id="grupo-nombre">
                     <label for="nombre">Tu nombre</label>
                     <input type="text" id="nombre" placeholder="Ej: Carla Gómez" required>
                 </div>
@@ -188,7 +188,7 @@
                     <input type="password" id="password" placeholder="Mínimo 6 caracteres" required>
                 </div>
 
-                <div class="input-group">
+                <div class="input-group" id="grupo-password2">
                     <label for="password2">Repetir contraseña</label>
                     <input type="password" id="password2" placeholder="********" required>
                 </div>
@@ -199,16 +199,20 @@
             <p id="mensaje-error"></p>
             <p id="mensaje-info"></p>
 
+            <div class="login-foot" id="pie-modo" style="display: none;">
+                <span id="pie-texto">¿Ya tenés cuenta en Timeline?</span>
+                <a href="#" id="link-modo">Sumá este club a tu cuenta</a>
+            </div>
             <div class="login-foot">
-                ¿Ya tenés cuenta? <a href="login.html">Iniciá sesión</a>
+                ¿Te equivocaste de link? <a href="login.html">Iniciá sesión</a>
             </div>
         </div>
     </section>
 
     <script type="module">
         import {
-            auth, db, createUserWithEmailAndPassword,
-            doc, getDoc, writeBatch, increment, guardarSesionRecordada
+            auth, db, createUserWithEmailAndPassword, signInWithEmailAndPassword,
+            doc, getDoc, writeBatch, increment, guardarSesionRecordada, clubesDeUsuario
         } from '../assets/js/firebase.js';
 
         const msjError = document.getElementById('mensaje-error');
@@ -239,6 +243,33 @@
         const token = new URLSearchParams(window.location.search).get('t') || '';
         let invitacion = null;
 
+        // El mismo link sirve para dos cosas: crear una cuenta nueva, o sumarle
+        // este club a una cuenta que ya existe. Lo segundo es lo que necesita
+        // quien trabaja para varios clubes (típicamente una analista): entra con
+        // su cuenta de siempre y el club se le suma a la lista.
+        let modo = 'nueva';
+        function aplicarModo(m) {
+            modo = m;
+            const nueva = m === 'nueva';
+            document.getElementById('grupo-nombre').style.display = nueva ? 'block' : 'none';
+            document.getElementById('grupo-password2').style.display = nueva ? 'block' : 'none';
+            document.querySelector('.login-title').textContent = nueva ? 'Creá tu cuenta' : 'Entrá con tu cuenta';
+            sub.textContent = nueva
+                ? 'Elegí tu correo y contraseña para entrar.'
+                : 'Entrá con tu correo y contraseña de siempre: el club se suma a tu cuenta.';
+            btn.textContent = nueva ? 'Sumarme al club' : 'Sumar este club a mi cuenta';
+            document.getElementById('pie-texto').textContent = nueva
+                ? '¿Ya tenés cuenta en Timeline?' : '¿Todavía no tenés cuenta?';
+            document.getElementById('link-modo').textContent = nueva
+                ? 'Sumá este club a tu cuenta' : 'Creá una cuenta nueva';
+            msjError.style.display = 'none';
+            msjInfo.style.display = 'none';
+        }
+        document.getElementById('link-modo').addEventListener('click', (ev) => {
+            ev.preventDefault();
+            aplicarModo(modo === 'nueva' ? 'existente' : 'nueva');
+        });
+
         async function cargarInvitacion() {
             if (!token) {
                 sub.textContent = 'Este link está incompleto.';
@@ -265,9 +296,10 @@
 
                 document.getElementById('invite-club').textContent = invitacion.club_nombre || 'Tu club';
                 document.getElementById('invite-rol').textContent = ROLES[invitacion.rol] || invitacion.rol;
-                sub.textContent = 'Elegí tu correo y contraseña para entrar.';
                 card.style.display = 'block';
                 form.style.display = 'block';
+                document.getElementById('pie-modo').style.display = 'block';
+                aplicarModo('nueva');
             } catch (e) {
                 console.error('Error al leer la invitación:', e);
                 sub.textContent = 'No se pudo verificar la invitación.';
@@ -285,10 +317,15 @@
             msjInfo.style.display = 'none';
 
             if (!invitacion) return error('La invitación no está cargada.');
-            if (!nombre || !email || !password || !password2) return error('Completá todos los campos.');
+            if (!email || !password) return error('Completá todos los campos.');
             if (!validarEmail(email)) return error('Ese correo no parece válido.');
             if (password.length < 6) return error('La contraseña debe tener al menos 6 caracteres.');
-            if (password !== password2) return error('Las contraseñas no coinciden.');
+            if (modo === 'nueva') {
+                if (!nombre || !password2) return error('Completá todos los campos.');
+                if (password !== password2) return error('Las contraseñas no coinciden.');
+            } else {
+                return sumarClubACuentaExistente(email, password);
+            }
 
             btn.disabled = true;
             btn.textContent = 'Creando tu cuenta…';
@@ -331,6 +368,7 @@
                 sessionStorage.setItem('usuarioUID', uid);
                 sessionStorage.setItem('userEmail', email);
                 sessionStorage.setItem('clubID', invitacion.club_id);
+                sessionStorage.setItem('clubesUsuario', JSON.stringify([invitacion.club_id]));
                 sessionStorage.setItem('userRole', invitacion.rol);
                 sessionStorage.setItem('isClubAdmin', 'false');
                 sessionStorage.setItem('configClub', JSON.stringify(clubCfg));
@@ -362,6 +400,85 @@
                 }
             }
         });
+
+        // Sumar este club a una cuenta que ya existe. No crea nada: entra con
+        // la cuenta de siempre y le agrega el club a su ficha, en el mismo
+        // batch que suma el uso de la invitación (igual que el alta nueva, así
+        // el "un solo uso" se sigue cumpliendo del lado de las reglas).
+        async function sumarClubACuentaExistente(email, password) {
+            btn.disabled = true;
+            btn.textContent = 'Entrando…';
+            try {
+                const cred = await signInWithEmailAndPassword(auth, email, password);
+                const uid = cred.user.uid;
+
+                const snap = await getDoc(doc(db, 'usuarios', uid));
+                if (!snap.exists()) {
+                    btn.disabled = false;
+                    aplicarModo('existente');
+                    return error('Esa cuenta todavía no está dada de alta en ningún club. Creá tu cuenta con el formulario de arriba.');
+                }
+                const ficha = snap.data();
+                const clubes = clubesDeUsuario(ficha);
+
+                // El rol es uno solo para toda la cuenta: si el club invita con
+                // otro rol, el link no sirve para esta persona.
+                if ((ficha.rol || '') !== invitacion.rol) {
+                    btn.disabled = false;
+                    aplicarModo('existente');
+                    return error(`Tu cuenta es ${ROLES[ficha.rol] || ficha.rol} y este link te invita como ${ROLES[invitacion.rol] || invitacion.rol}. Pedile al club un link con tu mismo rol.`);
+                }
+
+                if (!clubes.includes(invitacion.club_id)) {
+                    const batch = writeBatch(db);
+                    batch.update(doc(db, 'usuarios', uid), {
+                        clubes: [...clubes, invitacion.club_id],
+                        invitacion: token
+                    });
+                    batch.update(doc(db, 'invitaciones', token), { usos: increment(1) });
+                    await batch.commit();
+                    clubes.push(invitacion.club_id);
+                }
+
+                let clubCfg = { nombre: invitacion.club_nombre || 'Timeline', plan: 'free', logo: '' };
+                try {
+                    const clubSnap = await getDoc(doc(db, 'clubes', invitacion.club_id));
+                    if (clubSnap.exists()) {
+                        const c = clubSnap.data();
+                        clubCfg = { nombre: c.nombre || clubCfg.nombre, plan: c.plan || 'free', logo: c.logo || '' };
+                    }
+                } catch (_) { /* si falla, quedan los datos de la invitación */ }
+
+                sessionStorage.setItem('usuarioUID', uid);
+                sessionStorage.setItem('userEmail', email);
+                sessionStorage.setItem('clubID', invitacion.club_id);
+                sessionStorage.setItem('clubesUsuario', JSON.stringify(clubes));
+                sessionStorage.setItem('userRole', ficha.rol);
+                sessionStorage.setItem('isClubAdmin', String(ficha.rol === 'club-admin'));
+                sessionStorage.setItem('configClub', JSON.stringify(clubCfg));
+                sessionStorage.removeItem('clubesNombres');   // hay un club más
+                try { localStorage.setItem('ultimoClub', invitacion.club_id); } catch (_) { }
+                guardarSesionRecordada(true);
+
+                msjInfo.style.display = 'block';
+                msjInfo.textContent = '¡Listo! El club se sumó a tu cuenta. Entrando…';
+                window.location.href = 'historial.html';
+            } catch (e) {
+                console.error('Error al sumar el club:', e);
+                btn.disabled = false;
+                aplicarModo('existente');
+                const code = e && e.code;
+                if (code === 'auth/invalid-credential' || code === 'auth/wrong-password' || code === 'auth/user-not-found') {
+                    error('Correo o contraseña incorrectos.');
+                } else if (code === 'permission-denied') {
+                    error(invitacion && invitacion.un_solo_uso
+                        ? 'Este link era de un solo uso y ya lo usaron. Pedile al club uno nuevo.'
+                        : 'La invitación ya no es válida. Pedile al club un link nuevo.');
+                } else {
+                    error('No se pudo sumar el club. Revisá tu conexión e intentá de nuevo.');
+                }
+            }
+        }
 
         document.querySelectorAll('.login-box input').forEach(inp => {
             inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') btn.click(); });

@@ -439,7 +439,7 @@
     </div>
 
     <script type="module">
-        import { auth, db, getDocs, collection, doc, getDoc, setDoc, updateDoc, deleteDoc, query, where, signInWithEmailAndPassword } from '../assets/js/firebase.js';
+        import { auth, db, getDocs, collection, doc, getDoc, setDoc, updateDoc, deleteDoc, query, where, signInWithEmailAndPassword, miembrosDelClub } from '../assets/js/firebase.js';
 
         const mainContent = document.getElementById('main-content');
         const unauthorizedScreen = document.getElementById('unauthorized-screen');
@@ -922,17 +922,20 @@
             const container = document.getElementById('users-container');
 
             try {
-                const q = query(collection(db, 'usuarios'), where('club_id', '==', clubID));
-                const usersSnap = await getDocs(q);
+                // Trae también a quien está de invitada desde otro club (el caso
+                // típico es la analista que trabaja para varios).
+                const usuarios = await miembrosDelClub(clubID);
 
-                if (usersSnap.empty) {
+                if (!usuarios.length) {
                     container.innerHTML = '<p style="color: #999;">No hay usuarios registrados</p>';
                     return;
                 }
 
                 container.innerHTML = '';
-                usersSnap.forEach(doc => {
-                    const user = doc.data();
+                usuarios.forEach(user => {
+                    // Su ficha (rol, estado) es del club donde tiene la casa: si
+                    // es de otro club, acá se ve pero no se toca.
+                    const invitada = user.club_id !== clubID;
                     const roleClass = `role-${user.rol}`;
                     const roleName = {
                         'club-admin': 'Administrador del Club',
@@ -945,15 +948,17 @@
                     container.innerHTML += `
                         <div class="user-item">
                             <div class="user-info">
-                                <h4>${TL.esc(user.nombre)}</h4>
+                                <h4>${TL.esc(user.nombre)}${invitada ? ' <span class="role-badge">invitada de otro club</span>' : ''}</h4>
                                 <p><strong>Email:</strong> ${TL.esc(user.email)}</p>
                                 <p><strong>Rol:</strong> <span class="role-badge ${roleClass}">${TL.esc(roleName)}</span></p>
                                 <p><strong>Estado:</strong> ${user.estado === 'activo' ? 'Activo' : 'Inactivo'}</p>
                             </div>
                             <div class="user-actions">
-                                ${user.rol !== 'club-admin' ? `
-                                    <button class="btn-danger" onclick="deactivateUser('${doc.id}')">Desactivar</button>
-                                ` : '<span style="color: var(--faint); font-size: 0.9rem;">Admin del club</span>'}
+                                ${invitada
+                                    ? '<span style="color: var(--faint); font-size: 0.9rem;">La maneja su club</span>'
+                                    : (user.rol !== 'club-admin'
+                                        ? `<button class="btn-danger" onclick="deactivateUser('${user.id}')">Desactivar</button>`
+                                        : '<span style="color: var(--faint); font-size: 0.9rem;">Admin del club</span>')}
                             </div>
                         </div>
                     `;

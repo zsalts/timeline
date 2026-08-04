@@ -1,6 +1,6 @@
 // assets/js/firebase.js
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
-import { getFirestore, collection, addDoc, getDocs, doc, getDoc, updateDoc, deleteDoc, setDoc, query, where, orderBy, limit, onSnapshot, serverTimestamp, writeBatch, increment } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
+import { getFirestore, collection, addDoc, getDocs, doc, getDoc, updateDoc, deleteDoc, setDoc, query, where, orderBy, limit, onSnapshot, serverTimestamp, writeBatch, increment, arrayUnion, arrayRemove } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, setPersistence, browserLocalPersistence, browserSessionPersistence } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-auth.js";
 
 // Configuración de Firebase desde variables de ambiente
@@ -29,7 +29,9 @@ export const auth = getAuth(app);
 // Con "Recordarme" espejamos esas claves en localStorage y las restauramos al
 // volver, así no hay que iniciar sesión cada vez. La seguridad real la sigue
 // dando el token de Firebase Auth (persistencia local cuando se recuerda).
-const CLAVES_SESION = ['usuarioUID', 'userEmail', 'clubID', 'userRole', 'isClubAdmin', 'isSuperAdmin', 'configClub'];
+// 'clubesUsuario' es la lista de clubes de la persona (JSON): puede estar en
+// más de uno y 'clubID' es el que tiene abierto ahora.
+const CLAVES_SESION = ['usuarioUID', 'userEmail', 'clubID', 'clubesUsuario', 'userRole', 'isClubAdmin', 'isSuperAdmin', 'configClub'];
 
 // Si no hay sesión activa pero quedó una recordada, la restaura. Se llama al
 // importar este módulo (los imports se evalúan antes del código de la página),
@@ -80,16 +82,38 @@ export const isMasterAdmin = (email) => {
   return email === MASTER_EMAIL;
 };
 
+// Clubes a los que pertenece una persona. Una ficha vieja (o la de quien está
+// en un solo club) no tiene 'clubes' y vale por su club_id.
+export const clubesDeUsuario = (userData) => {
+  if (!userData) return [];
+  const lista = Array.isArray(userData.clubes) ? userData.clubes.filter(Boolean) : [];
+  if (userData.club_id && !lista.includes(userData.club_id)) lista.unshift(userData.club_id);
+  return lista;
+};
+
 // Función para validar acceso de usuario a un club
 export const validateClubAccess = async (userId, clubId) => {
   try {
     const userDoc = await getDoc(doc(db, "usuarios", userId));
     if (!userDoc.exists()) return false;
-    return userDoc.data().club_id === clubId;
+    return clubesDeUsuario(userDoc.data()).includes(clubId);
   } catch (error) {
     console.error("Error validating club access:", error);
     return false;
   }
+};
+
+// Gente de un club. Van dos consultas a propósito: 'club_id' trae a los que
+// tienen a este club como principal (incluidas las fichas viejas, que no
+// tienen 'clubes') y 'clubes' trae a los que además trabajan para él, como
+// las analistas de varios clubes. Se juntan por id, sin repetir.
+export const miembrosDelClub = async (clubId) => {
+  const porPrincipal = getDocs(query(collection(db, 'usuarios'), where('club_id', '==', clubId)));
+  const porLista = getDocs(query(collection(db, 'usuarios'), where('clubes', 'array-contains', clubId)));
+  const [a, b] = await Promise.all([porPrincipal, porLista]);
+  const porId = new Map();
+  [a, b].forEach(snap => snap.forEach(d => porId.set(d.id, { id: d.id, ...d.data() })));
+  return [...porId.values()];
 };
 
 // Función para obtener información del usuario
@@ -114,4 +138,4 @@ export const getClubData = async (clubId) => {
   }
 };
 
-export { collection, addDoc, getDocs, doc, getDoc, updateDoc, deleteDoc, setDoc, query, where, orderBy, limit, onSnapshot, serverTimestamp, writeBatch, increment, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, setPersistence, browserLocalPersistence, browserSessionPersistence };
+export { collection, addDoc, getDocs, doc, getDoc, updateDoc, deleteDoc, setDoc, query, where, orderBy, limit, onSnapshot, serverTimestamp, writeBatch, increment, arrayUnion, arrayRemove, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, setPersistence, browserLocalPersistence, browserSessionPersistence };

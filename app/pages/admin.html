@@ -240,6 +240,27 @@
                         <p style="color: var(--muted);">Cargando clubes…</p>
                     </div>
                 </div>
+
+                <!-- Una persona puede trabajar para varios clubes (analistas).
+                     El camino normal es el link de invitación del club; esto es
+                     la salida a mano cuando hay que arreglarlo desde acá. -->
+                <div class="card">
+                    <h2>Clubes de una persona</h2>
+                    <p style="color: var(--muted); font-size: 0.9rem;">
+                        Buscá por correo y sumale o sacale clubes. Su rol es el mismo en todos.
+                    </p>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Correo de la persona</label>
+                            <input type="email" id="multi-email" placeholder="analista@club.com">
+                        </div>
+                        <div class="form-group" style="display:flex; align-items:flex-end;">
+                            <button class="btn-primary" id="btn-multi-buscar" style="width:auto; padding:11px 18px;">Buscar</button>
+                        </div>
+                    </div>
+                    <div id="multi-ficha" style="display:none; margin-top:6px;"></div>
+                    <div class="mensaje" id="mensaje-multi"></div>
+                </div>
             </div>
         </div>
     </div>
@@ -557,6 +578,92 @@
         }
 
         // Cargar clubs con opciones de editar / dar de baja / gestionar usuarios
+        // ---- Clubes de una persona (multi-club a mano) ----
+        // El camino normal para sumar un club es el link de invitación; esto es
+        // la salida del super-admin cuando hay que corregirlo desde acá.
+        let multiFicha = null;   // { id, ...datos }
+
+        async function buscarPersonaMulti() {
+            const email = document.getElementById('multi-email').value.trim().toLowerCase();
+            const cont = document.getElementById('multi-ficha');
+            const msg = document.getElementById('mensaje-multi');
+            msg.style.display = 'none';
+            cont.style.display = 'none';
+            if (!email) return;
+            try {
+                const snap = await getDocs(query(collection(db, 'usuarios'), where('email', '==', email)));
+                if (snap.empty) return showMessage(msg, 'No hay ninguna cuenta con ese correo.', 'error');
+                multiFicha = { id: snap.docs[0].id, ...snap.docs[0].data() };
+                await pintarFichaMulti();
+            } catch (e) {
+                console.error('Error al buscar la persona:', e);
+                showMessage(msg, 'Error al buscar: ' + (e.message || e), 'error');
+            }
+        }
+
+        async function pintarFichaMulti() {
+            const cont = document.getElementById('multi-ficha');
+            const clubsSnap = await getDocs(collection(db, 'clubes'));
+            const todos = clubsSnap.docs.map(d => ({ id: d.id, nombre: d.data().nombre || d.id }));
+            const suyos = [...new Set([multiFicha.club_id, ...(multiFicha.clubes || [])].filter(Boolean))];
+            const disponibles = todos.filter(c => !suyos.includes(c.id));
+
+            cont.innerHTML = `
+                <p style="margin:0 0 8px;"><strong>${esc(multiFicha.nombre || multiFicha.email)}</strong>
+                    <span style="color:var(--muted);"> · ${esc(multiFicha.rol || '')}</span></p>
+                <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px;">
+                    ${suyos.map(c => `
+                        <span style="display:inline-flex; align-items:center; gap:6px; padding:4px 10px; background:var(--panel); border:1px solid var(--line); border-radius:999px; font-size:0.85rem;">
+                            ${esc((todos.find(t => t.id === c) || {}).nombre || c)}
+                            ${c === multiFicha.club_id
+                                ? '<span style="color:var(--faint); font-size:0.75rem;">principal</span>'
+                                : `<button style="background:none; border:none; color:var(--danger); cursor:pointer; padding:0; font-size:1rem; line-height:1;" onclick="sacarClub('${c}')" title="Sacar este club">×</button>`}
+                        </span>`).join('')}
+                </div>
+                ${disponibles.length ? `
+                    <div style="display:flex; gap:8px; align-items:center;">
+                        <select id="multi-club-nuevo" style="flex:1;">
+                            ${disponibles.map(c => `<option value="${esc(c.id)}">${esc(c.nombre)}</option>`).join('')}
+                        </select>
+                        <button class="btn-primary" style="width:auto; padding:9px 16px;" onclick="sumarClub()">Sumar club</button>
+                    </div>` : '<p style="color:var(--faint); font-size:0.9rem;">Ya está en todos los clubes.</p>'}`;
+            cont.style.display = 'block';
+        }
+
+        // El club principal (club_id) no se saca: es de donde salen su rol y su
+        // estado, y quién lo administra.
+        async function guardarClubesMulti(clubes) {
+            const msg = document.getElementById('mensaje-multi');
+            try {
+                await updateDoc(doc(db, 'usuarios', multiFicha.id), { clubes });
+                multiFicha.clubes = clubes;
+                await pintarFichaMulti();
+                showMessage(msg, 'Clubes actualizados.', 'success');
+                loadClubs();
+            } catch (e) {
+                console.error('Error al guardar los clubes:', e);
+                showMessage(msg, 'Error al guardar: ' + (e.message || e), 'error');
+            }
+        }
+
+        window.sumarClub = async () => {
+            const nuevo = document.getElementById('multi-club-nuevo').value;
+            const actuales = [...new Set([multiFicha.club_id, ...(multiFicha.clubes || [])].filter(Boolean))];
+            if (!nuevo || actuales.includes(nuevo)) return;
+            await guardarClubesMulti([...actuales, nuevo]);
+        };
+
+        window.sacarClub = async (clubId) => {
+            if (clubId === multiFicha.club_id) return;
+            const actuales = [...new Set([multiFicha.club_id, ...(multiFicha.clubes || [])].filter(Boolean))];
+            await guardarClubesMulti(actuales.filter(c => c !== clubId));
+        };
+
+        document.getElementById('btn-multi-buscar').addEventListener('click', buscarPersonaMulti);
+        document.getElementById('multi-email').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') buscarPersonaMulti();
+        });
+
         async function loadClubs() {
             const container = document.getElementById('clubs-container');
             container.innerHTML = '<p style="color: var(--muted);">Cargando clubes…</p>';
@@ -572,12 +679,17 @@
                     return;
                 }
 
-                // Agrupar usuarios por club_id
+                // Agrupar usuarios por club. Quien trabaja para varios (las
+                // analistas) aparece en todos, marcada como invitada en los que
+                // no son su club principal.
                 const usuariosPorClub = {};
                 usersSnap.forEach(u => {
                     const d = u.data();
-                    if (!usuariosPorClub[d.club_id]) usuariosPorClub[d.club_id] = [];
-                    usuariosPorClub[d.club_id].push({ id: u.id, ...d });
+                    const suyos = [...new Set([d.club_id, ...(Array.isArray(d.clubes) ? d.clubes : [])].filter(Boolean))];
+                    suyos.forEach(c => {
+                        if (!usuariosPorClub[c]) usuariosPorClub[c] = [];
+                        usuariosPorClub[c].push({ id: u.id, ...d, invitada: c !== d.club_id });
+                    });
                 });
 
                 container.innerHTML = '';
@@ -597,9 +709,10 @@
                                 <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 10px; background:var(--panel); border:1px solid var(--line); border-radius:6px; margin-bottom:6px;">
                                     <div style="font-size:0.9rem;">
                                         <strong>${esc(u.nombre)}</strong> — ${esc(u.email)}
-                                        <span style="color:var(--muted);"> · ${rolNombre} · ${uActivo ? 'activo' : 'inactivo'}</span>
+                                        <span style="color:var(--muted);"> · ${rolNombre} · ${uActivo ? 'activo' : 'inactivo'}${u.invitada ? ' · invitada' : ''}</span>
                                     </div>
-                                    ${esAdmin ? '<span style="font-size:0.8rem; color:var(--faint);">Admin del club</span>'
+                                    ${u.invitada ? `<span style="font-size:0.8rem; color:var(--faint);">Su club es ${esc(u.club_id)}</span>`
+                                        : esAdmin ? '<span style="font-size:0.8rem; color:var(--faint);">Admin del club</span>'
                                         : `<button class="btn-danger" style="width:auto; padding:5px 10px; font-size:0.8rem;" onclick="toggleUsuario('${u.id}','${clubId}', ${uActivo})">${uActivo ? 'Dar de baja' : 'Reactivar'}</button>`}
                                 </div>`;
                         }).join('')

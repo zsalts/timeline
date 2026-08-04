@@ -28,12 +28,26 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/clubes/$(clubId)).data;
     }
 
+    // Clubes de una ficha de usuario. Una persona puede trabajar para varios
+    // clubes (el caso típico es la analista que sigue a más de uno): 'clubes'
+    // los tiene a todos y 'club_id' es solo el que abre por defecto. Las
+    // fichas viejas no tienen 'clubes' y valen por su único club.
+    function clubesDe(ficha) {
+      return ficha.get('clubes', [ficha.club_id]);
+    }
+
+    // ¿'c' es uno de MIS clubes? Reemplaza al viejo "userDoc().club_id == c":
+    // desde que alguien puede estar en varios, "mi club" no es uno solo.
+    function esMiClub(c) {
+      return userExists() && c in clubesDe(userDoc());
+    }
+
     // ¿El único cambio en el club es el contador de partidos, moviéndose ±1?
     // Permite que cualquier miembro (no jugadora) mantenga el contador que usa
     // el tope del plan Free, sin poder tocar ningún otro campo del club.
     function soloContadorPartidos(clubId) {
       return userExists() &&
-             userDoc().club_id == clubId &&
+             esMiClub(clubId) &&
              userDoc().rol != 'player' &&
              request.resource.data.diff(resource.data).affectedKeys().hasOnly(['partidos_count']) &&
              (request.resource.data.partidos_count == resource.data.get('partidos_count', 0) + 1 ||
@@ -138,7 +152,7 @@ service cloud.firestore {
       // Leer: super-admin, admin del club, o cualquier usuario del club
       allow read: if isSuper() ||
         esAdminDelClub() ||
-        (userExists() && userDoc().club_id == clubId);
+        (userExists() && esMiClub(clubId));
 
       // Editar: el super-admin puede todo; el admin del club, solo los campos
       // de su propia configuración (ver camposEditablesPorAdminClub).
@@ -169,10 +183,44 @@ service cloud.firestore {
     // COLECCIÓN: usuarios
     // ============================================
     match /usuarios/{userId} {
-      // Leer: super-admin, propietario, o compañero del mismo club
+      // Campos que definen el acceso: quién sos y a qué club entrás. Nadie los
+      // mueve en su propia ficha (si no, cualquiera se haría club-admin o se
+      // sumaría al club que quisiera). Los toca el admin del club o el super.
+      function noTocaSuAcceso() {
+        return !request.resource.data.diff(resource.data).affectedKeys()
+                 .hasAny(['rol', 'club_id', 'clubes', 'estado', 'invitacion']);
+      }
+
+      // Sumarse un club con un link de invitación: la persona ya tiene cuenta
+      // (por ejemplo la analista que empieza a seguir a otro club) y el link
+      // agrega ese club a su ficha en vez de crear una cuenta nueva.
+      // Solo puede AGREGAR el club de la invitación, con el mismo rol que ya
+      // tiene, y sin tocar nada más. El batch incrementa los usos, igual que
+      // en el alta (ver altaPorInvitacion).
+      function sumaClubPorInvitacion(userId) {
+        return request.auth != null &&
+               request.auth.uid == userId &&
+               request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['clubes', 'invitacion']) &&
+               request.resource.data.invitacion is string &&
+               exists(/databases/$(database)/documents/invitaciones/$(request.resource.data.invitacion)) &&
+               invitacionDoc(request.resource.data.invitacion).activa == true &&
+               invitacionDoc(request.resource.data.invitacion).rol == resource.data.rol &&
+               // 'clubes' queda como estaba MÁS el club de la invitación
+               request.resource.data.clubes.hasAll(clubesDe(resource.data)) &&
+               request.resource.data.clubes.hasOnly(
+                 clubesDe(resource.data).concat([invitacionDoc(request.resource.data.invitacion).club_id])) &&
+               invitacionDoc(request.resource.data.invitacion).club_id in request.resource.data.clubes &&
+               invitacionUsosDespues(request.resource.data.invitacion) ==
+                 invitacionDoc(request.resource.data.invitacion).get('usos', 0) + 1 &&
+               (invitacionDoc(request.resource.data.invitacion).get('un_solo_uso', false) == false ||
+                invitacionUsosDespues(request.resource.data.invitacion) <= 1);
+      }
+
+      // Leer: super-admin, propietario, o compañero de alguno de mis clubes
       allow read: if isSuper() ||
         (request.auth != null && request.auth.uid == userId) ||
-        (userExists() && userDoc().club_id == resource.data.club_id);
+        (userExists() && clubesDe(userDoc()).hasAny(clubesDe(resource.data)));
 
       // Crear: super-admin; club-admin creando en su club; o auto-registro
       // (el usuario recién creado hace SU propio doc como club-admin del club
@@ -180,7 +228,7 @@ service cloud.firestore {
       allow create: if isSuper() ||
         (userExists() &&
          userDoc().rol == 'club-admin' &&
-         request.resource.data.club_id == userDoc().club_id) ||
+         esMiClub(request.resource.data.club_id)) ||
         (request.auth != null &&
          request.auth.uid == userId &&
          request.resource.data.rol == 'club-admin' &&
@@ -188,12 +236,15 @@ service cloud.firestore {
         // o alta por link de invitación (club y rol los fija la invitación)
         altaPorInvitacion(userId);
 
-      // Actualizar: super-admin, propietario, o club-admin del mismo club
+      // Actualizar: el super puede todo; el club-admin, la gente de su club;
+      // y cada uno su propia ficha mientras no toque su acceso (o mientras
+      // se sume un club con un link de invitación válido).
       allow update: if isSuper() ||
-        (request.auth != null && request.auth.uid == userId) ||
+        (request.auth != null && request.auth.uid == userId &&
+         (noTocaSuAcceso() || sumaClubPorInvitacion(userId))) ||
         (userExists() &&
          userDoc().rol == 'club-admin' &&
-         resource.data.club_id == userDoc().club_id);
+         esMiClub(resource.data.club_id));
 
       // Eliminar: solo el super-admin (borrado permanente de un club completo).
       // El flujo normal es "dar de baja" (estado: inactivo), no borrar.
@@ -217,13 +268,13 @@ service cloud.firestore {
       allow list: if isSuper() ||
         (userExists() &&
          userDoc().rol == 'club-admin' &&
-         resource.data.club_id == userDoc().club_id);
+         esMiClub(resource.data.club_id));
 
       // Crear: solo el admin del club, para su propio club. El rol se limita
       // acá para que un link no pueda repartir permisos de club-admin.
       allow create: if userExists() &&
         userDoc().rol == 'club-admin' &&
-        request.resource.data.club_id == userDoc().club_id &&
+        esMiClub(request.resource.data.club_id) &&
         request.resource.data.rol in ['trainer', 'coordinator', 'analyst', 'player'] &&
         request.resource.data.activa == true;
 
@@ -231,7 +282,7 @@ service cloud.firestore {
       allow update, delete: if isSuper() ||
         (userExists() &&
          userDoc().rol == 'club-admin' &&
-         userDoc().club_id == resource.data.club_id);
+         esMiClub(resource.data.club_id));
 
       // Además: quien se da de alta con el link suma 1 al contador de usos y
       // no puede tocar ningún otro campo (ni desactivar la invitación).
@@ -246,27 +297,27 @@ service cloud.firestore {
     match /partidos/{partidoId} {
       // Leer: cualquier usuario del mismo club (incluye jugadoras)
       allow read: if isSuper() ||
-        (userExists() && userDoc().club_id == resource.data.club_id);
+        (userExists() && esMiClub(resource.data.club_id));
 
       // Crear: usuario del club que NO sea jugadora (las jugadoras solo miran).
       // Free tope 10 partidos: la creación debe venir en un batch que también
       // incremente clubes/{club}.partidos_count (ver dentroDelTopePartidos).
       allow create: if userExists() &&
         userDoc().rol != 'player' &&
-        request.resource.data.club_id == userDoc().club_id &&
+        esMiClub(request.resource.data.club_id) &&
         dentroDelTopePartidos(request.resource.data.club_id);
 
       // Actualizar: miembro del mismo club que no sea jugadora (notas, cortes, datos).
       // No se permite mover el partido a otro club.
       allow update: if userExists() &&
         userDoc().rol != 'player' &&
-        resource.data.club_id == userDoc().club_id &&
-        request.resource.data.club_id == userDoc().club_id;
+        esMiClub(resource.data.club_id) &&
+        esMiClub(request.resource.data.club_id);
 
       // Eliminar: club-admin del mismo club, o super-admin (borrado del club)
       allow delete: if isSuper() ||
         (userExists() &&
-         userDoc().club_id == resource.data.club_id &&
+         esMiClub(resource.data.club_id) &&
          userDoc().rol == 'club-admin');
     }
 
@@ -316,22 +367,22 @@ service cloud.firestore {
     match /entrenamientos/{entId} {
       // Leer: solo el cuerpo técnico del club (entrenador o admin)
       allow read: if isSuper() ||
-        (esEntrenador() && userDoc().club_id == resource.data.club_id);
+        (esEntrenador() && esMiClub(resource.data.club_id));
 
       // Crear: entrenador/admin del club, y el club debe tener un plan con táctica (Pizarrón/Ultra).
       allow create: if esEntrenador() &&
-        request.resource.data.club_id == userDoc().club_id &&
-        planConTactica(userDoc().club_id);
+        esMiClub(request.resource.data.club_id) &&
+        planConTactica(request.resource.data.club_id);
 
       // Actualizar: entrenador/admin del mismo club (con plan táctico), sin cambiar de club
       allow update: if esEntrenador() &&
-        resource.data.club_id == userDoc().club_id &&
-        request.resource.data.club_id == userDoc().club_id &&
-        planConTactica(userDoc().club_id);
+        esMiClub(resource.data.club_id) &&
+        request.resource.data.club_id == resource.data.club_id &&
+        planConTactica(resource.data.club_id);
 
       // Borrar: entrenador/admin del mismo club, o super-admin (borrado del club)
       allow delete: if isSuper() ||
-        (esEntrenador() && userDoc().club_id == resource.data.club_id);
+        (esEntrenador() && esMiClub(resource.data.club_id));
     }
 
     // ============================================
@@ -340,23 +391,23 @@ service cloud.firestore {
     match /ejercicios/{ejId} {
       // Leer: solo el cuerpo técnico del club (entrenador o admin)
       allow read: if isSuper() ||
-        (esEntrenador() && userDoc().club_id == resource.data.club_id);
+        (esEntrenador() && esMiClub(resource.data.club_id));
 
       // Crear: entrenador/admin del club, y el club debe tener un plan con táctica (Pizarrón/Ultra).
       allow create: if esEntrenador() &&
-        request.resource.data.club_id == userDoc().club_id &&
-        planConTactica(userDoc().club_id);
+        esMiClub(request.resource.data.club_id) &&
+        planConTactica(request.resource.data.club_id);
 
       // Actualizar: entrenador/admin del mismo club (con plan táctico), sin cambiar de club
       allow update: if esEntrenador() &&
-        resource.data.club_id == userDoc().club_id &&
-        request.resource.data.club_id == userDoc().club_id &&
-        planConTactica(userDoc().club_id);
+        esMiClub(resource.data.club_id) &&
+        request.resource.data.club_id == resource.data.club_id &&
+        planConTactica(resource.data.club_id);
 
       // Borrar: entrenador/admin del mismo club (aunque haya bajado de plan),
       // o super-admin (borrado del club)
       allow delete: if isSuper() ||
-        (esEntrenador() && userDoc().club_id == resource.data.club_id);
+        (esEntrenador() && esMiClub(resource.data.club_id));
     }
 
     // ============================================
@@ -379,7 +430,7 @@ service cloud.firestore {
       // con el mismo alias (la segunda cae en 'update' y se la rechaza).
       allow create: if userExists() &&
         request.resource.data.uid == request.auth.uid &&
-        request.resource.data.club_id == userDoc().club_id &&
+        esMiClub(request.resource.data.club_id) &&
         alias.matches('^[a-z][a-z0-9._-]{2,19}$');
 
       // Refrescar el nombre/club cacheados: solo el dueño, y sin poder
@@ -413,17 +464,19 @@ service cloud.firestore {
                request.auth.uid in resource.data.participantes;
       }
 
-      function clubDeUsuario(u) {
-        return get(/databases/$(database)/documents/usuarios/$(u)).data.club_id;
+      // El club declarado para cada participante tiene que ser UNO DE LOS
+      // SUYOS. No se exige que sea su club principal a propósito: si una
+      // analista trabaja para varios, la conversación con la gente de un club
+      // es de ESE club, no del que ella tenga como casa. De paso obliga a que
+      // los dos uid existan como usuarios: no se puede abrir una conversación
+      // contra un uid inventado.
+      function clubDeclaradoValido(i) {
+        return request.resource.data.clubes[i] in clubesDe(
+          get(/databases/$(database)/documents/usuarios/$(request.resource.data.participantes[i])).data);
       }
-
-      // 'clubes' tiene que ser el club real de cada participante, en el mismo
-      // orden. De paso obliga a que los dos uid existan como usuarios: no se
-      // puede abrir una conversación contra un uid inventado.
       function clubesDeclarados() {
-        return request.resource.data.clubes ==
-               [clubDeUsuario(request.resource.data.participantes[0]),
-                clubDeUsuario(request.resource.data.participantes[1])];
+        return request.resource.data.clubes.size() == 2 &&
+               clubDeclaradoValido(0) && clubDeclaradoValido(1);
       }
 
       // 'club_id' es la marca de "conversación interna de un club" y es lo que
@@ -500,23 +553,23 @@ service cloud.firestore {
       // Leer: cualquier miembro del club, incluidas las jugadoras. Es a
       // propósito: en el partido la táctica se les muestra en modo lectura.
       allow read: if isSuper() ||
-        (userExists() && userDoc().club_id == resource.data.club_id);
+        (userExists() && esMiClub(resource.data.club_id));
 
       // Crear: entrenador/coordinador/admin del club, y el club debe tener un plan con táctica (Pizarrón/Ultra).
       allow create: if esEntrenador() &&
-        request.resource.data.club_id == userDoc().club_id &&
-        planConTactica(userDoc().club_id);
+        esMiClub(request.resource.data.club_id) &&
+        planConTactica(request.resource.data.club_id);
 
       // Actualizar: cuerpo técnico del mismo club (con plan táctico), sin cambiar de club
       allow update: if esEntrenador() &&
-        resource.data.club_id == userDoc().club_id &&
-        request.resource.data.club_id == userDoc().club_id &&
-        planConTactica(userDoc().club_id);
+        esMiClub(resource.data.club_id) &&
+        request.resource.data.club_id == resource.data.club_id &&
+        planConTactica(resource.data.club_id);
 
       // Borrar: cuerpo técnico del mismo club (aunque haya bajado de plan),
       // o super-admin (borrado del club)
       allow delete: if isSuper() ||
-        (esEntrenador() && userDoc().club_id == resource.data.club_id);
+        (esEntrenador() && esMiClub(resource.data.club_id));
     }
 
     // ============================================
@@ -524,10 +577,10 @@ service cloud.firestore {
     // ============================================
     match /estadisticas/{clubId} {
       allow read: if isSuper() ||
-        (userExists() && userDoc().club_id == clubId);
+        (userExists() && esMiClub(clubId));
 
       allow write: if isSuper() ||
-        (userExists() && userDoc().club_id == clubId);
+        (userExists() && esMiClub(clubId));
     }
   }
 }

@@ -14,8 +14,8 @@
 // directorio global a propósito.
 // =========================================================
 import {
-    db, collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, deleteDoc,
-    query, where, orderBy, limit, onSnapshot, serverTimestamp
+    db, collection, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc,
+    query, orderBy, limit, onSnapshot, serverTimestamp, where, miembrosDelClub
 } from '../firebase.js';
 
 const uid = sessionStorage.getItem('usuarioUID');
@@ -63,6 +63,15 @@ function montar() {
     function idConversacion(otroUid, otroClub) {
         const par = [uid, otroUid].sort().join('_');
         return otroClub === clubId ? `${clubId}__${par}` : `xc__${par}`;
+    }
+
+    // Si ya tengo una conversación con esa persona, es ESA. Calcular el id de
+    // cero abriría un hilo vacío cuando el prefijo no coincide: pasa con las
+    // conversaciones viejas y con quien trabaja para varios clubes (el hilo
+    // nació en un club y ahora tiene abierto otro).
+    function idParaChatCon(otroUid, otroClub) {
+        const existente = conversaciones.find(c => (c.participantes || []).includes(otroUid));
+        return existente ? existente.id : idConversacion(otroUid, otroClub);
     }
 
     // Club de un participante dentro de una conversación. Las conversaciones
@@ -286,9 +295,11 @@ function montar() {
     async function cargarPersonas() {
         const cont = $('chat-personas');
         try {
-            const snap = await getDocs(query(collection(db, 'usuarios'), where('club_id', '==', clubId)));
-            personas = [];
-            snap.forEach(d => { if (d.id !== uid) personas.push({ uid: d.id, club_id: clubId, ...d.data() }); });
+            // Incluye a quien está de invitada desde otro club (analistas), no
+            // solo a los que tienen este club como principal.
+            personas = (await miembrosDelClub(clubId))
+                .filter(m => m.id !== uid)
+                .map(m => ({ ...m, uid: m.id, club_id: clubId }));
             personas.sort((a, b) => (a.nombre || '').localeCompare(b.nombre || '', 'es'));
 
             cont.innerHTML = '';
@@ -412,7 +423,7 @@ function montar() {
     // --- Abrir / crear la conversación con alguien -----------------------
     function abrirConversacion(p) {
         const otroClub = p.club_id || clubId;
-        const convId = idConversacion(p.uid, otroClub);
+        const convId = idParaChatCon(p.uid, otroClub);
         convActual = { id: convId, otro: { ...p, club_id: otroClub } };
 
         const c = conversaciones.find(x => x.id === convId);
@@ -494,8 +505,12 @@ function montar() {
             const participantes = [uid, otro.uid].sort();
             // 'clubes' va en el mismo orden que 'participantes': es lo que
             // validan las reglas para saber que la conversación no miente
-            // sobre de qué club es cada uno.
-            const clubes = participantes.map(p => (p === uid ? clubId : otro.club_id));
+            // sobre de qué club es cada uno. Si el hilo ya existe manda el club
+            // con el que nació, no el que tengo abierto ahora.
+            const c = conversaciones.find(x => x.id === convActual.id);
+            const clubMio = c ? clubEnConv(c, uid) : clubId;
+            const clubOtro = c ? clubEnConv(c, otro.uid) : otro.club_id;
+            const clubes = participantes.map(p => (p === uid ? clubMio : clubOtro));
 
             const resumen = {
                 participantes,

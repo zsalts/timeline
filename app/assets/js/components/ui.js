@@ -29,6 +29,8 @@
         if (cfg.nombre) nombreClub = TL.esc(cfg.nombre);
     } catch (e) { /* sin config: nombre por defecto */ }
 
+    const clubActivo = sessionStorage.getItem('clubID') || '';
+
     const email = TL.esc(sessionStorage.getItem('userEmail') || '');
     const esClubAdmin = sessionStorage.getItem('isClubAdmin') === 'true';
     // Las jugadoras son espectadoras: ven los partidos pero no cargan
@@ -125,6 +127,28 @@
             ${g.items.map(linkHTML).join('')}
         </div>`;
 
+    // Selector de club: solo aparece si la persona trabaja para más de uno
+    // (una analista que sigue a varios clubes). Los nombres salen de un cache
+    // en sessionStorage; los que falten se piden y se completan después, así
+    // dibujar la barra nunca espera a la red.
+    const misClubes = (() => {
+        try { return JSON.parse(sessionStorage.getItem('clubesUsuario') || '[]'); }
+        catch (e) { return []; }
+    })();
+    const nombresClubes = (() => {
+        try { return JSON.parse(sessionStorage.getItem('clubesNombres') || '{}'); }
+        catch (e) { return {}; }
+    })();
+    nombresClubes[clubActivo] = nombresClubes[clubActivo] || nombreClub;
+
+    const selectorClubHTML = misClubes.length < 2 ? '' : `
+        <div class="club-switch">
+            <label class="club-switch-label" for="sel-club">Club activo</label>
+            <select id="sel-club" class="club-switch-select">
+                ${misClubes.map(id => `<option value="${TL.esc(id)}" ${id === clubActivo ? 'selected' : ''}>${TL.esc(nombresClubes[id] || id)}</option>`).join('')}
+            </select>
+        </div>`;
+
     // En celular la barra lateral se esconde y se abre como cajón desde el
     // botón hamburguesa de la topbar. En escritorio topbar y scrim se ocultan
     // por CSS y la barra queda fija como siempre.
@@ -148,6 +172,7 @@
                     <span class="brand-name">${nombreClub}</span>
                 </a>
             </div>
+            ${selectorClubHTML}
             <nav class="sidebar-nav">
                 ${grupos.map(grupoHTML).join('')}
             </nav>
@@ -198,6 +223,54 @@
         } catch (_) { }
         window.location.href = enPages ? 'login.html' : 'pages/login.html';
     });
+
+    // --- Cambiar de club ---
+    // Cambiar de club rehace la sesión: el plan, el nombre y todo lo que la app
+    // filtra por clubID son de ese club. El partido abierto era del club
+    // anterior, así que se suelta, y se vuelve a entrar por la casa del club
+    // nuevo (que según el plan puede no ser el historial).
+    const selClub = document.getElementById('sel-club');
+    if (selClub) {
+        selClub.addEventListener('change', async () => {
+            const nuevo = selClub.value;
+            if (!nuevo || nuevo === clubActivo) return;
+            selClub.disabled = true;
+            try {
+                const fb = await import(`${toRoot}assets/js/firebase.js`);
+                const snap = await fb.getDoc(fb.doc(fb.db, 'clubes', nuevo));
+                if (!snap.exists()) throw new Error('El club no existe');
+                sessionStorage.setItem('clubID', nuevo);
+                sessionStorage.setItem('configClub', JSON.stringify(snap.data()));
+                sessionStorage.removeItem('partidoSeleccionadoId');
+                try { localStorage.setItem('ultimoClub', nuevo); } catch (_) { }
+                // Si la sesión está recordada, el club nuevo también.
+                if (localStorage.getItem('recordarSesion') === '1') fb.guardarSesionRecordada(true);
+                // La casa depende del plan del club NUEVO (Pizarrón no tiene
+                // partidos), igual que paginaInicio() en el login.
+                const conPartidos = !window.TL || !window.TL.planes || window.TL.planes.puedeActual('partidos');
+                const destino = conPartidos ? 'historial.html' : 'entrenamientos.html';
+                window.location.href = enPages ? destino : `pages/${destino}`;
+            } catch (e) {
+                console.error('No se pudo cambiar de club:', e);
+                selClub.value = clubActivo;
+                selClub.disabled = false;
+            }
+        });
+
+        // Completar los nombres que no estaban cacheados (una vez por sesión).
+        if (misClubes.some(id => !nombresClubes[id])) {
+            import(`${toRoot}assets/js/firebase.js`).then(async (fb) => {
+                await Promise.all(misClubes.filter(id => !nombresClubes[id]).map(async (id) => {
+                    try {
+                        const s = await fb.getDoc(fb.doc(fb.db, 'clubes', id));
+                        if (s.exists()) nombresClubes[id] = s.data().nombre || id;
+                    } catch (_) { /* sin permiso o sin red: queda el id */ }
+                }));
+                sessionStorage.setItem('clubesNombres', JSON.stringify(nombresClubes));
+                Array.from(selClub.options).forEach(o => { o.textContent = nombresClubes[o.value] || o.value; });
+            });
+        }
+    }
 
     // --- Chat interno (burbuja flotante) ---
     // Se monta acá para que viaje con el shell: aparece en todas las páginas
