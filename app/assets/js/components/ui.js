@@ -57,12 +57,11 @@
     const hayPartido = !!sessionStorage.getItem('partidoSeleccionadoId');
 
     // A dónde lleva tocar la marca: la misma "casa" a la que entra el usuario
-    // al loguearse. Con partidos es el historial; en el plan Pizarrón no hay
-    // partidos y la casa es Entrenamientos. Si tampoco tiene entrenamiento
-    // (una jugadora en Pizarrón) le queda Mensajes, que lo tiene todo el club.
-    let inicio = `${toPage}mensajes.html`;
-    if (puedePartidos) inicio = `${toPage}historial.html`;
-    else if (!esJugadora && puedeEjercicios && esEntrenador) inicio = `${toPage}entrenamientos.html`;
+    // al loguearse (ver paginaInicio() en login.html). Con partidos es el
+    // historial; en el plan Pizarrón no hay partidos y la casa es
+    // Entrenamientos. El chat no es una casa posible: vive en la burbuja
+    // flotante, no en una página.
+    const inicio = puedePartidos ? `${toPage}historial.html` : `${toPage}entrenamientos.html`;
 
     // Íconos (SVG stroke, heredan color con currentColor)
     const ICON = {
@@ -74,8 +73,7 @@
         tacticas: '<circle cx="6" cy="7" r="2"/><circle cx="18" cy="7" r="2"/><circle cx="12" cy="17" r="2"/><path d="M7.6 8.5 10.8 15.4"/><path d="M16.4 8.5 13.2 15.4"/>',
         video: '<rect x="2" y="4" width="20" height="16" rx="2"/><path d="M10 9l5 3-5 3z"/>',
         estadisticas: '<path d="M3 3v18h18"/><rect x="7" y="12" width="3" height="6"/><rect x="12" y="8" width="3" height="10"/><rect x="17" y="5" width="3" height="13"/>',
-        usuarios: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
-        mensajes: '<path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.9-.9L3 20.5l1.5-4.4A8.4 8.4 0 0 1 3.6 11.5a8.4 8.4 0 0 1 8.4-8.4h.5a8.4 8.4 0 0 1 8.5 8.4z"/>'
+        usuarios: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'
     };
     const icono = id => `<svg class="nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[id] || ''}</svg>`;
 
@@ -94,12 +92,8 @@
         grupos.push({ titulo: 'Partidos', items: partidos });
     }
 
-    // Chat interno: lo tiene todo el club, jugadoras incluidas, en cualquier plan
-    grupos.push({
-        titulo: 'Club', items: [
-            { id: 'mensajes', href: `${toPage}mensajes.html`, label: 'Mensajes' }
-        ]
-    });
+    // El chat interno no está en la navegación: es la burbuja flotante de
+    // abajo a la derecha (components/chatWidget.js), igual en todas las páginas.
 
     // Entrenamiento (planes con táctica: Pizarrón/Ultra + solo cuerpo técnico)
     if (!esJugadora && puedeEjercicios && esEntrenador) {
@@ -204,4 +198,13 @@
         } catch (_) { }
         window.location.href = enPages ? 'login.html' : 'pages/login.html';
     });
+
+    // --- Chat interno (burbuja flotante) ---
+    // Se monta acá para que viaje con el shell: aparece en todas las páginas
+    // de la app. El widget es un módulo (usa firebase.js) y se planta solo si
+    // hay sesión de club.
+    const chat = document.createElement('script');
+    chat.type = 'module';
+    chat.src = `${toRoot}assets/js/components/chatWidget.js`;
+    document.body.appendChild(chat);
 })();

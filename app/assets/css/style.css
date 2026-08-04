@@ -460,6 +460,236 @@ label { font-weight: 600; color: var(--text); font-size: 0.85rem; }
 .winner-bg { background-color: var(--accent-dim) !important; border-bottom: none; }
 
 /* =========================================================
+   CHAT FLOTANTE (components/chatWidget.js)
+   Burbuja fija abajo a la derecha + panel del chat interno del club.
+   Todo va anclado a .chat-widget para no pisar estilos de las páginas.
+   ========================================================= */
+.chat-widget {
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+    /* Arriba del cajón de nav (50) pero debajo de los modales de las
+       páginas (60 en estadísticas, 1000 en video/comparar). */
+    z-index: 55;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 12px;
+}
+
+/* --- La burbuja --- */
+.chat-fab {
+    position: relative;
+    width: 56px;
+    height: 56px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    border: none;
+    background: var(--accent);
+    color: var(--accent-ink);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+    transition: transform 0.15s, filter 0.15s;
+}
+.chat-fab:hover { filter: brightness(1.08); transform: translateY(-1px); }
+.chat-fab:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.chat-fab .chat-ico { width: 25px; height: 25px; }
+/* El ícono alterna entre el globo y la cruz según el estado del panel */
+.chat-fab .chat-ico-cerrar { display: none; }
+.chat-widget.abierto .chat-fab .chat-ico-abrir { display: none; }
+.chat-widget.abierto .chat-fab .chat-ico-cerrar { display: block; }
+
+.chat-badge {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: var(--danger);
+    color: #fff;
+    border: 2px solid var(--ink);
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    font-weight: 600;
+    line-height: 16px;
+    text-align: center;
+}
+
+/* --- El panel --- */
+.chat-panel {
+    width: 340px;
+    max-width: calc(100vw - 32px);
+    height: 460px;
+    max-height: calc(100vh - 120px);
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+.chat-panel[hidden] { display: none; }
+
+.chat-panel-head {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 11px 12px;
+    border-bottom: 1px solid var(--line);
+    flex-shrink: 0;
+}
+.chat-head-datos { min-width: 0; flex: 1; }
+.chat-head-nombre {
+    color: var(--text); font-size: 0.92rem; font-weight: 600;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.chat-head-sub {
+    color: var(--faint); font-size: 0.74rem;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.chat-icon-btn {
+    width: 30px; height: 30px; flex-shrink: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: transparent; border: none; border-radius: 8px;
+    color: var(--muted); cursor: pointer; padding: 0;
+}
+.chat-icon-btn:hover { background: var(--panel-2); color: var(--text); }
+.chat-icon-btn[hidden] { display: none; }
+.chat-icon-btn .chat-ico { width: 17px; height: 17px; }
+
+/* --- Vistas (lista / hilo) --- */
+.chat-vista { flex: 1; min-height: 0; overflow-y: auto; padding: 12px; }
+.chat-vista[hidden] { display: none; }
+.chat-vista h3 {
+    font-family: var(--font-mono);
+    font-size: 0.62rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--faint);
+    margin: 0 0 6px;
+    font-weight: 500;
+}
+.chat-vista h3 + div + h3 { margin-top: 16px; }
+.chat-nota { color: var(--muted); font-size: 0.82rem; margin: 0 0 4px; padding: 0 4px; }
+
+.chat-persona {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 8px 8px;
+    border-radius: 9px;
+    cursor: pointer;
+    transition: background 0.15s;
+    border: none;
+    background: transparent;
+    width: 100%;
+    text-align: left;
+    font-family: inherit;
+}
+.chat-persona:hover { background: var(--panel-2); }
+.chat-persona.activa { background: var(--accent-dim); }
+
+.chat-avatar {
+    width: 30px; height: 30px; flex-shrink: 0;
+    border-radius: 50%;
+    background: var(--panel-3);
+    color: var(--text);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.76rem; font-weight: 700;
+}
+.chat-avatar[hidden] { display: none; }
+.chat-persona-datos { min-width: 0; flex: 1; display: block; }
+.chat-persona-nombre {
+    display: block;
+    color: var(--text); font-size: 0.87rem; font-weight: 500;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.chat-persona-sub {
+    display: block;
+    color: var(--faint); font-size: 0.75rem;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.chat-punto {
+    width: 9px; height: 9px; flex-shrink: 0;
+    border-radius: 50%;
+    background: var(--accent);
+}
+
+/* --- Hilo abierto --- */
+.chat-hilo { display: flex; flex-direction: column; padding: 0; overflow: hidden; }
+.chat-mensajes {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.chat-burbuja {
+    max-width: 80%;
+    padding: 8px 11px;
+    border-radius: 13px;
+    font-size: 0.87rem;
+    line-height: 1.45;
+    word-wrap: break-word;
+    white-space: pre-wrap;
+}
+.chat-burbuja.mia {
+    align-self: flex-end;
+    background: var(--accent);
+    color: var(--accent-ink);
+    border-bottom-right-radius: 4px;
+}
+.chat-burbuja.suya {
+    align-self: flex-start;
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid var(--line);
+    border-bottom-left-radius: 4px;
+}
+.chat-burbuja-hora {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 0.63rem;
+    opacity: 0.65;
+    margin-top: 3px;
+}
+
+.chat-form {
+    display: flex; gap: 7px; align-items: flex-end;
+    padding: 10px;
+    border-top: 1px solid var(--line);
+    flex-shrink: 0;
+}
+.chat-form textarea {
+    flex: 1;
+    resize: none;
+    min-height: 38px;
+    max-height: 110px;
+    padding: 9px 11px;
+    font-family: inherit;
+    font-size: 0.87rem;
+}
+.chat-enviar {
+    width: 38px; height: 38px; flex-shrink: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--accent); color: var(--accent-ink);
+    border: none; border-radius: var(--radius-sm);
+    cursor: pointer; padding: 0;
+}
+.chat-enviar:hover { filter: brightness(1.08); }
+.chat-enviar:disabled { opacity: 0.5; cursor: default; }
+.chat-enviar .chat-ico { width: 18px; height: 18px; }
+
+/* =========================================================
    RESPONSIVE
    ========================================================= */
 @media (max-width: 900px) {
@@ -538,9 +768,18 @@ label { font-weight: 600; color: var(--text); font-size: 0.85rem; }
 
     body.app-shell .container-dashboard { padding: 24px 18px 44px; }
     .header-stats h2 { font-size: 1.55rem; }
+
+    /* Con el cajón de navegación abierto la burbuja estorba */
+    body.nav-open .chat-widget { display: none; }
 }
 
 @media (max-width: 520px) {
+    .chat-widget { right: 14px; bottom: 14px; }
+    .chat-panel {
+        width: calc(100vw - 28px);
+        height: calc(100vh - var(--topbar-h) - 100px);
+    }
+
     .header-stats-top { flex-direction: column; align-items: stretch; gap: 14px; }
     .header-stats-top .btn-primary, .header-stats-top .btn-danger { width: 100%; text-align: center; }
     .match-teams { margin: 12px 0 4px; }
