@@ -1,15 +1,20 @@
 // =========================================================
 // components/chatWidget.js
-// Chat interno del club como burbuja flotante (esquina inferior derecha).
-// Lo monta ui.js en todas las páginas del shell: el chat viaja con el
-// usuario en vez de vivir en una página aparte.
+// Chat como burbuja flotante (esquina inferior derecha). Lo monta ui.js en
+// todas las páginas del shell: el chat viaja con el usuario en vez de vivir
+// en una página aparte.
 //
-// El panel tiene dos vistas: la lista (conversaciones + gente del club) y
-// el hilo abierto. La burbuja muestra cuántas conversaciones tienen
-// mensajes sin leer.
+// El panel tiene dos vistas: la lista (tu usuario + buscador + conversaciones
+// + gente del club) y el hilo abierto. La burbuja muestra cuántas
+// conversaciones tienen mensajes sin leer.
+//
+// El chat cruza clubes: a la gente del propio club la ves listada, y a la de
+// otros clubes la encontrás buscando su usuario público (el 'alias': un doc
+// por usuario en la colección 'alias', donde el id ES el usuario). No hay
+// directorio global a propósito.
 // =========================================================
 import {
-    db, collection, doc, getDocs, setDoc, addDoc,
+    db, collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, deleteDoc,
     query, where, orderBy, limit, onSnapshot, serverTimestamp
 } from '../firebase.js';
 
@@ -28,22 +33,45 @@ function montar() {
         player: 'Jugadora'
     };
 
-    let personas = [];          // gente del club (sin mí)
-    let conversaciones = [];    // mis conversaciones
-    let convActual = null;      // { id, otroUid }
+    // El usuario va en minúsculas, arranca con letra y mide de 3 a 20.
+    // Tiene que coincidir con la regla de firestore.rules (match /alias/{alias}).
+    const RE_USUARIO = /^[a-z][a-z0-9._-]{2,19}$/;
+
+    let personas = [];          // gente de MI club (sin mí)
+    let conversaciones = [];    // mis conversaciones (de cualquier club)
+    let convActual = null;      // { id, otro: {uid, nombre, club_id, ...} }
     let cortarMensajes = null;  // corta el onSnapshot del hilo abierto
     let cortarConvs = null;
     let hiloVivo = false;       // ¿la suscripción al hilo sigue en pie?
-    let personasCargadas = false;
+    let perfilCargado = false;
     let abierto = false;
+    // Mi ficha, para firmar las conversaciones y mostrar mi usuario.
+    let yo = { nombre: sessionStorage.getItem('userEmail') || '', usuario: '' };
+
+    let miClub = '';
+    try { miClub = (JSON.parse(sessionStorage.getItem('configClub') || '{}').nombre) || ''; }
+    catch (e) { /* sin config: se muestra sin nombre de club */ }
 
     const iniciales = n => (n || '?').trim().split(/\s+/).slice(0, 2).map(p => p[0]).join('').toUpperCase();
-
-    // El id de la conversación se deriva de los dos uid ordenados, así los
-    // dos lados calculan el MISMO id y no se crean dos hilos paralelos.
-    const idConversacion = (a, b) => `${clubId}__${[a, b].sort().join('_')}`;
-
     const segundos = ts => (ts && ts.seconds) || 0;
+
+    // El id de la conversación se deriva de los dos uid ordenados, así los dos
+    // lados calculan el MISMO id y no se crean dos hilos paralelos. Dentro de
+    // un club se conserva el prefijo histórico (club__uidA_uidB) para no
+    // perder las conversaciones que ya existían; entre clubes distintos no hay
+    // un club que sirva de prefijo y van con 'xc'.
+    function idConversacion(otroUid, otroClub) {
+        const par = [uid, otroUid].sort().join('_');
+        return otroClub === clubId ? `${clubId}__${par}` : `xc__${par}`;
+    }
+
+    // Club de un participante dentro de una conversación. Las conversaciones
+    // viejas no tienen 'clubes': eran siempre entre gente del mismo club.
+    function clubEnConv(c, quien) {
+        const i = (c.participantes || []).indexOf(quien);
+        if (Array.isArray(c.clubes) && c.clubes[i]) return c.clubes[i];
+        return c.club_id || clubId;
+    }
 
     function hora(ts) {
         if (!ts) return '';
@@ -73,12 +101,13 @@ function montar() {
 
     // --- Markup ---------------------------------------------------------
     const ICO_CHAT = '<path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.9-.9L3 20.5l1.5-4.4A8.4 8.4 0 0 1 3.6 11.5a8.4 8.4 0 0 1 8.4-8.4h.5a8.4 8.4 0 0 1 8.5 8.4z"/>';
+    const ICO_CRUZ = '<path d="M6 6l12 12"/><path d="M18 6L6 18"/>';
     const svg = (paths, clase) => `<svg class="${clase}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
 
     const host = document.createElement('div');
     host.className = 'chat-widget';
     host.innerHTML = `
-        <section class="chat-panel" id="chat-panel" aria-label="Chat interno del club" hidden>
+        <section class="chat-panel" id="chat-panel" aria-label="Chat" hidden>
             <header class="chat-panel-head">
                 <button type="button" class="chat-icon-btn" id="chat-volver" aria-label="Volver a la lista" hidden>
                     ${svg('<path d="M15 18l-6-6 6-6"/>', 'chat-ico')}
@@ -86,17 +115,34 @@ function montar() {
                 <span class="chat-avatar" id="chat-head-avatar" hidden></span>
                 <div class="chat-head-datos">
                     <div class="chat-head-nombre" id="chat-head-nombre">Mensajes</div>
-                    <div class="chat-head-sub" id="chat-head-sub">Chat interno del club</div>
+                    <div class="chat-head-sub" id="chat-head-sub">Tu club y quien encuentres por su usuario</div>
                 </div>
                 <button type="button" class="chat-icon-btn" id="chat-cerrar" aria-label="Cerrar el chat">
-                    ${svg('<path d="M6 6l12 12"/><path d="M18 6L6 18"/>', 'chat-ico')}
+                    ${svg(ICO_CRUZ, 'chat-ico')}
                 </button>
             </header>
 
             <div class="chat-vista" id="chat-lista">
+                <div class="chat-yo" id="chat-yo">
+                    <span class="chat-yo-label">Tu usuario</span>
+                    <span class="chat-yo-usuario" id="chat-mi-usuario">—</span>
+                    <button type="button" class="chat-link" id="chat-editar-usuario">Elegir</button>
+                </div>
+                <form class="chat-mini-form" id="chat-form-usuario" hidden>
+                    <input id="chat-input-usuario" maxlength="20" autocomplete="off" spellcheck="false" placeholder="tu.usuario" aria-label="Tu usuario">
+                    <button type="submit" class="chat-mini-btn">Guardar</button>
+                    <button type="button" class="chat-link" id="chat-cancelar-usuario">Cancelar</button>
+                </form>
+
+                <form class="chat-mini-form" id="chat-form-buscar">
+                    <input id="chat-input-buscar" maxlength="21" autocomplete="off" spellcheck="false" placeholder="Buscar a alguien por su usuario" aria-label="Buscar por usuario">
+                    <button type="submit" class="chat-mini-btn">Buscar</button>
+                </form>
+                <p class="chat-aviso" id="chat-aviso" hidden></p>
+
                 <h3>Conversaciones</h3>
                 <div id="chat-convs"><p class="chat-nota">Cargando…</p></div>
-                <h3>Gente del club</h3>
+                <h3>Gente de tu club</h3>
                 <div id="chat-personas"><p class="chat-nota">Cargando…</p></div>
             </div>
 
@@ -113,7 +159,7 @@ function montar() {
 
         <button type="button" class="chat-fab" id="chat-fab" aria-label="Abrir el chat" aria-expanded="false" aria-controls="chat-panel">
             ${svg(ICO_CHAT, 'chat-ico chat-ico-abrir')}
-            ${svg('<path d="M6 6l12 12"/><path d="M18 6L6 18"/>', 'chat-ico chat-ico-cerrar')}
+            ${svg(ICO_CRUZ, 'chat-ico chat-ico-cerrar')}
             <span class="chat-badge" id="chat-badge" hidden></span>
         </button>
     `;
@@ -129,9 +175,9 @@ function montar() {
         $('chat-fab').setAttribute('aria-label', abrir ? 'Cerrar el chat' : 'Abrir el chat');
         host.classList.toggle('abierto', abrir);
         if (!abrir) return;
-        // La gente del club se pide recién al abrir: en la mayoría de las
-        // visitas el chat ni se toca y no hace falta leer los usuarios.
-        if (!personasCargadas) cargarPersonas();
+        // Mi ficha y la gente del club se piden recién al abrir: en la mayoría
+        // de las visitas el chat ni se toca y no hace falta leerlas.
+        if (!perfilCargado) { perfilCargado = true; cargarPerfil(); cargarPersonas(); }
         if (convActual) $('chat-texto').focus();
     }
 
@@ -142,19 +188,112 @@ function montar() {
         if (e.key === 'Escape' && abierto) { alternar(false); $('chat-fab').focus(); }
     });
 
-    // --- Gente del club --------------------------------------------------
+    // --- Mi ficha y mi usuario ---------------------------------------------
+    async function cargarPerfil() {
+        try {
+            const snap = await getDoc(doc(db, 'usuarios', uid));
+            if (snap.exists()) {
+                const d = snap.data();
+                yo = { nombre: d.nombre || d.email || yo.nombre, usuario: d.usuario || '' };
+            }
+        } catch (e) {
+            console.error('Error al cargar mi ficha:', e);
+        }
+        pintarMiUsuario();
+    }
+
+    function pintarMiUsuario() {
+        $('chat-mi-usuario').textContent = yo.usuario ? '@' + yo.usuario : 'sin usuario';
+        $('chat-mi-usuario').classList.toggle('vacio', !yo.usuario);
+        $('chat-editar-usuario').textContent = yo.usuario ? 'Cambiar' : 'Elegir';
+    }
+
+    // Sugerencia a partir del nombre: "Ana Pérez" → "ana.perez"
+    function sugerirUsuario() {
+        const base = (yo.nombre || '')
+            .normalize('NFD').replace(/[̀-ͯ]/g, '')   // saca los acentos
+            .toLowerCase().trim()
+            .replace(/[^a-z0-9]+/g, '.')
+            .replace(/^[^a-z]+|\.+$/g, '');
+        return RE_USUARIO.test(base) ? base : '';
+    }
+
+    $('chat-editar-usuario').addEventListener('click', () => {
+        $('chat-form-usuario').hidden = false;
+        $('chat-input-usuario').value = yo.usuario || sugerirUsuario();
+        $('chat-input-usuario').focus();
+        $('chat-input-usuario').select();
+    });
+    $('chat-cancelar-usuario').addEventListener('click', () => { $('chat-form-usuario').hidden = true; });
+
+    $('chat-form-usuario').addEventListener('submit', async (ev) => {
+        ev.preventDefault();
+        const nuevo = $('chat-input-usuario').value.trim().toLowerCase().replace(/^@/, '');
+        if (nuevo === yo.usuario) { $('chat-form-usuario').hidden = true; return; }
+        if (!RE_USUARIO.test(nuevo)) {
+            avisar('El usuario va en minúsculas, empieza con letra y tiene entre 3 y 20 caracteres (letras, números, . _ -).', true);
+            return;
+        }
+        const anterior = yo.usuario;
+        try {
+            // Si el usuario ya es de otra persona esto entra por 'update' y las
+            // reglas lo rechazan: por eso "ocupado" se detecta como
+            // permission-denied y no hace falta leerlo antes.
+            await setDoc(doc(db, 'alias', nuevo), {
+                uid, nombre: yo.nombre, club_id: clubId, club: miClub, en: serverTimestamp()
+            });
+            await updateDoc(doc(db, 'usuarios', uid), { usuario: nuevo });
+            yo.usuario = nuevo;
+            // Soltar el anterior recién cuando el nuevo quedó tomado.
+            if (anterior) { try { await deleteDoc(doc(db, 'alias', anterior)); } catch (e) { /* ya no estaba */ } }
+            $('chat-form-usuario').hidden = true;
+            pintarMiUsuario();
+            avisar(`Listo: ahora te encuentran como @${nuevo}.`);
+        } catch (e) {
+            if (e.code === 'permission-denied') avisar('Ese usuario ya está tomado, probá con otro.', true);
+            else { console.error('Error al guardar el usuario:', e); avisar('No se pudo guardar el usuario.', true); }
+        }
+    });
+
+    // --- Buscar a alguien por su usuario -----------------------------------
+    $('chat-form-buscar').addEventListener('submit', async (ev) => {
+        ev.preventDefault();
+        const buscado = $('chat-input-buscar').value.trim().toLowerCase().replace(/^@/, '');
+        if (!buscado) return;
+        if (!RE_USUARIO.test(buscado)) { avisar('Ese usuario no existe.', true); return; }
+        try {
+            const snap = await getDoc(doc(db, 'alias', buscado));
+            if (!snap.exists()) { avisar(`No hay nadie con el usuario @${buscado}.`, true); return; }
+            const d = snap.data();
+            if (d.uid === uid) { avisar('Ese sos vos.', true); return; }
+            $('chat-input-buscar').value = '';
+            avisar('');
+            abrirConversacion({ uid: d.uid, nombre: d.nombre, club_id: d.club_id, club: d.club });
+        } catch (e) {
+            console.error('Error al buscar el usuario:', e);
+            avisar('No se pudo buscar.', true);
+        }
+    });
+
+    function avisar(texto, esError) {
+        const p = $('chat-aviso');
+        p.textContent = texto || '';
+        p.hidden = !texto;
+        p.classList.toggle('error', !!esError);
+    }
+
+    // --- Gente de mi club --------------------------------------------------
     async function cargarPersonas() {
         const cont = $('chat-personas');
         try {
             const snap = await getDocs(query(collection(db, 'usuarios'), where('club_id', '==', clubId)));
             personas = [];
-            snap.forEach(d => { if (d.id !== uid) personas.push({ uid: d.id, ...d.data() }); });
+            snap.forEach(d => { if (d.id !== uid) personas.push({ uid: d.id, club_id: clubId, ...d.data() }); });
             personas.sort((a, b) => (a.nombre || '').localeCompare(b.nombre || '', 'es'));
-            personasCargadas = true;
 
             cont.innerHTML = '';
             if (!personas.length) {
-                cont.appendChild(nota('Todavía no hay nadie más en el club.'));
+                cont.appendChild(nota('Todavía no hay nadie más en tu club. Buscá a alguien por su usuario.'));
             } else {
                 personas.forEach(p => cont.appendChild(filaPersona(p, ROLES[p.rol] || p.rol)));
             }
@@ -178,7 +317,7 @@ function montar() {
     function filaPersona(p, sub, marca) {
         const b = document.createElement('button');
         b.type = 'button';
-        b.className = 'chat-persona' + (convActual && convActual.otroUid === p.uid ? ' activa' : '');
+        b.className = 'chat-persona' + (convActual && convActual.otro.uid === p.uid ? ' activa' : '');
 
         const av = document.createElement('span');
         av.className = 'chat-avatar';
@@ -189,6 +328,12 @@ function montar() {
         const nom = document.createElement('span');
         nom.className = 'chat-persona-nombre';
         nom.textContent = p.nombre || p.email || 'Sin nombre';
+        if (p.club_id && p.club_id !== clubId) {
+            const chip = document.createElement('span');
+            chip.className = 'chat-chip';
+            chip.textContent = 'otro club';
+            nom.appendChild(chip);
+        }
         const sb = document.createElement('span');
         sb.className = 'chat-persona-sub';
         sb.textContent = sub || '';
@@ -200,7 +345,7 @@ function montar() {
             punto.className = 'chat-punto';
             b.appendChild(punto);
         }
-        b.addEventListener('click', () => abrirConversacion(p.uid));
+        b.addEventListener('click', () => abrirConversacion(p));
         return b;
     }
 
@@ -227,6 +372,22 @@ function montar() {
         });
     }
 
+    // Con quién es una conversación, con lo que se sepa de esa persona: la
+    // ficha del club si es del club, y si no lo que quedó cacheado en la
+    // conversación (quien la usa puede ser de otro club y no está en 'personas').
+    function otroDe(c) {
+        const otroUid = (c.participantes || []).find(x => x !== uid);
+        const club = clubEnConv(c, otroUid);
+        const dePersonas = personas.find(x => x.uid === otroUid);
+        if (dePersonas) return dePersonas;
+        return {
+            uid: otroUid,
+            club_id: club,
+            nombre: (c.nombres || {})[otroUid] || 'Alguien',
+            club: (c.clubes_nombres || {})[club] || ''
+        };
+    }
+
     function pintarConversaciones() {
         const cont = $('chat-convs');
         cont.innerHTML = '';
@@ -235,11 +396,8 @@ function montar() {
             return;
         }
         conversaciones.forEach(c => {
-            const otroUid = (c.participantes || []).find(x => x !== uid);
-            const p = personas.find(x => x.uid === otroUid)
-                || { uid: otroUid, nombre: (c.nombres || {})[otroUid] || 'Alguien' };
             const ultimo = c.ultimo ? `${c.ultimo.de === uid ? 'Vos: ' : ''}${c.ultimo.texto}` : '';
-            cont.appendChild(filaPersona(p, ultimo, sinLeer(c)));
+            cont.appendChild(filaPersona(otroDe(c), ultimo, sinLeer(c)));
         });
     }
 
@@ -252,19 +410,23 @@ function montar() {
     }
 
     // --- Abrir / crear la conversación con alguien -----------------------
-    function abrirConversacion(otroUid) {
-        const convId = idConversacion(uid, otroUid);
-        convActual = { id: convId, otroUid };
+    function abrirConversacion(p) {
+        const otroClub = p.club_id || clubId;
+        const convId = idConversacion(p.uid, otroClub);
+        convActual = { id: convId, otro: { ...p, club_id: otroClub } };
 
         const c = conversaciones.find(x => x.id === convId);
         marcarVisto(convId, c ? segundos(c.actualizado_en) : undefined);
 
-        const p = personas.find(x => x.uid === otroUid)
-            || { nombre: (c && (c.nombres || {})[otroUid]) || 'Alguien' };
+        // El subtítulo dice el rol si es del club, y de qué club es si no.
+        const sub = otroClub === clubId
+            ? (ROLES[p.rol] || p.rol || '')
+            : (p.club || (c && (c.clubes_nombres || {})[otroClub]) || 'De otro club');
+
         $('chat-head-avatar').textContent = iniciales(p.nombre || p.email);
         $('chat-head-avatar').hidden = false;
         $('chat-head-nombre').textContent = p.nombre || p.email || 'Sin nombre';
-        $('chat-head-sub').textContent = ROLES[p.rol] || p.rol || '';
+        $('chat-head-sub').textContent = sub;
         $('chat-volver').hidden = false;
         $('chat-lista').hidden = true;
         $('chat-hilo').hidden = false;
@@ -272,7 +434,7 @@ function montar() {
 
         pintarBadge();
         escucharMensajes(convId);
-        $('chat-texto').focus();
+        if (abierto) $('chat-texto').focus();
     }
 
     function volverALista() {
@@ -282,7 +444,7 @@ function montar() {
         $('chat-volver').hidden = true;
         $('chat-head-avatar').hidden = true;
         $('chat-head-nombre').textContent = 'Mensajes';
-        $('chat-head-sub').textContent = 'Chat interno del club';
+        $('chat-head-sub').textContent = 'Tu club y quien encuentres por su usuario';
         $('chat-hilo').hidden = true;
         $('chat-lista').hidden = false;
         pintarConversaciones();
@@ -327,18 +489,32 @@ function montar() {
         const btn = $('chat-enviar');
         btn.disabled = true;
         try {
+            const otro = convActual.otro;
             const convRef = doc(db, 'conversaciones', convActual.id);
-            const otro = personas.find(x => x.uid === convActual.otroUid) || {};
+            const participantes = [uid, otro.uid].sort();
+            // 'clubes' va en el mismo orden que 'participantes': es lo que
+            // validan las reglas para saber que la conversación no miente
+            // sobre de qué club es cada uno.
+            const clubes = participantes.map(p => (p === uid ? clubId : otro.club_id));
+
             const resumen = {
-                club_id: clubId,
-                participantes: [uid, convActual.otroUid].sort(),
+                participantes,
+                clubes,
+                // El nombre de mi club lo escribo yo; el del otro lo escribe
+                // el otro al contestar. Así cada lado sabe con qué club habla
+                // sin poder leer la ficha del club ajeno.
+                clubes_nombres: { [clubId]: miClub },
                 nombres: {
-                    [uid]: sessionStorage.getItem('userNombre') || sessionStorage.getItem('userEmail') || '',
-                    [convActual.otroUid]: otro.nombre || otro.email || ''
+                    [uid]: yo.nombre,
+                    [otro.uid]: otro.nombre || otro.email || ''
                 },
                 ultimo: { texto: texto.slice(0, 120), de: uid },
                 actualizado_en: serverTimestamp()
             };
+            // club_id marca las conversaciones internas de un club (es lo que
+            // mira el borrado de club en admin). En las que cruzan clubes no
+            // va: no hay un club dueño.
+            if (otro.club_id === clubId) resumen.club_id = clubId;
 
             // La primera vez crea la conversación; después solo actualiza el
             // resumen. setDoc con merge sirve para los dos casos.

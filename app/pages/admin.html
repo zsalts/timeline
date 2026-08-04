@@ -907,6 +907,12 @@
             return snap.docs.map(d => d.id);
         }
 
+        // Ids de una consulta cualquiera (para lo que no se filtra por club_id)
+        async function idsPorConsulta(q) {
+            const snap = await getDocs(q);
+            return snap.docs.map(d => d.id);
+        }
+
         // Usuarios del club con su email (para el borrado manual de Auth en Spark)
         async function usuariosDelClub(clubId) {
             const snap = await getDocs(query(collection(db, 'usuarios'), where('club_id', '==', clubId)));
@@ -985,12 +991,23 @@
                 const invitaciones = await contarPorClub('invitaciones', clubId);
                 // Los planteos tácticos también son del club
                 const tacticas = await contarPorClub('tacticas', clubId);
-                // Conversaciones del chat interno. Ojo: se borra el documento de
-                // la conversación, no su subcolección 'mensajes' — Firestore no
+                // Conversaciones del chat. Ojo: se borra el documento de la
+                // conversación, no su subcolección 'mensajes' — Firestore no
                 // borra en cascada desde el cliente. Los mensajes quedan
                 // huérfanos e inaccesibles (la regla de lectura mira la
                 // conversación, que ya no existe).
-                const conversaciones = await contarPorClub('conversaciones', clubId);
+                // Van las internas del club (club_id) y las que cruzan clubes
+                // ('clubes' contiene a este club). Las cruzadas se pierden
+                // también para el otro club: uno de los dos ya no existe.
+                const conversaciones = [...new Set([
+                    ...(await contarPorClub('conversaciones', clubId)),
+                    ...(await idsPorConsulta(query(collection(db, 'conversaciones'), where('clubes', 'array-contains', clubId))))
+                ])];
+
+                // Los alias son el "usuario" con el que a esta gente la
+                // encontraban desde otros clubes: si no se sueltan, quedan
+                // ocupados apuntando a uid que ya no existen.
+                const alias = await contarPorClub('alias', clubId);
 
                 // Emails de las cuentas de acceso a borrar a mano (ver más abajo)
                 const emails = datos.usuarios.map(u => u.email).filter(Boolean);
@@ -1004,6 +1021,7 @@
                 invitaciones.forEach(id => refs.push(doc(db, 'invitaciones', id)));
                 tacticas.forEach(id => refs.push(doc(db, 'tacticas', id)));
                 conversaciones.forEach(id => refs.push(doc(db, 'conversaciones', id)));
+                alias.forEach(id => refs.push(doc(db, 'alias', id)));
                 refs.push(doc(db, 'facturacion', clubId));
                 refs.push(doc(db, 'estadisticas', clubId));
                 // El doc del club va último, así si algo falla antes no queda huérfano el club

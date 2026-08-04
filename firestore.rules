@@ -360,11 +360,51 @@ service cloud.firestore {
     }
 
     // ============================================
-    // COLECCIÓN: conversaciones (chat interno, mensajes directos)
-    // Una conversación por par de personas del mismo club. El id es
-    // determinístico (club + los dos uid ordenados), así abrir el chat con
-    // alguien dos veces reusa la misma conversación en vez de duplicarla.
-    // Los mensajes van en la subcolección 'mensajes'.
+    // COLECCIÓN: alias (el "usuario" público de cada persona)
+    // El id del documento ES el alias (@juanpi). Existe para que alguien de
+    // OTRO club te pueda encontrar sin poder recorrer la lista de usuarios:
+    // se busca por alias exacto, uno por uno, nunca listando.
+    // ============================================
+    match /alias/{alias} {
+      // Buscar a alguien sabiendo su alias. Devuelve lo justo para abrirle
+      // una conversación (uid, nombre y club), nada del resto de su ficha.
+      allow get: if request.auth != null;
+
+      // Listar es lo que NO se puede: si no, el alias sería un directorio de
+      // toda la app. Solo el super, que lo necesita para borrar un club.
+      allow list: if isSuper();
+
+      // Tomar un alias libre: solo para uno mismo. 'create' únicamente corre
+      // si el documento no existe, así que dos personas no pueden quedarse
+      // con el mismo alias (la segunda cae en 'update' y se la rechaza).
+      allow create: if userExists() &&
+        request.resource.data.uid == request.auth.uid &&
+        request.resource.data.club_id == userDoc().club_id &&
+        alias.matches('^[a-z][a-z0-9._-]{2,19}$');
+
+      // Refrescar el nombre/club cacheados: solo el dueño, y sin poder
+      // apuntar el alias a otra persona.
+      allow update: if isSuper() ||
+        (request.auth != null &&
+         resource.data.uid == request.auth.uid &&
+         request.resource.data.uid == resource.data.uid);
+
+      // Soltar el alias: el dueño (al cambiarlo) o el super (borrado de club).
+      allow delete: if isSuper() ||
+        (request.auth != null && resource.data.uid == request.auth.uid);
+    }
+
+    // ============================================
+    // COLECCIÓN: conversaciones (chat, mensajes directos)
+    // Una conversación por par de personas. El id es determinístico (los dos
+    // uid ordenados), así abrir el chat con alguien dos veces reusa la misma
+    // conversación en vez de duplicarla. Los mensajes van en la subcolección
+    // 'mensajes'.
+    //
+    // El chat cruza clubes: se llega a alguien de otro club buscándolo por su
+    // alias. Por eso ya no se exige un club único; 'clubes' guarda el club de
+    // cada participante (en el mismo orden que 'participantes') y las reglas
+    // validan que diga la verdad.
     // ============================================
     match /conversaciones/{convId} {
       // ¿El que pide es uno de los dos de la conversación?
@@ -373,19 +413,27 @@ service cloud.firestore {
                request.auth.uid in resource.data.participantes;
       }
 
-      // Los dos participantes tienen que ser de MI club. Sin esto, cualquiera
-      // podría abrirle conversación a un uid de otro club.
-      // Se chequean los dos y no "el otro" a propósito: uno de los dos soy yo,
-      // así que da lo mismo, y evita tener que averiguar en qué índice quedé
-      // (los uid van ordenados). Con un ternario acá la precedencia de && lo
-      // agrupaba mal y la condición no era la que parecía.
       function clubDeUsuario(u) {
         return get(/databases/$(database)/documents/usuarios/$(u)).data.club_id;
       }
-      function ambosDeMiClub() {
-        return userExists() &&
-               clubDeUsuario(request.resource.data.participantes[0]) == userDoc().club_id &&
-               clubDeUsuario(request.resource.data.participantes[1]) == userDoc().club_id;
+
+      // 'clubes' tiene que ser el club real de cada participante, en el mismo
+      // orden. De paso obliga a que los dos uid existan como usuarios: no se
+      // puede abrir una conversación contra un uid inventado.
+      function clubesDeclarados() {
+        return request.resource.data.clubes ==
+               [clubDeUsuario(request.resource.data.participantes[0]),
+                clubDeUsuario(request.resource.data.participantes[1])];
+      }
+
+      // 'club_id' es la marca de "conversación interna de un club" y es lo que
+      // mira el borrado de club en admin. Solo puede estar si los dos son del
+      // mismo club; si no, borrar un club se llevaría puesta una conversación
+      // que también es de otro.
+      function clubIdCoherente() {
+        return !('club_id' in request.resource.data) ||
+               (request.resource.data.clubes[0] == request.resource.data.clubes[1] &&
+                request.resource.data.club_id == request.resource.data.clubes[0]);
       }
 
       // Leer y listar: solo los dos participantes. La consulta va con
@@ -393,20 +441,25 @@ service cloud.firestore {
       // documento por documento y nadie ve conversaciones ajenas.
       allow get, list: if esParticipante();
 
-      // Crear: tengo que ser uno de los dos, ser exactamente dos, y ambos
-      // del mismo club.
+      // Crear: tengo que ser uno de los dos, ser exactamente dos, y declarar
+      // el club de cada uno tal cual es.
       allow create: if request.auth != null &&
         request.auth.uid in request.resource.data.participantes &&
         request.resource.data.participantes.size() == 2 &&
         userExists() &&
-        request.resource.data.club_id == userDoc().club_id &&
-        ambosDeMiClub();
+        clubesDeclarados() &&
+        clubIdCoherente();
 
       // Actualizar: los participantes mantienen el resumen del último mensaje.
-      // No se puede cambiar quiénes son ni mover la conversación de club.
+      // No se puede cambiar quiénes son ni de qué club es cada uno. El primer
+      // término del OR es el caso normal (clubes no cambia) y no gasta ningún
+      // get; el segundo deja completar 'clubes' en las conversaciones viejas
+      // (las de antes del chat entre clubes), pero solo con el valor real.
       allow update: if esParticipante() &&
         request.resource.data.participantes == resource.data.participantes &&
-        request.resource.data.club_id == resource.data.club_id;
+        request.resource.data.get('club_id', '') == resource.data.get('club_id', '') &&
+        (request.resource.data.get('clubes', []) == resource.data.get('clubes', []) ||
+         clubesDeclarados());
 
       // Borrar la conversación entera: solo el super (borrado del club).
       allow delete: if isSuper();

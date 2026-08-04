@@ -579,6 +579,77 @@ label { font-weight: 600; color: var(--text); font-size: 0.85rem; }
 .chat-vista h3 + div + h3 { margin-top: 16px; }
 .chat-nota { color: var(--muted); font-size: 0.82rem; margin: 0 0 4px; padding: 0 4px; }
 
+/* --- Mi usuario + buscador (cabecera de la lista) --- */
+.chat-yo {
+    display: flex; align-items: center; gap: 7px;
+    padding: 7px 9px;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 9px;
+}
+.chat-yo-label {
+    font-family: var(--font-mono);
+    font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.1em;
+    color: var(--faint); flex-shrink: 0;
+}
+.chat-yo-usuario {
+    flex: 1; min-width: 0;
+    font-family: var(--font-mono); font-size: 0.8rem; font-weight: 600;
+    color: var(--accent);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.chat-yo-usuario.vacio { color: var(--faint); font-weight: 400; }
+.chat-link {
+    background: none; border: none; padding: 0;
+    color: var(--muted); font-family: inherit; font-size: 0.78rem;
+    cursor: pointer; text-decoration: underline; flex-shrink: 0;
+    width: auto;
+}
+.chat-link:hover { color: var(--text); }
+
+.chat-mini-form { display: flex; gap: 6px; margin-top: 8px; align-items: center; }
+.chat-mini-form[hidden] { display: none; }
+.chat-mini-form input {
+    flex: 1; min-width: 0;
+    padding: 7px 10px;
+    font-family: var(--font-mono); font-size: 0.8rem;
+}
+.chat-mini-btn {
+    flex-shrink: 0; width: auto;
+    padding: 7px 12px;
+    background: var(--panel-3); color: var(--text);
+    border: 1px solid var(--line-2); border-radius: var(--radius-sm);
+    font-family: inherit; font-size: 0.78rem; font-weight: 600;
+    cursor: pointer;
+}
+.chat-mini-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+.chat-aviso {
+    margin: 8px 0 0; padding: 7px 9px;
+    border-radius: 8px;
+    background: var(--panel-2);
+    color: var(--muted); font-size: 0.78rem; line-height: 1.4;
+}
+.chat-aviso[hidden] { display: none; }
+.chat-aviso.error { background: var(--danger-dim); color: var(--danger); }
+
+/* Marca de "esta persona es de otro club" en la lista */
+.chat-chip {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: var(--panel-3);
+    color: var(--muted);
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    vertical-align: middle;
+}
+
+.chat-vista .chat-mini-form + h3, .chat-vista .chat-aviso + h3 { margin-top: 16px; }
+
 .chat-persona {
     display: flex;
     align-items: center;
