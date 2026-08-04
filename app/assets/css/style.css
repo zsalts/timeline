@@ -175,6 +175,16 @@ body.app-shell {
 }
 .club-switch-select:hover { border-color: var(--accent); }
 .club-switch-select:disabled { opacity: 0.6; cursor: progress; }
+/* "Crear otro club": discreto, es una acción de vez en cuando */
+.club-nuevo {
+    display: inline-block;
+    margin-top: 7px;
+    padding: 0 2px;
+    color: var(--faint);
+    font-size: 0.78rem;
+    text-decoration: none;
+}
+.club-nuevo:hover { color: var(--accent); }
 
 .sidebar-nav { display: flex; flex-direction: column; gap: 18px; flex: 1; }
 .nav-group { display: flex; flex-direction: column; gap: 2px; }

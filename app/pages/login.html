@@ -329,17 +329,18 @@
                     sessionStorage.setItem('userRole', rol);
                     try { localStorage.setItem('ultimoClub', clubIdDelUsuario); } catch (_) { }
 
-                    // Si es admin del club, permitir acceso a gestion-usuarios
-                    if (rol === 'club-admin') {
-                        sessionStorage.setItem('isClubAdmin', 'true');
-                    }
-
                     const docRef = doc(db, "clubes", clubIdDelUsuario);
                     const docSnap = await getDoc(docRef);
 
                     if (docSnap.exists()) {
                         const datosClub = docSnap.data();
                         sessionStorage.setItem('configClub', JSON.stringify(datosClub));
+                        // Mandar en un club es ser SU admin_uid, no tener el rol
+                        // 'club-admin'. El rol es uno solo para toda la cuenta,
+                        // así que si lo diera el rol, quien crea un club propio
+                        // pasaría a mandar también donde solo es analista.
+                        // Ojo: se recalcula al cambiar de club (ver ui.js).
+                        sessionStorage.setItem('isClubAdmin', String(datosClub.admin_uid === userId));
                     }
                 } else {
                     msjError.style.display = 'block';

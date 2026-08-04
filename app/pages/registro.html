@@ -156,24 +156,29 @@
                 <input type="text" id="club-nombre" placeholder="Ej: Club Náutico Sub-16" required>
             </div>
 
-            <div class="input-group">
-                <label for="nombre">Tu nombre</label>
-                <input type="text" id="nombre" placeholder="Ej: Carla Gómez" required>
-            </div>
+            <!-- Los datos de la cuenta se esconden si ya hay sesión: en ese
+                 caso esta pantalla solo crea OTRO club para la misma persona
+                 (ver "modo con sesión" en el script). -->
+            <div id="datos-cuenta">
+                <div class="input-group">
+                    <label for="nombre">Tu nombre</label>
+                    <input type="text" id="nombre" placeholder="Ej: Carla Gómez" required>
+                </div>
 
-            <div class="input-group">
-                <label for="email">Correo electrónico</label>
-                <input type="email" id="email" placeholder="vos@club.com" required>
-            </div>
+                <div class="input-group">
+                    <label for="email">Correo electrónico</label>
+                    <input type="email" id="email" placeholder="vos@club.com" required>
+                </div>
 
-            <div class="input-group">
-                <label for="password">Contraseña</label>
-                <input type="password" id="password" placeholder="Mínimo 6 caracteres" required>
-            </div>
+                <div class="input-group">
+                    <label for="password">Contraseña</label>
+                    <input type="password" id="password" placeholder="Mínimo 6 caracteres" required>
+                </div>
 
-            <div class="input-group">
-                <label for="password2">Repetir contraseña</label>
-                <input type="password" id="password2" placeholder="********" required>
+                <div class="input-group">
+                    <label for="password2">Repetir contraseña</label>
+                    <input type="password" id="password2" placeholder="********" required>
+                </div>
             </div>
 
             <button class="btn-login" id="btn-registrar">Crear mi club</button>
@@ -181,7 +186,7 @@
             <p id="mensaje-error"></p>
             <p id="mensaje-info"></p>
 
-            <div class="login-foot">
+            <div class="login-foot" id="pie-registro">
                 ¿Ya tenés cuenta? <a href="login.html">Iniciá sesión</a>
             </div>
         </div>
@@ -190,12 +195,33 @@
     <script type="module">
         import {
             auth, db, createUserWithEmailAndPassword,
-            doc, setDoc, guardarSesionRecordada, mandarCorreoDeConfirmacion
+            doc, getDoc, setDoc, updateDoc, guardarSesionRecordada,
+            mandarCorreoDeConfirmacion, clubesDeUsuario
         } from '../assets/js/firebase.js';
 
         const btn = document.getElementById('btn-registrar');
         const msjError = document.getElementById('mensaje-error');
         const msjInfo = document.getElementById('mensaje-info');
+
+        // --- Modo "con sesión" ---
+        // La misma pantalla sirve para dos cosas. Sin sesión es el registro
+        // público de siempre: cuenta nueva + club nuevo. Con sesión crea SOLO
+        // el club y se lo suma a la cuenta que ya está: es el caso de la
+        // analista que arma el club de otro equipo para después invitar al
+        // cuerpo técnico. La cuenta y el rol siguen siendo los mismos; lo que
+        // la hace dueña de ESE club es quedar como su admin_uid.
+        const sesionUid = sessionStorage.getItem('usuarioUID');
+        const conSesion = !!sesionUid;
+
+        if (conSesion) {
+            document.getElementById('datos-cuenta').style.display = 'none';
+            document.querySelector('.login-eyebrow').textContent = 'Nuevo club';
+            document.querySelector('.login-title').textContent = 'Creá otro club';
+            document.querySelector('.login-sub').textContent =
+                'Vas a quedar como quien lo administra. Arranca en plan Free y tu cuenta sigue igual.';
+            document.getElementById('btn-registrar').textContent = 'Crear el club';
+            document.getElementById('pie-registro').innerHTML = '<a href="historial.html">Volver</a>';
+        }
 
         function error(texto) {
             msjInfo.style.display = 'none';
@@ -232,20 +258,23 @@
             msjError.style.display = 'none';
             msjInfo.style.display = 'none';
 
-            if (!clubNombre || !nombre || !email || !password || !password2) {
-                return error('Completá todos los campos.');
-            }
             if (clubNombre.length < 2) {
                 return error('Poné el nombre de tu club o equipo.');
             }
-            if (!validarEmail(email)) {
-                return error('Ese correo no parece válido.');
-            }
-            if (password.length < 6) {
-                return error('La contraseña debe tener al menos 6 caracteres.');
-            }
-            if (password !== password2) {
-                return error('Las contraseñas no coinciden.');
+            // Con sesión no se piden datos de cuenta: ya los tiene.
+            if (!conSesion) {
+                if (!nombre || !email || !password || !password2) {
+                    return error('Completá todos los campos.');
+                }
+                if (!validarEmail(email)) {
+                    return error('Ese correo no parece válido.');
+                }
+                if (password.length < 6) {
+                    return error('La contraseña debe tener al menos 6 caracteres.');
+                }
+                if (password !== password2) {
+                    return error('Las contraseñas no coinciden.');
+                }
             }
 
             btn.disabled = true;
@@ -253,9 +282,11 @@
 
             let cred = null;
             try {
-                // 1. Crear la cuenta en Firebase Auth (queda logueada)
-                cred = await createUserWithEmailAndPassword(auth, email, password);
-                const uid = cred.user.uid;
+                // 1. La cuenta: se crea, o es la que ya está logueada.
+                if (!conSesion) {
+                    cred = await createUserWithEmailAndPassword(auth, email, password);
+                }
+                const uid = conSesion ? sesionUid : cred.user.uid;
 
                 // 2. Armar el ID del club. No se puede chequear contra Firestore
                 // si está libre: en este punto el usuario todavía no tiene doc en
@@ -290,34 +321,56 @@
                     costo_total: 0
                 });
 
-                // 5. Crear el usuario admin del club
-                await setDoc(doc(db, 'usuarios', uid), {
-                    email,
-                    club_id: clubId,
-                    rol: 'club-admin',
-                    nombre,
-                    estado: 'activo'
-                });
+                // 5. La ficha de usuario: se crea (cuenta nueva) o se le suma
+                // el club a la que ya existe. El rol NO se toca: si era
+                // analista sigue siendo analista, y manda en este club por ser
+                // su admin_uid. Se escribe la lista entera y no un arrayUnion
+                // porque las fichas viejas no tienen 'clubes' y la regla exige
+                // que la nueva lista contenga a la anterior.
+                let clubesFinal = [clubId];
+                if (conSesion) {
+                    const fichaSnap = await getDoc(doc(db, 'usuarios', uid));
+                    const previos = clubesDeUsuario(fichaSnap.data());
+                    clubesFinal = [...previos, clubId];
+                    await updateDoc(doc(db, 'usuarios', uid), { clubes: clubesFinal });
+                } else {
+                    await setDoc(doc(db, 'usuarios', uid), {
+                        email,
+                        club_id: clubId,
+                        clubes: clubesFinal,
+                        rol: 'club-admin',
+                        nombre,
+                        estado: 'activo'
+                    });
+                }
 
-                // 6. Dejar la sesión lista y entrar
-                sessionStorage.setItem('usuarioUID', uid);
-                sessionStorage.setItem('userEmail', email);
-                // Correo de confirmación. No bloquea nada: la app entra igual y
-                // la barra de aviso insiste hasta que confirme.
-                mandarCorreoDeConfirmacion(cred.user);
+                // 6. Dejar la sesión lista y entrar, con el club nuevo abierto
+                if (!conSesion) {
+                    sessionStorage.setItem('usuarioUID', uid);
+                    sessionStorage.setItem('userEmail', email);
+                    sessionStorage.setItem('userRole', 'club-admin');
+                    // Correo de confirmación. No bloquea nada: la app entra
+                    // igual y la barra de aviso insiste hasta que confirme.
+                    mandarCorreoDeConfirmacion(cred.user);
+                }
 
                 sessionStorage.setItem('clubID', clubId);
-                sessionStorage.setItem('clubesUsuario', JSON.stringify([clubId]));
-                sessionStorage.setItem('userRole', 'club-admin');
+                sessionStorage.setItem('clubesUsuario', JSON.stringify(clubesFinal));
+                // Es admin de ESTE club (lo acaba de crear), sea cual sea su rol.
                 sessionStorage.setItem('isClubAdmin', 'true');
+                sessionStorage.removeItem('partidoSeleccionadoId');
+                sessionStorage.removeItem('clubesNombres');
                 sessionStorage.setItem('configClub', JSON.stringify({
                     nombre: clubNombre, plan: 'free', logo: ''
                 }));
-                // Un usuario recién registrado queda con la sesión recordada
-                guardarSesionRecordada(true);
+                // Un usuario recién registrado queda con la sesión recordada;
+                // si ya estaba, se refresca para que el club nuevo también viaje.
+                guardarSesionRecordada(conSesion ? localStorage.getItem('recordarSesion') === '1' : true);
 
                 msjInfo.style.display = 'block';
-                msjInfo.textContent = '¡Listo! Tu club está creado. Te mandamos un correo para confirmar tu dirección. Entrando…';
+                msjInfo.textContent = conSesion
+                    ? '¡Listo! El club está creado y ya lo tenés abierto. Entrando…'
+                    : '¡Listo! Tu club está creado. Te mandamos un correo para confirmar tu dirección. Entrando…';
                 window.location.href = 'historial.html';
 
             } catch (e) {

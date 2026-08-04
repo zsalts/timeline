@@ -35,10 +35,14 @@
     const esClubAdmin = sessionStorage.getItem('isClubAdmin') === 'true';
     // Las jugadoras son espectadoras: ven los partidos pero no cargan
     const esJugadora = sessionStorage.getItem('userRole') === 'player';
-    // Los ejercicios/entrenamientos son solo del cuerpo técnico
-    // (entrenador, coordinador o admin del club)
+    // Los ejercicios/entrenamientos son solo del cuerpo técnico (entrenador,
+    // coordinador) más quien manda en el club abierto: si creaste el club,
+    // cargás entrenamiento ahí aunque tu rol de cuenta diga "analista".
+    // Tiene que dar lo mismo que esStaffDe() en firestore.rules; si no, la
+    // barra esconde algo que las reglas sí dejan hacer.
     const rolActual = sessionStorage.getItem('userRole');
-    const esEntrenador = rolActual === 'trainer' || rolActual === 'coordinator' || rolActual === 'club-admin';
+    const esEntrenador = rolActual === 'trainer' || rolActual === 'coordinator'
+        || rolActual === 'club-admin' || esClubAdmin;
     // Qué habilita el plan del club: el editor de cancha es de los planes con
     // táctica (Pizarrón/Ultra) y los partidos NO están en el plan Pizarrón.
     // Se resuelve con TL.planes si está cargado; si no, se mira el plan directo.
@@ -141,12 +145,17 @@
     })();
     nombresClubes[clubActivo] = nombresClubes[clubActivo] || nombreClub;
 
-    const selectorClubHTML = misClubes.length < 2 ? '' : `
+    // El selector solo tiene sentido con más de un club, pero "crear otro"
+    // aparece siempre (salvo para las jugadoras): es la puerta para que
+    // alguien arme el club de otro equipo y después invite al cuerpo técnico.
+    const selectorClubHTML = (misClubes.length < 2 && esJugadora) ? '' : `
         <div class="club-switch">
+            ${misClubes.length < 2 ? '' : `
             <label class="club-switch-label" for="sel-club">Club activo</label>
             <select id="sel-club" class="club-switch-select">
                 ${misClubes.map(id => `<option value="${TL.esc(id)}" ${id === clubActivo ? 'selected' : ''}>${TL.esc(nombresClubes[id] || id)}</option>`).join('')}
-            </select>
+            </select>`}
+            ${esJugadora ? '' : `<a href="${toPage}registro.html" class="club-nuevo">+ Crear otro club</a>`}
         </div>`;
 
     // En celular la barra lateral se esconde y se abre como cajón desde el
@@ -241,6 +250,11 @@
                 if (!snap.exists()) throw new Error('El club no existe');
                 sessionStorage.setItem('clubID', nuevo);
                 sessionStorage.setItem('configClub', JSON.stringify(snap.data()));
+                // Mandar es por club: en uno podés ser la dueña y en otro no.
+                // Si esto no se recalcula acá, el menú de Usuarios queda
+                // mostrándose (o escondido) según el club anterior.
+                sessionStorage.setItem('isClubAdmin',
+                    String(snap.data().admin_uid === sessionStorage.getItem('usuarioUID')));
                 sessionStorage.removeItem('partidoSeleccionadoId');
                 try { localStorage.setItem('ultimoClub', nuevo); } catch (_) { }
                 // Si la sesión está recordada, el club nuevo también.

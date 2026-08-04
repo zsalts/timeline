@@ -42,6 +42,26 @@ service cloud.firestore {
       return userExists() && c in clubesDe(userDoc());
     }
 
+    // ¿Mando en ESTE club? Es el admin_uid del club, no el rol de la cuenta.
+    //
+    // Why: el rol es uno solo para toda la cuenta, así que si "ser admin" lo
+    // diera el rol, alguien que crea un club propio pasaría a ser admin
+    // también en los clubes donde solo es analista. Con admin_uid la
+    // pregunta se hace club por club y eso no puede pasar. Para los clubes
+    // que ya existían no cambia nada: quien registró el club ya es su
+    // admin_uid.
+    function esAdminDe(c) {
+      return request.auth != null && clubDoc(c).admin_uid == request.auth.uid;
+    }
+
+    // Quién puede cargar entrenamiento y táctica en el club 'c': el cuerpo
+    // técnico, más quien manda en ese club. Lo segundo hace falta desde que
+    // alguien puede crear su propio club: sería raro ser la dueña y no poder
+    // cargar un ejercicio porque el rol de la cuenta dice "analista".
+    function esStaffDe(c) {
+      return (esEntrenador() || esAdminDe(c)) && esMiClub(c);
+    }
+
     // ¿El único cambio en el club es el contador de partidos, moviéndose ±1?
     // Permite que cualquier miembro (no jugadora) mantenga el contador que usa
     // el tope del plan Free, sin poder tocar ningún otro campo del club.
@@ -217,18 +237,31 @@ service cloud.firestore {
                 invitacionUsosDespues(request.resource.data.invitacion) <= 1);
       }
 
+      // Sumarse un club PROPIO: el que acabás de crear desde la app (la
+      // analista que arma el club de otro equipo y después invita al cuerpo
+      // técnico). No hace falta invitación porque el club es tuyo, pero se
+      // valida que efectivamente lo sea: tenés que ser su admin_uid.
+      // Solo agrega UN club y no toca ningún otro campo, así esto no se
+      // puede usar para meterse en un club ajeno.
+      function sumaClubPropio(userId) {
+        return request.auth != null &&
+               request.auth.uid == userId &&
+               request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clubes']) &&
+               request.resource.data.clubes.hasAll(clubesDe(resource.data)) &&
+               request.resource.data.clubes.removeAll(clubesDe(resource.data)).size() == 1 &&
+               esAdminDe(request.resource.data.clubes.removeAll(clubesDe(resource.data))[0]);
+      }
+
       // Leer: super-admin, propietario, o compañero de alguno de mis clubes
       allow read: if isSuper() ||
         (request.auth != null && request.auth.uid == userId) ||
         (userExists() && clubesDe(userDoc()).hasAny(clubesDe(resource.data)));
 
-      // Crear: super-admin; club-admin creando en su club; o auto-registro
-      // (el usuario recién creado hace SU propio doc como club-admin del club
+      // Crear: super-admin; quien manda en ese club; o auto-registro (el
+      // usuario recién creado hace SU propio doc como club-admin del club
       // que acaba de crear — se valida que sea admin_uid de ese club).
       allow create: if isSuper() ||
-        (userExists() &&
-         userDoc().rol == 'club-admin' &&
-         esMiClub(request.resource.data.club_id)) ||
+        esAdminDe(request.resource.data.club_id) ||
         (request.auth != null &&
          request.auth.uid == userId &&
          request.resource.data.rol == 'club-admin' &&
@@ -236,15 +269,13 @@ service cloud.firestore {
         // o alta por link de invitación (club y rol los fija la invitación)
         altaPorInvitacion(userId);
 
-      // Actualizar: el super puede todo; el club-admin, la gente de su club;
-      // y cada uno su propia ficha mientras no toque su acceso (o mientras
-      // se sume un club con un link de invitación válido).
+      // Actualizar: el super puede todo; quien manda en el club, la gente de
+      // ese club; y cada uno su propia ficha mientras no toque su acceso
+      // (salvo que se sume un club, con un link válido o uno que creó él).
       allow update: if isSuper() ||
         (request.auth != null && request.auth.uid == userId &&
-         (noTocaSuAcceso() || sumaClubPorInvitacion(userId))) ||
-        (userExists() &&
-         userDoc().rol == 'club-admin' &&
-         esMiClub(resource.data.club_id));
+         (noTocaSuAcceso() || sumaClubPorInvitacion(userId) || sumaClubPropio(userId))) ||
+        esAdminDe(resource.data.club_id);
 
       // Eliminar: solo el super-admin (borrado permanente de un club completo).
       // El flujo normal es "dar de baja" (estado: inactivo), no borrar.
@@ -265,24 +296,17 @@ service cloud.firestore {
       // Listar es otra cosa: solo el admin del club, y únicamente las de su
       // propio club (la consulta tiene que venir filtrada por club_id). Así
       // nadie puede recorrer la colección para descubrir invitaciones ajenas.
-      allow list: if isSuper() ||
-        (userExists() &&
-         userDoc().rol == 'club-admin' &&
-         esMiClub(resource.data.club_id));
+      allow list: if isSuper() || esAdminDe(resource.data.club_id);
 
-      // Crear: solo el admin del club, para su propio club. El rol se limita
-      // acá para que un link no pueda repartir permisos de club-admin.
+      // Crear: solo quien manda en ese club. El rol se limita acá para que un
+      // link no pueda repartir permisos de club-admin.
       allow create: if userExists() &&
-        userDoc().rol == 'club-admin' &&
-        esMiClub(request.resource.data.club_id) &&
+        esAdminDe(request.resource.data.club_id) &&
         request.resource.data.rol in ['trainer', 'coordinator', 'analyst', 'player'] &&
         request.resource.data.activa == true;
 
-      // Editar (activar/desactivar) y borrar: el admin del club o el super.
-      allow update, delete: if isSuper() ||
-        (userExists() &&
-         userDoc().rol == 'club-admin' &&
-         esMiClub(resource.data.club_id));
+      // Editar (activar/desactivar) y borrar: quien manda en el club o el super.
+      allow update, delete: if isSuper() || esAdminDe(resource.data.club_id);
 
       // Además: quien se da de alta con el link suma 1 al contador de usos y
       // no puede tocar ningún otro campo (ni desactivar la invitación).
@@ -314,11 +338,8 @@ service cloud.firestore {
         esMiClub(resource.data.club_id) &&
         esMiClub(request.resource.data.club_id);
 
-      // Eliminar: club-admin del mismo club, o super-admin (borrado del club)
-      allow delete: if isSuper() ||
-        (userExists() &&
-         esMiClub(resource.data.club_id) &&
-         userDoc().rol == 'club-admin');
+      // Eliminar: quien manda en ese club, o super-admin (borrado del club)
+      allow delete: if isSuper() || esAdminDe(resource.data.club_id);
     }
 
     // ============================================
@@ -367,22 +388,20 @@ service cloud.firestore {
     match /entrenamientos/{entId} {
       // Leer: solo el cuerpo técnico del club (entrenador o admin)
       allow read: if isSuper() ||
-        (esEntrenador() && esMiClub(resource.data.club_id));
+        esStaffDe(resource.data.club_id);
 
       // Crear: entrenador/admin del club, y el club debe tener un plan con táctica (Pizarrón/Ultra).
-      allow create: if esEntrenador() &&
-        esMiClub(request.resource.data.club_id) &&
+      allow create: if esStaffDe(request.resource.data.club_id) &&
         planConTactica(request.resource.data.club_id);
 
       // Actualizar: entrenador/admin del mismo club (con plan táctico), sin cambiar de club
-      allow update: if esEntrenador() &&
-        esMiClub(resource.data.club_id) &&
+      allow update: if esStaffDe(resource.data.club_id) &&
         request.resource.data.club_id == resource.data.club_id &&
         planConTactica(resource.data.club_id);
 
       // Borrar: entrenador/admin del mismo club, o super-admin (borrado del club)
       allow delete: if isSuper() ||
-        (esEntrenador() && esMiClub(resource.data.club_id));
+        esStaffDe(resource.data.club_id);
     }
 
     // ============================================
@@ -391,23 +410,21 @@ service cloud.firestore {
     match /ejercicios/{ejId} {
       // Leer: solo el cuerpo técnico del club (entrenador o admin)
       allow read: if isSuper() ||
-        (esEntrenador() && esMiClub(resource.data.club_id));
+        esStaffDe(resource.data.club_id);
 
       // Crear: entrenador/admin del club, y el club debe tener un plan con táctica (Pizarrón/Ultra).
-      allow create: if esEntrenador() &&
-        esMiClub(request.resource.data.club_id) &&
+      allow create: if esStaffDe(request.resource.data.club_id) &&
         planConTactica(request.resource.data.club_id);
 
       // Actualizar: entrenador/admin del mismo club (con plan táctico), sin cambiar de club
-      allow update: if esEntrenador() &&
-        esMiClub(resource.data.club_id) &&
+      allow update: if esStaffDe(resource.data.club_id) &&
         request.resource.data.club_id == resource.data.club_id &&
         planConTactica(resource.data.club_id);
 
       // Borrar: entrenador/admin del mismo club (aunque haya bajado de plan),
       // o super-admin (borrado del club)
       allow delete: if isSuper() ||
-        (esEntrenador() && esMiClub(resource.data.club_id));
+        esStaffDe(resource.data.club_id);
     }
 
     // ============================================
@@ -556,20 +573,18 @@ service cloud.firestore {
         (userExists() && esMiClub(resource.data.club_id));
 
       // Crear: entrenador/coordinador/admin del club, y el club debe tener un plan con táctica (Pizarrón/Ultra).
-      allow create: if esEntrenador() &&
-        esMiClub(request.resource.data.club_id) &&
+      allow create: if esStaffDe(request.resource.data.club_id) &&
         planConTactica(request.resource.data.club_id);
 
       // Actualizar: cuerpo técnico del mismo club (con plan táctico), sin cambiar de club
-      allow update: if esEntrenador() &&
-        esMiClub(resource.data.club_id) &&
+      allow update: if esStaffDe(resource.data.club_id) &&
         request.resource.data.club_id == resource.data.club_id &&
         planConTactica(resource.data.club_id);
 
       // Borrar: cuerpo técnico del mismo club (aunque haya bajado de plan),
       // o super-admin (borrado del club)
       allow delete: if isSuper() ||
-        (esEntrenador() && esMiClub(resource.data.club_id));
+        esStaffDe(resource.data.club_id);
     }
 
     // ============================================

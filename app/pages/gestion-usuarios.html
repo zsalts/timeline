@@ -454,7 +454,6 @@
         async function checkAccess() {
             const clubID = sessionStorage.getItem('clubID');
             const isClubAdmin = sessionStorage.getItem('isClubAdmin');
-            const userRole = sessionStorage.getItem('userRole');
 
             // Sin sesión no hay a quién negarle nada: va al login como el resto
             // de las páginas. La pantalla de "acceso denegado" queda para el
@@ -464,7 +463,10 @@
                 return false;
             }
 
-            if (!isClubAdmin || userRole !== 'club-admin') {
+            // Manda quien es el admin_uid del club ACTIVO, no quien tiene el
+            // rol 'club-admin' (que es de la cuenta entera). Una analista que
+            // creó su propio club administra ese y solo ese.
+            if (isClubAdmin !== 'true') {
                 mainContent.style.display = 'none';
                 unauthorizedScreen.style.display = 'block';
                 return false;
