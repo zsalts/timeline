@@ -20,6 +20,26 @@
         .buscador-row { margin-top: 2px; }
         #buscador { max-width: 460px; }
 
+        /* Alcance del historial: este club o todos los míos */
+        .alcance-select {
+            width: auto;
+            padding: 8px 12px;
+            font-size: 0.86rem;
+            font-family: inherit;
+        }
+        /* De qué club es el partido (solo en modo "todos mis clubes") */
+        .chip-club {
+            background: var(--panel-3);
+            color: var(--text);
+            padding: 2px 8px;
+            border-radius: 999px;
+            font-size: 0.6rem;
+            font-weight: 600;
+            letter-spacing: 0.04em;
+            margin-left: 8px;
+            text-transform: none;
+        }
+
         /* Filtro por categoría del club */
         .cat-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
         .cat-label {
@@ -72,6 +92,17 @@
                 <input type="text" id="buscador" placeholder="Buscar por equipo o torneo">
             </div>
 
+            <!-- Solo para quien trabaja en más de un club. Es de lectura: mezcla
+                 los partidos de todos, pero cargar o editar sigue necesitando un
+                 club abierto. -->
+            <div class="cat-row" id="alcance-row" style="display: none;">
+                <span class="cat-label">Ver</span>
+                <select id="sel-alcance" class="alcance-select" aria-label="Qué partidos mostrar">
+                    <option value="uno">Solo este club</option>
+                    <option value="todos">Todos mis clubes</option>
+                </select>
+            </div>
+
             <!-- Filtro por categoría del club: se arma con las categorías que
                  aparecen en los partidos, así nunca ofrece una lista vacía. -->
             <div class="cat-row" id="cat-row" style="display: none;">
@@ -92,7 +123,7 @@
     </div>
 
     <script type="module">
-        import { db, collection, query, where, getDocs, doc, deleteDoc, updateDoc, writeBatch, increment } from '../assets/js/firebase.js';
+        import { db, collection, query, where, getDocs, getDoc, doc, deleteDoc, updateDoc, writeBatch, increment } from '../assets/js/firebase.js';
 
         // 1. Verificación de seguridad
         const uid = sessionStorage.getItem('usuarioUID');
@@ -119,13 +150,74 @@
 
         let partidosGlobal = [];
 
+        // --- Alcance: este club o todos los míos ---
+        // Quien trabaja para varios clubes (una analista, una entrenadora) puede
+        // ver el historial completo sin ir cambiando de club con el selector de
+        // la barra. Es SOLO lectura: cargar un partido, el tope del plan y las
+        // estadísticas siguen necesitando un club abierto, así que el club
+        // activo no se toca al mirar en modo "todos".
+        const misClubes = (() => {
+            try {
+                const l = JSON.parse(sessionStorage.getItem('clubesUsuario') || '[]');
+                return Array.isArray(l) && l.length ? l : [miClubId];
+            } catch (e) { return [miClubId]; }
+        })();
+        const nombresClubes = (() => {
+            try { return JSON.parse(sessionStorage.getItem('clubesNombres') || '{}'); }
+            catch (e) { return {}; }
+        })();
+
+        const selAlcance = document.getElementById('sel-alcance');
+        let verTodos = sessionStorage.getItem('historialTodosClubes') === '1';
+
+        if (misClubes.length > 1) {
+            document.getElementById('alcance-row').style.display = '';
+            selAlcance.value = verTodos ? 'todos' : 'uno';
+            selAlcance.addEventListener('change', () => {
+                verTodos = selAlcance.value === 'todos';
+                sessionStorage.setItem('historialTodosClubes', verTodos ? '1' : '0');
+                pintarEncabezado();
+                cargarHistorial();
+            });
+        } else {
+            verTodos = false;
+        }
+
+        // Los datos de cada club, para poner su nombre en la tarjeta y para
+        // poder abrir el club correcto si el partido es de otro.
+        const datosClubes = {};
+        async function completarNombresDeClubes() {
+            const faltan = misClubes.filter(id => !datosClubes[id]);
+            await Promise.all(faltan.map(async (id) => {
+                try {
+                    const s = await getDoc(doc(db, 'clubes', id));
+                    if (s.exists()) {
+                        datosClubes[id] = s.data();
+                        nombresClubes[id] = s.data().nombre || id;
+                    }
+                } catch (e) { /* si no se puede leer, queda el id */ }
+            }));
+            try { sessionStorage.setItem('clubesNombres', JSON.stringify(nombresClubes)); } catch (e) { }
+        }
+
+        function pintarEncabezado() {
+            const cfg = JSON.parse(sessionStorage.getItem('configClub') || '{}');
+            const texto = verTodos ? 'Todos mis clubes' : (cfg.nombre || 'Videoanálisis');
+            document.getElementById('eyebrow-club').textContent = texto;
+            document.title = `Historial · ${texto}`;
+        }
+
         // 3. Cargar Partidos desde Firestore (Filtrado por Club)
         async function cargarHistorial() {
             const listaTC = document.getElementById('lista-tc');
 
             try {
-                // Solo pedimos los partidos que tienen el sello de este club
-                const consultaPrivada = query(collection(db, "partidos"), where("club_id", "==", miClubId));
+                // Un club, o todos los míos. El 'in' de Firestore banca hasta 30
+                // valores; nadie va a estar en más de 30 clubes, pero si pasara
+                // se recorta y al menos no rompe la consulta.
+                const consultaPrivada = verTodos
+                    ? query(collection(db, "partidos"), where("club_id", "in", misClubes.slice(0, 30)))
+                    : query(collection(db, "partidos"), where("club_id", "==", miClubId));
                 const querySnapshot = await getDocs(consultaPrivada);
 
                 partidosGlobal = [];
@@ -137,6 +229,8 @@
                     listaTC.innerHTML = '<p style="color: var(--muted);">Todavía no hay partidos cargados. Empezá con “+ Nuevo partido”.</p>';
                     return;
                 }
+
+                if (verTodos) await completarNombresDeClubes();
 
                 renderCategorias();
                 renderizarPartidos(partidosGlobal);
@@ -183,9 +277,16 @@
             const badge = esImportante ? '<span class="badge-proximo">PRÓXIMO</span>' : '';
             const estrella = esImportante ? '★' : '☆';
 
+            // En modo "todos mis clubes" cada tarjeta dice de qué club es; si no,
+            // dos partidos de clubes distintos se ven idénticos.
+            const esDeOtroClub = partido.club_id && partido.club_id !== miClubId;
+            const chipClub = (verTodos && partido.club_id)
+                ? `<span class="chip-club">${TL.esc(nombresClubes[partido.club_id] || partido.club_id)}</span>`
+                : '';
+
             card.innerHTML = `
                 <div class="match-top">
-                    <div class="match-torneo">${TL.esc(partido.torneo || 'Amistoso')} ${badge}</div>
+                    <div class="match-torneo">${TL.esc(partido.torneo || 'Amistoso')} ${badge} ${chipClub}</div>
                     <div class="match-acciones">
                         <button class="icon-btn btn-importante ${esImportante ? 'on' : ''}" title="Marcar como prioritario">${estrella}</button>
                         <button class="icon-btn btn-editar" title="Editar">✎</button>
@@ -207,9 +308,25 @@
             // Firma: tira de timeline del partido
             card.querySelector('.tl-slot').appendChild(TL.timeline.crear(partido.estadisticas));
 
-            if (esJugadora) card.querySelector('.match-acciones').style.display = 'none';
+            // Las acciones (prioritario, editar, borrar) trabajan sobre el club
+            // abierto: los equipos del formulario, el contador de partidos del
+            // plan y quién puede borrar salen de ahí. Sobre un partido de OTRO
+            // club se esconden; para tocarlo hay que abrirlo, que es lo que
+            // cambia de club.
+            if (esJugadora || (verTodos && esDeOtroClub)) {
+                card.querySelector('.match-acciones').style.display = 'none';
+            }
 
-            card.onclick = () => {
+            card.onclick = async () => {
+                // Abrir un partido de otro club mueve el club activo: si no,
+                // el video cargaría las tácticas y el plan del club equivocado.
+                if (esDeOtroClub && datosClubes[partido.club_id]) {
+                    sessionStorage.setItem('clubID', partido.club_id);
+                    sessionStorage.setItem('configClub', JSON.stringify(datosClubes[partido.club_id]));
+                    sessionStorage.setItem('isClubAdmin',
+                        String(datosClubes[partido.club_id].admin_uid === uid));
+                    try { localStorage.setItem('ultimoClub', partido.club_id); } catch (_) { }
+                }
                 sessionStorage.setItem('partidoSeleccionadoId', partido.id);
                 window.location.href = 'video.html';
             };
@@ -374,7 +491,7 @@
         document.getElementById('buscador').addEventListener('input', aplicarFiltros);
 
         // Iniciamos la carga
-        window.onload = () => { cargarHistorial(); cargarCompartidos(); };
+        window.onload = () => { pintarEncabezado(); cargarHistorial(); cargarCompartidos(); };
     </script>
 </body>
 </html>
