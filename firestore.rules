@@ -184,14 +184,21 @@ service cloud.firestore {
       // de 10 partidos del plan Free. El flujo normal es "dar de baja".
       allow delete: if isSuper();
 
-      // Crear: super-admin, o auto-registro público (cualquier usuario
-      // autenticado creando SU club en plan Free, con él mismo como admin).
-      // No puede autoasignarse Pro/Ultra: eso lo mueve el super-admin.
+      // Crear: super-admin, auto-registro público, o una analista armando el
+      // club de otro equipo. Siempre en plan Free y con quien lo crea como
+      // admin: nadie se autoasigna Pro/Ultra, eso lo mueve el super-admin.
+      //
+      // El "!userExists()" es el registro público: en ese momento la persona
+      // todavía no tiene ficha (se crea después, ver COLECCIÓN usuarios), así
+      // que no se le puede preguntar el rol. Si ya tiene ficha, entonces
+      // crear clubes es solo de las analistas, que son las que trabajan para
+      // varios equipos.
       allow create: if isSuper() ||
         (request.auth != null &&
          request.resource.data.admin_uid == request.auth.uid &&
          request.resource.data.get('plan', 'free') == 'free' &&
-         request.resource.data.get('estado', 'activo') == 'activo');
+         request.resource.data.get('estado', 'activo') == 'activo' &&
+         (!userExists() || userDoc().rol == 'analyst'));
 
       // Además: cualquier miembro (no jugadora) puede mover SOLO el contador
       // de partidos ±1 (lo mantiene el batch de crear/borrar partido). Esta

@@ -145,18 +145,41 @@
     })();
     nombresClubes[clubActivo] = nombresClubes[clubActivo] || nombreClub;
 
-    // El selector solo tiene sentido con más de un club, pero "crear otro"
-    // aparece siempre (salvo para las jugadoras): es la puerta para que
-    // alguien arme el club de otro equipo y después invite al cuerpo técnico.
-    const selectorClubHTML = (misClubes.length < 2 && esJugadora) ? '' : `
-        <div class="club-switch">
-            ${misClubes.length < 2 ? '' : `
-            <label class="club-switch-label" for="sel-club">Club activo</label>
-            <select id="sel-club" class="club-switch-select">
-                ${misClubes.map(id => `<option value="${TL.esc(id)}" ${id === clubActivo ? 'selected' : ''}>${TL.esc(nombresClubes[id] || id)}</option>`).join('')}
-            </select>`}
-            ${esJugadora ? '' : `<a href="${toPage}registro.html" class="club-nuevo">+ Crear otro club</a>`}
+    // El club se cambia desde el nombre de arriba: se toca y se despliega la
+    // lista. Antes era un <select> aparte; esto ocupa menos y deja claro que
+    // el nombre que estás viendo ES el club abierto.
+    //
+    // Crear clubes es cosa de las analistas: son las que trabajan para varios
+    // equipos y arman el club del que todavía no está en Timeline. El resto
+    // (entrenadoras, coordinadoras, admins) trabaja en el club que ya tiene.
+    const puedeCrearClubes = rolActual === 'analyst';
+
+    // "Crear otro club" va acá abajo, separado, y no suelto en la barra: hay
+    // que abrir el menú a propósito, así nadie se crea un club sin querer. El
+    // botón grande está en Usuarios, pero eso solo lo ve quien administra un
+    // club; acá lo alcanza también la analista que no administra ninguno.
+    const hayMenuClub = puedeCrearClubes || misClubes.length > 1;
+    const itemsClubHTML = misClubes.map(id => `
+        <button type="button" class="club-item ${id === clubActivo ? 'activo' : ''}" data-club="${TL.esc(id)}">
+            <span class="club-item-tilde">${id === clubActivo ? '✓' : ''}</span>
+            <span class="club-item-nombre">${TL.esc(nombresClubes[id] || id)}</span>
+        </button>`).join('');
+
+    const menuClubHTML = !hayMenuClub ? '' : `
+        <div class="club-menu" id="club-menu" hidden role="menu" aria-label="Cambiar de club">
+            ${misClubes.length > 1 ? `<div class="club-menu-label">Tus clubes</div>${itemsClubHTML}` : ''}
+            ${!puedeCrearClubes ? '' : `
+            <a href="${toPage}registro.html" class="club-menu-nuevo">+ Crear otro club</a>`}
         </div>`;
+
+    // La marca: el logo sigue llevando al inicio; el NOMBRE abre el menú (o es
+    // un link más al inicio si no hay nada que elegir ni crear).
+    const marcaHTML = hayMenuClub
+        ? `<button type="button" class="brand-club" id="btn-club" aria-haspopup="true" aria-expanded="false" aria-controls="club-menu">
+               <span class="brand-name">${nombreClub}</span>
+               <svg class="brand-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+           </button>`
+        : `<a href="${inicio}" class="brand-link"><span class="brand-name">${nombreClub}</span></a>`;
 
     // En celular la barra lateral se esconde y se abre como cajón desde el
     // botón hamburguesa de la topbar. En escritorio topbar y scrim se ocultan
@@ -176,12 +199,12 @@
         <div class="nav-scrim" id="nav-scrim"></div>
         <aside class="sidebar" id="sidebar-nav">
             <div class="sidebar-brand">
-                <a href="${inicio}" class="brand-link" aria-label="Ir al inicio">
+                <a href="${inicio}" class="brand-logo" aria-label="Ir al inicio">
                     <img src="${toRoot}assets/image/logo.svg" alt="Logo" class="logo" onerror="this.style.visibility='hidden'">
-                    <span class="brand-name">${nombreClub}</span>
                 </a>
+                ${marcaHTML}
+                ${menuClubHTML}
             </div>
-            ${selectorClubHTML}
             <nav class="sidebar-nav">
                 ${grupos.map(grupoHTML).join('')}
             </nav>
@@ -238,37 +261,57 @@
     // filtra por clubID son de ese club. El partido abierto era del club
     // anterior, así que se suelta, y se vuelve a entrar por la casa del club
     // nuevo (que según el plan puede no ser el historial).
-    const selClub = document.getElementById('sel-club');
-    if (selClub) {
-        selClub.addEventListener('change', async () => {
-            const nuevo = selClub.value;
-            if (!nuevo || nuevo === clubActivo) return;
-            selClub.disabled = true;
-            try {
-                const fb = await import(`${toRoot}assets/js/firebase.js`);
-                const snap = await fb.getDoc(fb.doc(fb.db, 'clubes', nuevo));
-                if (!snap.exists()) throw new Error('El club no existe');
-                sessionStorage.setItem('clubID', nuevo);
-                sessionStorage.setItem('configClub', JSON.stringify(snap.data()));
-                // Mandar es por club: en uno podés ser la dueña y en otro no.
-                // Si esto no se recalcula acá, el menú de Usuarios queda
-                // mostrándose (o escondido) según el club anterior.
-                sessionStorage.setItem('isClubAdmin',
-                    String(snap.data().admin_uid === sessionStorage.getItem('usuarioUID')));
-                sessionStorage.removeItem('partidoSeleccionadoId');
-                try { localStorage.setItem('ultimoClub', nuevo); } catch (_) { }
-                // Si la sesión está recordada, el club nuevo también.
-                if (localStorage.getItem('recordarSesion') === '1') fb.guardarSesionRecordada(true);
-                // La casa depende del plan del club NUEVO (Pizarrón no tiene
-                // partidos), igual que paginaInicio() en el login.
-                const conPartidos = !window.TL || !window.TL.planes || window.TL.planes.puedeActual('partidos');
-                const destino = conPartidos ? 'historial.html' : 'entrenamientos.html';
-                window.location.href = enPages ? destino : `pages/${destino}`;
-            } catch (e) {
-                console.error('No se pudo cambiar de club:', e);
-                selClub.value = clubActivo;
-                selClub.disabled = false;
-            }
+    const btnClub = document.getElementById('btn-club');
+    const menuClub = document.getElementById('club-menu');
+    if (btnClub && menuClub) {
+        const abrirMenuClub = (abrir) => {
+            menuClub.hidden = !abrir;
+            btnClub.setAttribute('aria-expanded', String(abrir));
+        };
+
+        btnClub.addEventListener('click', (e) => {
+            e.stopPropagation();
+            abrirMenuClub(menuClub.hidden);
+        });
+        // Tocar en cualquier otro lado (o Escape) lo cierra
+        document.addEventListener('click', (e) => {
+            if (!menuClub.hidden && !menuClub.contains(e.target)) abrirMenuClub(false);
+        });
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && !menuClub.hidden) { abrirMenuClub(false); btnClub.focus(); }
+        });
+
+        menuClub.querySelectorAll('.club-item').forEach(item => {
+            item.addEventListener('click', async () => {
+                const nuevo = item.getAttribute('data-club');
+                if (!nuevo || nuevo === clubActivo) return abrirMenuClub(false);
+                menuClub.querySelectorAll('.club-item').forEach(b => b.disabled = true);
+                try {
+                    const fb = await import(`${toRoot}assets/js/firebase.js`);
+                    const snap = await fb.getDoc(fb.doc(fb.db, 'clubes', nuevo));
+                    if (!snap.exists()) throw new Error('El club no existe');
+                    sessionStorage.setItem('clubID', nuevo);
+                    sessionStorage.setItem('configClub', JSON.stringify(snap.data()));
+                    // Mandar es por club: en uno podés ser la dueña y en otro no.
+                    // Si esto no se recalcula acá, el menú de Usuarios queda
+                    // mostrándose (o escondido) según el club anterior.
+                    sessionStorage.setItem('isClubAdmin',
+                        String(snap.data().admin_uid === sessionStorage.getItem('usuarioUID')));
+                    sessionStorage.removeItem('partidoSeleccionadoId');
+                    try { localStorage.setItem('ultimoClub', nuevo); } catch (_) { }
+                    // Si la sesión está recordada, el club nuevo también.
+                    if (localStorage.getItem('recordarSesion') === '1') fb.guardarSesionRecordada(true);
+                    // La casa depende del plan del club NUEVO (Pizarrón no tiene
+                    // partidos), igual que paginaInicio() en el login.
+                    const conPartidos = !window.TL || !window.TL.planes || window.TL.planes.puedeActual('partidos');
+                    const destino = conPartidos ? 'historial.html' : 'entrenamientos.html';
+                    window.location.href = enPages ? destino : `pages/${destino}`;
+                } catch (e) {
+                    console.error('No se pudo cambiar de club:', e);
+                    menuClub.querySelectorAll('.club-item').forEach(b => b.disabled = false);
+                    abrirMenuClub(false);
+                }
+            });
         });
 
         // Completar los nombres que no estaban cacheados (una vez por sesión).
@@ -281,7 +324,10 @@
                     } catch (_) { /* sin permiso o sin red: queda el id */ }
                 }));
                 sessionStorage.setItem('clubesNombres', JSON.stringify(nombresClubes));
-                Array.from(selClub.options).forEach(o => { o.textContent = nombresClubes[o.value] || o.value; });
+                menuClub.querySelectorAll('.club-item').forEach(b => {
+                    const id = b.getAttribute('data-club');
+                    b.querySelector('.club-item-nombre').textContent = nombresClubes[id] || id;
+                });
             });
         }
     }

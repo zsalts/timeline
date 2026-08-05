@@ -151,40 +151,91 @@ body.app-shell {
 .brand-link:hover { opacity: 0.82; }
 .brand-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 
-/* Selector de club: solo se dibuja para quien trabaja en más de uno */
-.club-switch { margin: -6px 0 16px; padding: 0 4px; }
-.club-switch-label {
-    display: block;
+/* El club se cambia tocando su nombre arriba: el nombre es un botón que
+   despliega la lista. La marca queda como ancla, por eso position: relative. */
+.sidebar-brand { position: relative; }
+.brand-logo { display: flex; align-items: center; flex-shrink: 0; }
+
+.brand-club {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    flex: 1;
+    min-width: 0;
+    background: transparent;
+    border: none;
+    padding: 4px 6px;
+    margin: -4px 0;
+    border-radius: 8px;
+    cursor: pointer;
+    font-family: inherit;
+    color: inherit;
+    text-align: left;
+    width: auto;
+}
+.brand-club:hover { background: var(--panel-2); }
+.brand-club:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.brand-chevron {
+    width: 15px; height: 15px; flex-shrink: 0;
+    color: var(--faint);
+    transition: transform 0.15s;
+}
+.brand-club[aria-expanded="true"] .brand-chevron { transform: rotate(180deg); }
+
+.club-menu {
+    position: absolute;
+    top: calc(100% - 10px);
+    left: 4px;
+    right: 4px;
+    z-index: 60;
+    background: var(--panel-2);
+    border: 1px solid var(--line-2);
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+    padding: 6px;
+}
+.club-menu[hidden] { display: none; }
+.club-menu-label {
     font-family: var(--font-mono);
-    font-size: 0.6rem;
+    font-size: 0.58rem;
     text-transform: uppercase;
     letter-spacing: 0.12em;
     color: var(--faint);
-    margin-bottom: 5px;
+    padding: 4px 8px 6px;
 }
-.club-switch-select {
+.club-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
     width: 100%;
-    padding: 7px 9px;
-    background: var(--panel-2);
-    color: var(--text);
-    border: 1px solid var(--line-2);
-    border-radius: 8px;
+    padding: 8px 8px;
+    background: transparent;
+    border: none;
+    border-radius: 7px;
+    color: var(--muted);
     font-family: inherit;
-    font-size: 0.85rem;
+    font-size: 0.87rem;
+    text-align: left;
     cursor: pointer;
 }
-.club-switch-select:hover { border-color: var(--accent); }
-.club-switch-select:disabled { opacity: 0.6; cursor: progress; }
-/* "Crear otro club": discreto, es una acción de vez en cuando */
-.club-nuevo {
-    display: inline-block;
-    margin-top: 7px;
-    padding: 0 2px;
+.club-item:hover { background: var(--panel-3); color: var(--text); }
+.club-item:disabled { opacity: 0.6; cursor: progress; }
+.club-item.activo { color: var(--accent); font-weight: 600; }
+.club-item-tilde { width: 12px; flex-shrink: 0; font-size: 0.8rem; }
+.club-item-nombre { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* "Crear otro club" va abajo y separado: hay que abrir el menú a propósito,
+   así nadie se crea un club sin querer. */
+.club-menu-nuevo {
+    display: block;
+    margin-top: 5px;
+    padding: 8px;
+    border-top: 1px solid var(--line);
     color: var(--faint);
-    font-size: 0.78rem;
+    font-size: 0.8rem;
     text-decoration: none;
 }
-.club-nuevo:hover { color: var(--accent); }
+.club-menu-nuevo:hover { color: var(--accent); }
 
 .sidebar-nav { display: flex; flex-direction: column; gap: 18px; flex: 1; }
 .nav-group { display: flex; flex-direction: column; gap: 2px; }

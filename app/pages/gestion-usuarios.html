@@ -306,6 +306,7 @@
                 <p><strong>Club:</strong> <span id="club-name"></span> · <strong>Usuarios activos:</strong> <span id="user-count">2</span></p>
             </div>
 
+
             <!-- Equipos del club -->
             <div class="card">
                 <h2>Equipos</h2>
@@ -435,6 +436,21 @@
                     <p style="color: var(--muted);">Cargando usuarios…</p>
                 </div>
             </div>
+
+            <!-- Crear otro club. Vive acá abajo, y no suelto en la barra, para
+                 que no se toque sin querer: crear un club es una decisión, no
+                 un clic de paso. Solo para analistas (lo muestra el script);
+                 la que no administra ningún club lo tiene en el desplegable
+                 del nombre, arriba a la izquierda. -->
+            <div class="card" id="card-otro-club" style="display: none;">
+                <h2>Otro club</h2>
+                <p style="color: var(--muted); margin-bottom: 15px; font-size: 0.9rem;">
+                    ¿Trabajás con otro equipo que todavía no está en Timeline? Creá su club:
+                    vas a quedar como quien lo administra y desde ahí sumás a su gente.
+                    Arranca en plan Free y tu cuenta sigue igual.
+                </p>
+                <a href="registro.html" class="btn-primary" style="width: auto; display: inline-block;">+ Crear otro club</a>
+            </div>
         </div>
     </div>
 
@@ -470,6 +486,13 @@
                 mainContent.style.display = 'none';
                 unauthorizedScreen.style.display = 'block';
                 return false;
+            }
+
+            // Crear clubes es cosa de las analistas: son las que trabajan para
+            // varios equipos. Tiene que dar lo mismo que puedeCrearClubes en
+            // ui.js y que la regla de 'clubes' en firestore.rules.
+            if (sessionStorage.getItem('userRole') === 'analyst') {
+                document.getElementById('card-otro-club').style.display = '';
             }
 
             mainContent.style.display = 'block';

@@ -213,7 +213,20 @@
         const sesionUid = sessionStorage.getItem('usuarioUID');
         const conSesion = !!sesionUid;
 
-        if (conSesion) {
+        // Crear clubes desde una cuenta que ya existe es cosa de las analistas
+        // (mismo criterio que ui.js y que la regla de 'clubes'). Se corta acá
+        // para no mandar a nadie contra un error de permisos que no explica
+        // nada. El registro público, sin sesión, sigue abierto para cualquiera.
+        if (conSesion && sessionStorage.getItem('userRole') !== 'analyst') {
+            document.querySelector('.login-box').innerHTML = `
+                <div class="eyebrow login-eyebrow">Nuevo club</div>
+                <h2 class="login-title">Esto es para analistas</h2>
+                <p class="login-sub">
+                    Crear clubes desde una cuenta que ya existe es para quien trabaja con
+                    varios equipos. Si necesitás uno nuevo, escribinos y te lo armamos.
+                </p>
+                <div class="login-foot"><a href="historial.html">Volver</a></div>`;
+        } else if (conSesion) {
             document.getElementById('datos-cuenta').style.display = 'none';
             document.querySelector('.login-eyebrow').textContent = 'Nuevo club';
             document.querySelector('.login-title').textContent = 'Creá otro club';
