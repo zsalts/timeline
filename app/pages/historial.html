@@ -123,7 +123,7 @@
     </div>
 
     <script type="module">
-        import { db, collection, query, where, getDocs, getDoc, doc, deleteDoc, updateDoc, writeBatch, increment } from '../assets/js/firebase.js';
+        import { db, collection, query, where, getDocs, getDoc, doc, deleteDoc, updateDoc, writeBatch, increment, abrirClub } from '../assets/js/firebase.js';
 
         // 1. Verificación de seguridad
         const uid = sessionStorage.getItem('usuarioUID');
@@ -321,11 +321,7 @@
                 // Abrir un partido de otro club mueve el club activo: si no,
                 // el video cargaría las tácticas y el plan del club equivocado.
                 if (esDeOtroClub && datosClubes[partido.club_id]) {
-                    sessionStorage.setItem('clubID', partido.club_id);
-                    sessionStorage.setItem('configClub', JSON.stringify(datosClubes[partido.club_id]));
-                    sessionStorage.setItem('isClubAdmin',
-                        String(datosClubes[partido.club_id].admin_uid === uid));
-                    try { localStorage.setItem('ultimoClub', partido.club_id); } catch (_) { }
+                    await abrirClub(partido.club_id, datosClubes[partido.club_id]);
                 }
                 sessionStorage.setItem('partidoSeleccionadoId', partido.id);
                 window.location.href = 'video.html';

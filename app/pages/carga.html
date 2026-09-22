@@ -33,6 +33,14 @@
         <div class="card-stat" style="display: block; cursor: default;">
             <form id="form-carga" style="display: flex; flex-direction: column; gap: 18px;">
 
+                <!-- A qué club va el partido. Solo aparece para quien trabaja en
+                     más de uno (el caso típico es la analista): el resto carga
+                     siempre en el suyo y no tiene nada que elegir. -->
+                <div id="fila-club" style="display: none;">
+                    <label for="input-club">Club</label>
+                    <select id="input-club" style="margin-top: 6px;"></select>
+                </div>
+
                 <div class="form-group-row">
                     <div style="flex: 1;">
                         <label>Equipo 1 (nuestra columna)</label>
@@ -87,14 +95,26 @@
 
     <!-- Guardado en Firestore (nube, multi-tenant por club_id) -->
     <script type="module">
-        import { db, collection, addDoc, doc, getDoc, getDocs, query, where, writeBatch, increment } from '../assets/js/firebase.js';
+        import { db, collection, addDoc, doc, getDoc, getDocs, query, where, writeBatch, increment, abrirClub } from '../assets/js/firebase.js';
 
         const uid = sessionStorage.getItem('usuarioUID');
-        const clubId = sessionStorage.getItem('clubID');
-        if (!uid || !clubId) {
+        const clubAbierto = sessionStorage.getItem('clubID');
+        if (!uid || !clubAbierto) {
             // Si no está logueado (o no tiene club), lo mandamos al login
             window.location.href = "login.html";
         }
+
+        // A qué club va ESTE partido. Arranca en el club abierto, pero quien
+        // trabaja para varios puede mandarlo a otro sin cambiar de club primero.
+        // Todo lo del formulario depende de él: los equipos, el tope del plan y
+        // el contador de partidos son del club destino, no del abierto.
+        let clubDestino = clubAbierto;
+        const misClubes = (() => {
+            try {
+                const l = JSON.parse(sessionStorage.getItem('clubesUsuario') || '[]');
+                return Array.isArray(l) && l.length ? l : [clubAbierto];
+            } catch (e) { return [clubAbierto]; }
+        })();
 
         const form = document.getElementById('form-carga');
         const mensaje = document.getElementById('mensaje-estado');
@@ -108,38 +128,50 @@
                 : 'Opcional — hacé clic para elegir un archivo';
         });
 
+        // ---- Datos de cada club (equipos y plan) ----
+        // Se cachean: cambiar de club destino y volver no vuelve a pegarle a la
+        // red. El nombre se guarda además en 'clubesNombres', el mismo cache que
+        // usa el desplegable de la barra.
+        const cacheClubes = new Map();
+        async function datosDelClub(id) {
+            if (cacheClubes.has(id)) return cacheClubes.get(id);
+            const snap = await getDoc(doc(db, "clubes", id));
+            const datos = snap.exists() ? snap.data() : null;
+            cacheClubes.set(id, datos);
+            return datos;
+        }
+
         // Llena los desplegables con los equipos que cargó el admin del club
-        (async function cargarEquipos() {
-            try {
-                const snap = await getDoc(doc(db, "clubes", clubId));
-                const equipos = (snap.exists() && snap.data().equipos) || [];
-                const selects = [document.getElementById('input-mi-equipo'), document.getElementById('input-rival')];
+        function pintarEquipos(equipos) {
+            const selects = [document.getElementById('input-mi-equipo'), document.getElementById('input-rival')];
+            selects.forEach(s => {
+                // Se rehace desde cero: los equipos son de cada club, así que al
+                // cambiar de destino no pueden quedar los del anterior.
+                s.innerHTML = '<option value="" disabled selected>Seleccioná un equipo</option>';
                 if (!equipos.length) {
-                    selects.forEach(s => s.insertAdjacentHTML('beforeend',
-                        '<option value="" disabled>— el admin del club todavía no cargó equipos —</option>'));
+                    s.insertAdjacentHTML('beforeend',
+                        '<option value="" disabled>— el admin del club todavía no cargó equipos —</option>');
                     return;
                 }
-                selects.forEach(s => {
-                    equipos.forEach(eq => {
-                        const o = document.createElement('option');
-                        o.value = eq; o.textContent = eq;
-                        s.appendChild(o);
-                    });
+                equipos.forEach(eq => {
+                    const o = document.createElement('option');
+                    o.value = eq; o.textContent = eq;
+                    s.appendChild(o);
                 });
-            } catch (e) {
-                console.error("Error cargando equipos:", e);
-            }
-        })();
+            });
+        }
 
         // ---- Límite de partidos según el plan del club ----
         // Free: 10 partidos (total). Pro/Ultra: ilimitado. Pizarrón: ninguno,
         // es un plan solo de entrenamiento y táctica.
-        const limitePartidos = TL.planes.limiteActual('partidos');
-        const nombrePlan = TL.planes.info(TL.planes.planActual()).nombre;
+        // Ojo: el plan es el del club DESTINO, no el de la sesión, así que no se
+        // pueden usar los helpers ...Actual() de TL.planes.
+        let limitePartidos = Infinity;
+        let nombrePlan = '';
         const aviso = document.getElementById('aviso-limite');
 
         async function contarPartidos() {
-            const snap = await getDocs(query(collection(db, "partidos"), where("club_id", "==", clubId)));
+            const snap = await getDocs(query(collection(db, "partidos"), where("club_id", "==", clubDestino)));
             return snap.size;
         }
 
@@ -163,26 +195,103 @@
             btn.textContent = texto || "Límite alcanzado";
         }
 
-        // El plan no incluye partidos (Pizarrón): ni contamos, se bloquea.
-        if (limitePartidos === 0) {
-            pintarAviso(`El plan ${nombrePlan} es solo de entrenamiento y táctica: no incluye carga de partidos. Pasá a Pro o Ultra para analizar video.`, 'bloqueo');
-            bloquearFormulario("No incluido en tu plan");
-        } else if (limitePartidos !== Infinity) {
-            // Hay tope pero se pueden cargar (plan Free).
-            (async function chequearLimite() {
-                try {
-                    const usados = await contarPartidos();
-                    if (usados >= limitePartidos) {
-                        pintarAviso(`Llegaste al límite del plan ${nombrePlan} (${limitePartidos} partidos). Pasá a Pro para cargar partidos ilimitados.`, 'bloqueo');
-                        bloquearFormulario();
-                    } else {
-                        pintarAviso(`Plan ${nombrePlan}: ${usados} de ${limitePartidos} partidos usados.`, 'info');
-                    }
-                } catch (e) {
-                    console.error("No se pudo verificar el límite de partidos:", e);
-                }
-            })();
+        function desbloquearFormulario() {
+            btn.disabled = false;
+            btn.textContent = "Guardar partido";
         }
+
+        // ---- Preparar el formulario para un club destino ----
+        // Corre al entrar y cada vez que se elige otro club: los equipos, el
+        // plan y el tope son de ese club.
+        async function usarClub(id) {
+            clubDestino = id;
+            aviso.style.display = 'none';
+            desbloquearFormulario();
+
+            let club = null;
+            try {
+                club = await datosDelClub(id);
+            } catch (e) {
+                console.error("No se pudieron leer los datos del club:", e);
+            }
+            if (!club) {
+                pintarEquipos([]);
+                pintarAviso('No pudimos leer los datos de ese club. Revisá tu conexión.', 'bloqueo');
+                bloquearFormulario("Sin datos del club");
+                return;
+            }
+
+            pintarEquipos(club.equipos || []);
+            limitePartidos = TL.planes.limite(club.plan, 'partidos');
+            nombrePlan = TL.planes.info(club.plan).nombre;
+
+            // El plan no incluye partidos (Pizarrón): ni contamos, se bloquea.
+            if (limitePartidos === 0) {
+                pintarAviso(`El plan ${nombrePlan} es solo de entrenamiento y táctica: no incluye carga de partidos. Pasá a Pro o Ultra para analizar video.`, 'bloqueo');
+                bloquearFormulario("No incluido en su plan");
+                return;
+            }
+            if (limitePartidos === Infinity) return;   // Pro/Ultra: sin tope que avisar
+
+            // Hay tope pero se pueden cargar (plan Free).
+            try {
+                const usados = await contarPartidos();
+                if (id !== clubDestino) return;        // cambiaron de club mientras contábamos
+                if (usados >= limitePartidos) {
+                    pintarAviso(`Llegaste al límite del plan ${nombrePlan} (${limitePartidos} partidos). Pasá a Pro para cargar partidos ilimitados.`, 'bloqueo');
+                    bloquearFormulario();
+                } else {
+                    pintarAviso(`Plan ${nombrePlan}: ${usados} de ${limitePartidos} partidos usados.`, 'info');
+                }
+            } catch (e) {
+                console.error("No se pudo verificar el límite de partidos:", e);
+            }
+        }
+
+        // ---- Selector de club destino ----
+        // Solo para quien trabaja en más de uno. Los nombres salen del cache de
+        // la barra; los que falten se completan con el doc de cada club.
+        (async function armarSelectorDeClub() {
+            if (misClubes.length < 2) {
+                usarClub(clubAbierto);
+                return;
+            }
+            const sel = document.getElementById('input-club');
+            const nombres = (() => {
+                try { return JSON.parse(sessionStorage.getItem('clubesNombres') || '{}'); }
+                catch (e) { return {}; }
+            })();
+            misClubes.forEach(id => {
+                const o = document.createElement('option');
+                o.value = id;
+                o.textContent = nombres[id] || id;
+                sel.appendChild(o);
+            });
+            sel.value = clubAbierto;
+            document.getElementById('fila-club').style.display = '';
+            sel.addEventListener('change', () => usarClub(sel.value));
+
+            await usarClub(clubAbierto);
+
+            // Completar los nombres que no estaban cacheados. De paso marca los
+            // clubes cuyo plan no incluye partidos: mejor que no se puedan
+            // elegir a dejar elegirlos y después bloquear el formulario.
+            await Promise.all(misClubes.map(async (id) => {
+                try {
+                    const club = await datosDelClub(id);
+                    if (!club) return;
+                    nombres[id] = club.nombre || id;
+                    const op = sel.querySelector(`option[value="${CSS.escape(id)}"]`);
+                    if (!op) return;
+                    op.textContent = nombres[id];
+                    if (TL.planes.limite(club.plan, 'partidos') === 0) {
+                        op.textContent += ' (su plan no incluye partidos)';
+                        op.disabled = id !== clubAbierto;
+                    }
+                } catch (e) { /* sin permiso o sin red: queda el id */ }
+            }));
+            try { sessionStorage.setItem('clubesNombres', JSON.stringify(nombres)); } catch (e) { }
+        })();
 
         form.addEventListener('submit', async function (e) {
             e.preventDefault();
@@ -190,7 +299,7 @@
             // Reverificar el tope justo antes de guardar (evita saltarlo).
             if (limitePartidos === 0) {
                 pintarAviso(`El plan ${nombrePlan} es solo de entrenamiento y táctica: no incluye carga de partidos. Pasá a Pro o Ultra para analizar video.`, 'bloqueo');
-                bloquearFormulario("No incluido en tu plan");
+                bloquearFormulario("No incluido en su plan");
                 return;
             }
             if (limitePartidos !== Infinity) {
@@ -210,6 +319,9 @@
 
             btn.disabled = true;
             btn.textContent = "Procesando...";
+            // Cambiar de club a mitad del guardado dejaría el formulario
+            // (equipos, tope) de un club y el partido yéndose a otro.
+            document.getElementById('input-club').disabled = true;
             mensaje.style.color = "var(--muted)";
             mensaje.textContent = file ? "Leyendo archivo y guardando en la nube..." : "Guardando partido sin cortes...";
 
@@ -222,7 +334,7 @@
                 torneo: document.getElementById('input-torneo').value,
                 video_url: idYoutube,
                 youtube_id: idYoutube,
-                club_id: clubId,
+                club_id: clubDestino,
                 creado_por: uid,
                 importante: false,
                 creado_el: new Date().toISOString()
@@ -238,8 +350,21 @@
                     const batch = writeBatch(db);
                     const nuevoRef = doc(collection(db, "partidos"));
                     batch.set(nuevoRef, datos);
-                    batch.update(doc(db, "clubes", clubId), { partidos_count: increment(1) });
+                    // El contador es el del club del partido (datos.club_id) y
+                    // no el del select: entre el submit y el commit hay un
+                    // FileReader de por medio, así que el destino se toma del
+                    // partido que se está escribiendo y no de lo que esté
+                    // elegido en ese instante.
+                    batch.update(doc(db, "clubes", datos.club_id), { partidos_count: increment(1) });
                     await batch.commit();
+                    // Si el partido fue a otro club, dejamos ESE club abierto:
+                    // el historial al que caemos es el suyo, así que se ve lo
+                    // que se acaba de cargar. Mismo criterio que el historial
+                    // cuando abrís un partido de otro club.
+                    if (datos.club_id !== clubAbierto) {
+                        try { await abrirClub(datos.club_id, cacheClubes.get(datos.club_id)); }
+                        catch (e) { console.error("No se pudo abrir el club destino:", e); }
+                    }
                     mensaje.style.color = "var(--live)";
                     mensaje.textContent = "¡Éxito! Redirigiendo al historial...";
                     setTimeout(() => {
@@ -251,6 +376,7 @@
                     mensaje.textContent = "Error al guardar en la nube. Revisá la consola.";
                     btn.disabled = false;
                     btn.textContent = "Reintentar";
+                    document.getElementById('input-club').disabled = false;
                 }
             };
 
@@ -268,6 +394,7 @@
                         mensaje.textContent = "Error al procesar el archivo de cortes. Revisá la consola.";
                         btn.disabled = false;
                         btn.textContent = "Reintentar";
+                        document.getElementById('input-club').disabled = false;
                     }
                 };
                 reader.readAsText(file);

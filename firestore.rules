@@ -23,6 +23,13 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data;
     }
 
+    // Datos de la ficha de OTRA persona (userDoc() es la propia). Hace falta
+    // para el traspaso de un club: antes de dejarlo al mando hay que mirar su
+    // rol y sus clubes.
+    function fichaDe(uid) {
+      return get(/databases/$(database)/documents/usuarios/$(uid)).data;
+    }
+
     // Datos de un club
     function clubDoc(clubId) {
       return get(/databases/$(database)/documents/clubes/$(clubId)).data;
@@ -155,7 +162,9 @@ service cloud.firestore {
       //                     admin lo pudiera escribir se autoasignaría Ultra
       //                     y saltearía todo el gating de planes.
       //   - estado        → alta/baja del club.
-      //   - admin_uid     → quién manda en el club.
+      //   - admin_uid     → quién manda en el club. Se mueve solo por
+      //                     traspasoDeAdmin(), que lo entrega a otra persona
+      //                     del club y a nada más.
       //   - partidos_count→ tope del plan Free (se mueve solo por
       //                     soloContadorPartidos, ±1 y en el batch del partido).
       //   - authorized_uids / fecha_creacion → se fijan al crear el club.
@@ -169,15 +178,37 @@ service cloud.firestore {
         ]);
       }
 
+      // Traspasar el club: el admin actual le pasa el mando a alguien que ya
+      // trabaja acá. Es lo único fuera de camposEditablesPorAdminClub() que el
+      // admin puede tocar.
+      //
+      // Why: el permiso de update sigue exigiendo esAdminDelClub(), o sea que
+      // esto solo sirve para ENTREGAR el club, nunca para arrebatarlo. El caso
+      // real es la analista que arma el club de otro equipo y después se lo deja
+      // al cuerpo técnico: sin esto el admin_uid le quedaba pegado para siempre
+      // (moverlo era cosa del super-admin).
+      //
+      // El nuevo admin tiene que ser del club y no puede ser jugadora: las
+      // jugadoras son espectadoras, no mandan.
+      function traspasoDeAdmin() {
+        return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['admin_uid']) &&
+               request.resource.data.admin_uid is string &&
+               request.resource.data.admin_uid != resource.data.admin_uid &&
+               exists(/databases/$(database)/documents/usuarios/$(request.resource.data.admin_uid)) &&
+               fichaDe(request.resource.data.admin_uid).get('rol', '') != 'player' &&
+               clubId in clubesDe(fichaDe(request.resource.data.admin_uid));
+      }
+
       // Leer: super-admin, admin del club, o cualquier usuario del club
       allow read: if isSuper() ||
         esAdminDelClub() ||
         (userExists() && esMiClub(clubId));
 
       // Editar: el super-admin puede todo; el admin del club, solo los campos
-      // de su propia configuración (ver camposEditablesPorAdminClub).
+      // de su propia configuración (ver camposEditablesPorAdminClub), más el
+      // traspaso del club a otra persona del club (ver traspasoDeAdmin).
       allow update: if isSuper() ||
-        (esAdminDelClub() && camposEditablesPorAdminClub());
+        (esAdminDelClub() && (camposEditablesPorAdminClub() || traspasoDeAdmin()));
 
       // Borrar: solo el super-admin. Si el admin del club pudiera borrar su
       // club, volvería a crearlo con partidos_count en 0 y reiniciaría el tope

@@ -213,7 +213,7 @@
         import {
             auth, db, createUserWithEmailAndPassword, signInWithEmailAndPassword,
             doc, getDoc, writeBatch, increment, guardarSesionRecordada, clubesDeUsuario,
-            mandarCorreoDeConfirmacion
+            mandarCorreoDeConfirmacion, abrirClub
         } from '../assets/js/firebase.js';
 
         const msjError = document.getElementById('mensaje-error');
@@ -445,24 +445,26 @@
                     clubes.push(invitacion.club_id);
                 }
 
-                let clubCfg = { nombre: invitacion.club_nombre || 'Timeline', plan: 'free', logo: '' };
+                // Datos del club para la sesión. Si la lectura falla (red), se
+                // arma con lo que trae la invitación y se sigue igual.
+                let datosClub = null;
                 try {
                     const clubSnap = await getDoc(doc(db, 'clubes', invitacion.club_id));
-                    if (clubSnap.exists()) {
-                        const c = clubSnap.data();
-                        clubCfg = { nombre: c.nombre || clubCfg.nombre, plan: c.plan || 'free', logo: c.logo || '' };
-                    }
+                    if (clubSnap.exists()) datosClub = clubSnap.data();
                 } catch (_) { /* si falla, quedan los datos de la invitación */ }
+                if (!datosClub) {
+                    datosClub = { nombre: invitacion.club_nombre || 'Timeline', plan: 'free', logo: '' };
+                }
 
+                // El UID va primero: abrirClub() lo necesita para saber si
+                // mandás en este club (admin_uid), que es lo único que define
+                // ser su admin — el rol de la cuenta no tiene nada que ver.
                 sessionStorage.setItem('usuarioUID', uid);
                 sessionStorage.setItem('userEmail', email);
-                sessionStorage.setItem('clubID', invitacion.club_id);
                 sessionStorage.setItem('clubesUsuario', JSON.stringify(clubes));
                 sessionStorage.setItem('userRole', ficha.rol);
-                sessionStorage.setItem('isClubAdmin', String(ficha.rol === 'club-admin'));
-                sessionStorage.setItem('configClub', JSON.stringify(clubCfg));
                 sessionStorage.removeItem('clubesNombres');   // hay un club más
-                try { localStorage.setItem('ultimoClub', invitacion.club_id); } catch (_) { }
+                await abrirClub(invitacion.club_id, datosClub);
                 guardarSesionRecordada(true);
 
                 msjInfo.style.display = 'block';

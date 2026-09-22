@@ -196,7 +196,7 @@
         import {
             auth, db, createUserWithEmailAndPassword,
             doc, getDoc, setDoc, updateDoc, guardarSesionRecordada,
-            mandarCorreoDeConfirmacion, clubesDeUsuario
+            mandarCorreoDeConfirmacion, clubesDeUsuario, abrirClub
         } from '../assets/js/firebase.js';
 
         const btn = document.getElementById('btn-registrar');
@@ -367,15 +367,13 @@
                     mandarCorreoDeConfirmacion(cred.user);
                 }
 
-                sessionStorage.setItem('clubID', clubId);
                 sessionStorage.setItem('clubesUsuario', JSON.stringify(clubesFinal));
-                // Es admin de ESTE club (lo acaba de crear), sea cual sea su rol.
-                sessionStorage.setItem('isClubAdmin', 'true');
-                sessionStorage.removeItem('partidoSeleccionadoId');
                 sessionStorage.removeItem('clubesNombres');
-                sessionStorage.setItem('configClub', JSON.stringify({
-                    nombre: clubNombre, plan: 'free', logo: ''
-                }));
+                // Queda abierto el club recién creado. No hace falta releerlo:
+                // los datos son los que se acaban de escribir. El admin_uid es
+                // el propio, así que abrirClub() la deja como admin de ESTE
+                // club, sea cual sea el rol de su cuenta.
+                await abrirClub(clubId, { nombre: clubNombre, plan: 'free', logo: '', admin_uid: uid });
                 // Un usuario recién registrado queda con la sesión recordada;
                 // si ya estaba, se refresca para que el club nuevo también viaje.
                 guardarSesionRecordada(conSesion ? localStorage.getItem('recordarSesion') === '1' : true);

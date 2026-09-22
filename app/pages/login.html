@@ -202,12 +202,16 @@
     <script type="module">
         import { auth, db, signInWithEmailAndPassword, sendPasswordResetEmail, doc, getDoc, MASTER_EMAIL, isMasterAdmin,
             onAuthStateChanged, setPersistence, browserLocalPersistence, browserSessionPersistence, guardarSesionRecordada,
-            limpiarSesion, clubesDeUsuario } from '../assets/js/firebase.js';
+            limpiarSesion, clubesDeUsuario, abrirClub, paginaInicioDeClub } from '../assets/js/firebase.js';
 
-        // A dónde entra el usuario según el plan del club: el plan Pizarrón no
-        // tiene partidos, así que arranca en Entrenamientos y no en el historial.
-        const paginaInicio = () =>
-            TL.planes.puedeActual('partidos') ? 'historial.html' : 'entrenamientos.html';
+        // A dónde entra el usuario según el plan del club abierto: el plan
+        // Pizarrón no tiene partidos, así que arranca en Entrenamientos y no en
+        // el historial. La regla vive en firebase.js porque también la usan la
+        // barra y "Mis clubes" al cambiar de club.
+        const paginaInicio = () => {
+            try { return paginaInicioDeClub(JSON.parse(sessionStorage.getItem('configClub') || '{}')); }
+            catch (e) { return 'historial.html'; }
+        };
 
         const btnIngresar = document.getElementById('btn-ingresar');
         const msjError = document.getElementById('mensaje-error');
@@ -324,23 +328,26 @@
                         return;
                     }
 
-                    sessionStorage.setItem('clubID', clubIdDelUsuario);
                     sessionStorage.setItem('clubesUsuario', JSON.stringify(clubes));
                     sessionStorage.setItem('userRole', rol);
-                    try { localStorage.setItem('ultimoClub', clubIdDelUsuario); } catch (_) { }
 
-                    const docRef = doc(db, "clubes", clubIdDelUsuario);
-                    const docSnap = await getDoc(docRef);
-
-                    if (docSnap.exists()) {
-                        const datosClub = docSnap.data();
-                        sessionStorage.setItem('configClub', JSON.stringify(datosClub));
-                        // Mandar en un club es ser SU admin_uid, no tener el rol
-                        // 'club-admin'. El rol es uno solo para toda la cuenta,
-                        // así que si lo diera el rol, quien crea un club propio
-                        // pasaría a mandar también donde solo es analista.
-                        // Ojo: se recalcula al cambiar de club (ver ui.js).
-                        sessionStorage.setItem('isClubAdmin', String(datosClub.admin_uid === userId));
+                    // Abrir el club deja en la sesión su nombre, su plan y si
+                    // mandás ahí. Mandar es ser SU admin_uid, no tener el rol
+                    // 'club-admin': el rol es uno solo para toda la cuenta, así
+                    // que si lo diera el rol, quien crea un club propio pasaría
+                    // a mandar también donde solo es analista. Se recalcula cada
+                    // vez que se cambia de club (ver abrirClub en firebase.js).
+                    try {
+                        await abrirClub(clubIdDelUsuario);
+                    } catch (e) {
+                        // Sin los datos del club la app queda coja (plan, nombre,
+                        // permisos). Mejor cortar acá que entrar a medias.
+                        console.error("No se pudo abrir el club:", e);
+                        limpiarSesion();
+                        msjError.style.display = 'block';
+                        msjError.textContent = "No pudimos abrir tu club. Revisá tu conexión e intentá de nuevo.";
+                        btnIngresar.textContent = "Ingresar";
+                        return;
                     }
                 } else {
                     msjError.style.display = 'block';

@@ -121,6 +121,51 @@ export const miembrosDelClub = async (clubId) => {
   return [...porId.values()];
 };
 
+// ---------- Abrir un club ----------
+// Cambiar de club rehace la sesión: el plan, el nombre y todo lo que la app
+// filtra por clubID son de ese club. Vivía copiado en la barra, el historial,
+// el registro y la invitación; acá está una sola vez porque ahora también lo
+// usan "Mis clubes" y la carga de partidos.
+//
+// Mandar en un club es ser su admin_uid, NO tener el rol 'club-admin' (el rol
+// es uno para toda la cuenta). Por eso 'isClubAdmin' se recalcula en cada
+// cambio: en un club podés ser la dueña y en el de al lado no.
+//
+// El partido abierto era del club anterior, así que se suelta.
+// Devuelve los datos del club (los que le pasaron o los que leyó).
+export const abrirClub = async (clubId, datos = null) => {
+  let club = datos;
+  if (!club) {
+    const snap = await getDoc(doc(db, 'clubes', clubId));
+    if (!snap.exists()) throw new Error('El club no existe');
+    club = snap.data();
+  }
+  const uid = sessionStorage.getItem('usuarioUID');
+  sessionStorage.setItem('clubID', clubId);
+  sessionStorage.setItem('configClub', JSON.stringify(club));
+  sessionStorage.setItem('isClubAdmin', String(club.admin_uid === uid));
+  sessionStorage.removeItem('partidoSeleccionadoId');
+  try {
+    localStorage.setItem('ultimoClub', clubId);
+    // Si la sesión está recordada, el club nuevo también viaja.
+    if (localStorage.getItem('recordarSesion') === '1') guardarSesionRecordada(true);
+  } catch (e) { /* sin localStorage: la sesión vive solo en esta pestaña */ }
+  return club;
+};
+
+// La "casa" de un club: a dónde entra la persona al abrirlo. Depende del plan,
+// porque el Pizarrón no incluye partidos y su casa es Entrenamientos. Acepta el
+// doc del club o el plan suelto. Usa TL.planes si la página lo cargó; si no,
+// mira el plan directo (firebase.js es módulo y planes.js es script clásico:
+// no puede importarlo).
+export const paginaInicioDeClub = (clubOPlan) => {
+  const plan = (clubOPlan && typeof clubOPlan === 'object' ? clubOPlan.plan : clubOPlan) || 'free';
+  const conPartidos = (window.TL && window.TL.planes)
+    ? window.TL.planes.puede(plan, 'partidos')
+    : String(plan).toLowerCase() !== 'pizarron';
+  return conPartidos ? 'historial.html' : 'entrenamientos.html';
+};
+
 // ---------- Confirmación del correo ----------
 // Al darse de alta se manda un correo de confirmación. No bloquea el uso de
 // la app: sirve para saber que la dirección existe y es de quien dice ser

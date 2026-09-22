@@ -455,10 +455,11 @@
     </div>
 
     <script type="module">
-        import { auth, db, getDocs, collection, doc, getDoc, setDoc, updateDoc, deleteDoc, query, where, signInWithEmailAndPassword, miembrosDelClub, mandarCorreoDeConfirmacionPorToken } from '../assets/js/firebase.js';
+        import { auth, db, getDocs, collection, doc, getDoc, setDoc, updateDoc, deleteDoc, query, where, signInWithEmailAndPassword, miembrosDelClub, mandarCorreoDeConfirmacionPorToken, guardarSesionRecordada, paginaInicioDeClub } from '../assets/js/firebase.js';
 
         const mainContent = document.getElementById('main-content');
         const unauthorizedScreen = document.getElementById('unauthorized-screen');
+        const miUid = sessionStorage.getItem('usuarioUID') || '';
         let equiposActuales = [];
         let mapeoActual = {};             // { categoria: { lado, rol } }
         let categoriasDetectadas = [];    // nombres de categoría presentes en los partidos del club
@@ -970,6 +971,15 @@
                         'player': 'Jugadora'
                     }[user.rol] || user.rol;
 
+                    // Pasar la administración: mandar en un club es ser su
+                    // admin_uid, así que se le puede dejar a cualquiera del club
+                    // que no sea jugadora (las jugadoras solo miran) — incluida
+                    // la invitada de otro club, que sigue siendo del club. La
+                    // propia fila no, obviamente.
+                    const btnTraspaso = (user.id !== miUid && user.rol !== 'player')
+                        ? `<button class="btn-ghost" onclick="pasarLaAdministracion('${user.id}')">Pasar la administración</button>`
+                        : '';
+
                     container.innerHTML += `
                         <div class="user-item">
                             <div class="user-info">
@@ -979,8 +989,9 @@
                                 <p><strong>Estado:</strong> ${user.estado === 'activo' ? 'Activo' : 'Inactivo'}</p>
                             </div>
                             <div class="user-actions">
+                                ${btnTraspaso}
                                 ${invitada
-                                    ? '<span style="color: var(--faint); font-size: 0.9rem;">La maneja su club</span>'
+                                    ? '<span style="color: var(--faint); font-size: 0.9rem;">Su ficha la maneja su club</span>'
                                     : (user.rol !== 'club-admin'
                                         ? `<button class="btn-danger" onclick="deactivateUser('${user.id}')">Desactivar</button>`
                                         : '<span style="color: var(--faint); font-size: 0.9rem;">Admin del club</span>')}
@@ -1125,6 +1136,44 @@
             } catch (error) {
                 console.error("Error:", error);
                 alert('Error al desactivar usuario');
+            }
+        };
+
+        // Pasar la administración del club a otra persona del club.
+        //
+        // Mandar en un club es ser su admin_uid, no tener el rol 'club-admin'
+        // (el rol es uno para toda la cuenta), así que el traspaso es un solo
+        // campo del club y ningún rol cambia. El caso real es la analista que
+        // armó el club de otro equipo y después se lo deja al cuerpo técnico.
+        //
+        // Es un camino de ida: las reglas dejan ENTREGAR el club (hay que ser su
+        // admin para escribir), no recuperarlo. Por eso el confirm lo dice.
+        window.pasarLaAdministracion = async (userId) => {
+            const clubID = sessionStorage.getItem('clubID');
+
+            let nombre = 'esa persona';
+            try {
+                const ficha = await getDoc(doc(db, 'usuarios', userId));
+                if (ficha.exists()) nombre = ficha.data().nombre || ficha.data().email || nombre;
+            } catch (e) { /* sin nombre: el confirm igual explica qué pasa */ }
+
+            if (!confirm(`¿Pasarle la administración de este club a ${nombre}?\n\n`
+                + `Desde ese momento el club lo administra ${nombre} y vos dejás de administrarlo. `
+                + `Para volver atrás te la tiene que pasar de nuevo.`)) return;
+
+            try {
+                await updateDoc(doc(db, 'clubes', clubID), { admin_uid: userId });
+                // Ya no mandamos acá: si la sesión no lo refleja, el menú de
+                // Administración sigue apareciendo hasta el próximo login.
+                sessionStorage.setItem('isClubAdmin', 'false');
+                if (localStorage.getItem('recordarSesion') === '1') guardarSesionRecordada(true);
+                alert(`Listo: ahora el club lo administra ${nombre}.`);
+                let cfg = {};
+                try { cfg = JSON.parse(sessionStorage.getItem('configClub') || '{}'); } catch (e) { }
+                window.location.href = paginaInicioDeClub(cfg);
+            } catch (error) {
+                console.error("Error al pasar la administración:", error);
+                alert('No se pudo pasar la administración. Revisá que esa persona siga en el club y no sea jugadora.');
             }
         };
 

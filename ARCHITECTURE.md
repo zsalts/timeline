@@ -123,21 +123,69 @@
 
 ---
 
+## 🧭 Una persona, varios clubes
+
+El modelo original era **una cuenta = un club** (`usuarios/{uid}.club_id`). Hoy una
+persona puede trabajar para varios: el caso típico es la **analista** que sigue a
+más de un equipo.
+
+**Cómo se guarda:**
+
+| campo | qué es |
+|---|---|
+| `usuarios/{uid}.clubes` | todos los clubes de esa persona (array) |
+| `usuarios/{uid}.club_id` | el club "casa": el que se abre por defecto y donde vive su ficha |
+| `clubes/{id}.admin_uid` | quién manda en ESE club |
+
+Las fichas viejas no tienen `clubes` y valen por su `club_id`: eso lo resuelve
+`clubesDeUsuario()` en `app/assets/js/firebase.js` y su gemela `clubesDe(ficha)` en
+`firestore.rules`. Toda regla que antes comparaba `club_id == club_id` ahora usa
+`esMiClub(c)`.
+
+**Mandar en un club es ser su `admin_uid`, no tener el rol `club-admin`.** El rol es
+uno solo para toda la cuenta: si "ser admin" lo diera el rol, quien crea un club
+propio pasaría a mandar también donde solo es analista. Por eso la sesión guarda
+`isClubAdmin` recalculado club por club, y las reglas preguntan `esAdminDe(c)`.
+
+**Qué puede hacer cada una:**
+
+- **Crear un club nuevo** desde una cuenta que ya existe: solo las analistas
+  (`registro.html` en modo "con sesión"; la regla de `clubes/create` pide
+  `userDoc().rol == 'analyst'`). Queda como su `admin_uid` y administra ese club
+  aunque su rol de cuenta siga siendo "analista".
+- **Cambiar de club abierto:** tocando el nombre del club arriba a la izquierda
+  (`ui.js`). Rehace la sesión con `abrirClub()` de `firebase.js`, que es el único
+  lugar donde se escribe `clubID` / `configClub` / `isClubAdmin`.
+- **Ver todos sus clubes:** `pages/mis-clubes.html` (plan, partidos, gente, cuáles
+  administra). Es además la página que pone al día la lista de clubes de la sesión.
+- **Ver los partidos de todos sus clubes juntos:** el selector "Todos mis clubes"
+  del historial. Es de lectura: abrir un partido de otro club cambia el club abierto.
+- **Cargar un partido a cualquiera de sus clubes:** el selector "Club" de
+  `carga.html`. Los equipos, el tope del plan y el contador son del club destino.
+- **Pasar la administración de un club:** desde Usuarios, a cualquiera del club que
+  no sea jugadora (`traspasoDeAdmin()` en las reglas). Solo se puede **entregar**:
+  para escribir `admin_uid` hay que ser el admin actual.
+
+---
+
 ## 🔐 Seguridad: Aislamiento Multi-Tenant
 
 ### Firestore Security Rules
 
-#### Patrón 1: Filtro obligatorio `club_id`
+#### Patrón 1: el club del documento tiene que ser uno de los míos
 
 ```firestore
 match /partidos/{partidoId} {
-  allow read: if request.auth != null &&
-                 getUserData().club_id == resource.data.club_id;
+  allow read: if isSuper() ||
+    (userExists() && esMiClub(resource.data.club_id));
 }
 ```
 
-**Garantía:** Un usuario de club A NO puede:
-- Ver partidos de club B
+`esMiClub(c)` es `c in clubesDe(userDoc())`. Reemplaza al viejo
+`getUserData().club_id == resource.data.club_id`: desde que alguien puede estar en
+varios clubes, "mi club" no es uno solo.
+
+**Garantía:** un usuario de club A NO puede ver partidos de club B
 - Aunque intente query sin filtro
 - Aunque conozca el ID del documento
 
@@ -147,26 +195,33 @@ match /partidos/{partidoId} {
 
 ```firestore
 match /clubes/{clubId} {
-  allow write: if request.auth != null &&
-                  request.auth.uid == resource.data.admin_uid;
+  allow update: if isSuper() ||
+    (esAdminDelClub() && (camposEditablesPorAdminClub() || traspasoDeAdmin()));
 }
 ```
 
-**Garantía:** Solo el admin del club puede editar su club
+**Garantía:** solo el admin del club lo edita, y solo los campos de su propia
+configuración (`nombre`, `logo`, `equipos`, `mapeoEstadisticas`,
+`usuarios_activos`). Lo comercial y estructural (`plan`, `estado`,
+`partidos_count`) queda afuera. `admin_uid` se mueve únicamente por
+`traspasoDeAdmin()`, que lo entrega a otra persona del club y a nada más.
 
 ---
 
-#### Patrón 3: Role-based access
+#### Patrón 3: crear usuarios lo hace quien manda en el club
 
 ```firestore
 match /usuarios/{userId} {
-  allow create: if request.auth != null &&
-                   getUserData().rol == 'club-admin' &&
-                   resource.data.club_id == getUserData().club_id;
+  allow create: if isSuper() ||
+    esAdminDe(request.resource.data.club_id) ||
+    ... // auto-registro y alta por link de invitación
 }
 ```
 
-**Garantía:** Solo club-admin puede crear usuarios en su club
+`esAdminDe(c)` es `clubDoc(c).admin_uid == request.auth.uid`, no el rol de la
+cuenta.
+
+**Garantía:** solo quien manda en ese club da de alta a su gente
 
 ---
 

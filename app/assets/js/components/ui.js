@@ -19,6 +19,13 @@
     const toRoot = enPages ? '../' : '';        // para /assets
     const toPage = enPages ? '' : 'pages/';      // para páginas dentro de /pages/
 
+    // ui.js es un script CLÁSICO, así que su import() dinámico se resuelve contra
+    // la URL de este archivo (assets/js/components/ui.js) y NO contra la de la
+    // página. Por eso la ruta a firebase.js es fija y no usa toRoot: con toRoot
+    // pedía assets/js/assets/js/firebase.js, que es 404, y se caían en silencio
+    // el cambio de club, los nombres del menú y el signOut del logout.
+    const RUTA_FIREBASE = '../firebase.js';
+
     // Marca del club (nombre) desde la sesión.
     // Nombre y email se escapan acá porque más abajo entran en el HTML de la
     // barra, que se arma con template literals: los pone el usuario y esta
@@ -168,6 +175,7 @@
     const menuClubHTML = !hayMenuClub ? '' : `
         <div class="club-menu" id="club-menu" hidden role="menu" aria-label="Cambiar de club">
             ${misClubes.length > 1 ? `<div class="club-menu-label">Tus clubes</div>${itemsClubHTML}` : ''}
+            <a href="${toPage}mis-clubes.html" class="club-menu-nuevo">Ver todos mis clubes</a>
             ${!puedeCrearClubes ? '' : `
             <a href="${toPage}registro.html" class="club-menu-nuevo">+ Crear otro club</a>`}
         </div>`;
@@ -250,7 +258,7 @@
         // 2) Cerrar sesión de Firebase para revocar el token (best-effort).
         //    ui.js es script clásico → import dinámico de firebase.js.
         try {
-            const fb = await import(`${toRoot}assets/js/firebase.js`);
+            const fb = await import(RUTA_FIREBASE);
             await fb.signOut(fb.auth);
         } catch (_) { }
         window.location.href = enPages ? 'login.html' : 'pages/login.html';
@@ -287,24 +295,13 @@
                 if (!nuevo || nuevo === clubActivo) return abrirMenuClub(false);
                 menuClub.querySelectorAll('.club-item').forEach(b => b.disabled = true);
                 try {
-                    const fb = await import(`${toRoot}assets/js/firebase.js`);
-                    const snap = await fb.getDoc(fb.doc(fb.db, 'clubes', nuevo));
-                    if (!snap.exists()) throw new Error('El club no existe');
-                    sessionStorage.setItem('clubID', nuevo);
-                    sessionStorage.setItem('configClub', JSON.stringify(snap.data()));
-                    // Mandar es por club: en uno podés ser la dueña y en otro no.
-                    // Si esto no se recalcula acá, el menú de Usuarios queda
-                    // mostrándose (o escondido) según el club anterior.
-                    sessionStorage.setItem('isClubAdmin',
-                        String(snap.data().admin_uid === sessionStorage.getItem('usuarioUID')));
-                    sessionStorage.removeItem('partidoSeleccionadoId');
-                    try { localStorage.setItem('ultimoClub', nuevo); } catch (_) { }
-                    // Si la sesión está recordada, el club nuevo también.
-                    if (localStorage.getItem('recordarSesion') === '1') fb.guardarSesionRecordada(true);
+                    const fb = await import(RUTA_FIREBASE);
+                    // abrirClub() rehace la sesión (club, plan, si mandás acá) y
+                    // suelta el partido abierto, que era del club anterior.
+                    const club = await fb.abrirClub(nuevo);
                     // La casa depende del plan del club NUEVO (Pizarrón no tiene
                     // partidos), igual que paginaInicio() en el login.
-                    const conPartidos = !window.TL || !window.TL.planes || window.TL.planes.puedeActual('partidos');
-                    const destino = conPartidos ? 'historial.html' : 'entrenamientos.html';
+                    const destino = fb.paginaInicioDeClub(club);
                     window.location.href = enPages ? destino : `pages/${destino}`;
                 } catch (e) {
                     console.error('No se pudo cambiar de club:', e);
@@ -316,7 +313,7 @@
 
         // Completar los nombres que no estaban cacheados (una vez por sesión).
         if (misClubes.some(id => !nombresClubes[id])) {
-            import(`${toRoot}assets/js/firebase.js`).then(async (fb) => {
+            import(RUTA_FIREBASE).then(async (fb) => {
                 await Promise.all(misClubes.filter(id => !nombresClubes[id]).map(async (id) => {
                     try {
                         const s = await fb.getDoc(fb.doc(fb.db, 'clubes', id));
@@ -338,7 +335,7 @@
     // marca en sessionStorage para no volver a preguntarle a Firebase en cada
     // página.
     if (sessionStorage.getItem('emailConfirmado') !== '1') {
-        import(`${toRoot}assets/js/firebase.js`).then((fb) => {
+        import(RUTA_FIREBASE).then((fb) => {
             fb.onAuthStateChanged(fb.auth, async (user) => {
                 if (!user) return;
                 // reload() trae el estado fresco: si confirmó en otra pestaña,

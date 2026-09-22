@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mis clubes - Timeline</title>
+    <link rel="manifest" href="../manifest.json">
+    <link rel="icon" type="image/svg+xml" href="../assets/image/logo-icon.svg">
+    <link rel="icon" type="image/png" href="../assets/image/logo-web.png">
+    <link rel="apple-touch-icon" href="../assets/image/logo-web.png">
+    <link rel="stylesheet" href="../assets/css/style.css">
+    <script src="../assets/js/utils/tema.js"></script>
+    <script src="../assets/js/utils/html.js"></script>
+    <!-- planes.js antes de ui.js para que el sidebar sepa el plan -->
+    <script src="../assets/js/utils/planes.js"></script>
+    <style>
+        .clubes-wrap { max-width: 900px; }
+        .clubes-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 16px; }
+
+        .club-card {
+            background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+            padding: 18px 20px; display: flex; flex-direction: column; gap: 14px;
+        }
+        /* El club abierto se distingue de un vistazo: es el que está mandando
+           en todas las demás páginas. */
+        .club-card.abierto { border-color: var(--accent-line); background: var(--panel-2); }
+
+        .club-card h3 { margin: 0; font-size: 1.15rem; letter-spacing: -0.02em; }
+        .club-card-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+        .club-chip {
+            display: inline-block; font-family: var(--font-mono); font-size: 0.6rem;
+            text-transform: uppercase; letter-spacing: 0.08em; padding: 2px 8px;
+            border-radius: 999px; background: var(--panel-3); color: var(--muted);
+            border: 1px solid var(--line-2);
+        }
+        .club-chip.destacado { background: var(--accent-dim); color: var(--accent-hi); border-color: var(--accent-line); }
+
+        .club-datos { display: flex; flex-direction: column; gap: 4px; margin: 0; }
+        .club-dato {
+            display: flex; justify-content: space-between; gap: 12px;
+            font-family: var(--font-mono); font-size: 0.78rem; color: var(--muted);
+            border-bottom: 1px dashed var(--line); padding: 3px 0;
+        }
+        .club-dato:last-child { border-bottom: none; }
+        .club-dato b { color: var(--text); font-weight: 600; }
+
+        .club-acciones { display: flex; gap: 10px; flex-wrap: wrap; margin-top: auto; }
+        .club-acciones .btn-primary, .club-acciones .btn-ghost { width: auto; padding: 9px 16px; font-size: 0.85rem; }
+
+        .clubes-pie { margin-top: 28px; }
+        .club-error { color: var(--danger); font-size: 0.8rem; margin: 0; }
+    </style>
+</head>
+
+<body>
+
+    <div id="sidebar-root" data-active="clubes"></div>
+    <script src="../assets/js/components/ui.js"></script>
+
+    <div class="container-dashboard clubes-wrap">
+
+        <div class="header-stats">
+            <div>
+                <div class="eyebrow">Tu cuenta</div>
+                <h2>Mis clubes</h2>
+                <p class="subtitle">
+                    Los clubes para los que trabajás. Abrí el que quieras: todo lo que ves en la app
+                    (partidos, plan, gente) es del club abierto.
+                </p>
+            </div>
+        </div>
+
+        <div id="lista-clubes" class="clubes-grid">
+            <p style="color: var(--muted);">Cargando tus clubes…</p>
+        </div>
+
+        <div class="clubes-pie" id="pie-nuevo" style="display: none;">
+            <a href="registro.html" class="btn-primary" style="width: auto; display: inline-block;">+ Crear otro club</a>
+        </div>
+    </div>
+
+    <script type="module">
+        import { db, doc, getDoc, clubesDeUsuario, abrirClub, paginaInicioDeClub } from '../assets/js/firebase.js';
+
+        const uid = sessionStorage.getItem('usuarioUID');
+        if (!uid) window.location.href = "login.html";
+        // El redirect no corta el script: sin sesión no hay nada que leer.
+        const haySesion = !!uid;
+
+        const clubActivo = sessionStorage.getItem('clubID') || '';
+        const lista = document.getElementById('lista-clubes');
+
+        // Crear clubes es cosa de las analistas: son las que trabajan para varios
+        // equipos. Tiene que dar lo mismo que puedeCrearClubes en ui.js, que
+        // gestion-usuarios.html y que la regla de 'clubes' en firestore.rules.
+        if (sessionStorage.getItem('userRole') === 'analyst') {
+            document.getElementById('pie-nuevo').style.display = '';
+        }
+
+        // La lista sale de la ficha en Firestore y NO de la sesión: 'clubesUsuario'
+        // se arma al entrar, así que si te sumaron a un club después queda vieja
+        // hasta el próximo login. Esta página es la que la pone al día (y de paso
+        // refresca el desplegable del nombre, que come de esa misma clave).
+        async function cargar() {
+            let clubes = [];
+            try {
+                const ficha = await getDoc(doc(db, 'usuarios', uid));
+                if (!ficha.exists()) throw new Error('Sin ficha de usuario');
+                clubes = clubesDeUsuario(ficha.data());
+                sessionStorage.setItem('clubesUsuario', JSON.stringify(clubes));
+            } catch (e) {
+                console.error('No se pudo leer tu ficha:', e);
+                lista.innerHTML = '<p style="color: var(--danger);">No pudimos leer tus clubes. Revisá tu conexión e intentá de nuevo.</p>';
+                return;
+            }
+
+            if (!clubes.length) {
+                lista.innerHTML = '<p style="color: var(--muted);">Tu usuario no está asociado a ningún club.</p>';
+                return;
+            }
+
+            // Los datos de cada club: el plan y los contadores viven en su doc.
+            // Si alguno no se puede leer, se dibuja igual con lo que hay.
+            const datos = {};
+            const nombres = (() => {
+                try { return JSON.parse(sessionStorage.getItem('clubesNombres') || '{}'); }
+                catch (e) { return {}; }
+            })();
+            await Promise.all(clubes.map(async (id) => {
+                try {
+                    const snap = await getDoc(doc(db, 'clubes', id));
+                    if (snap.exists()) {
+                        datos[id] = snap.data();
+                        nombres[id] = snap.data().nombre || id;
+                    }
+                } catch (e) { /* sin permiso o sin red: queda el id */ }
+            }));
+            try { sessionStorage.setItem('clubesNombres', JSON.stringify(nombres)); } catch (e) { }
+
+            pintar(clubes, datos);
+        }
+
+        // Cuántos partidos entran según el plan: el Free tiene tope y el Pizarrón
+        // directamente no incluye partidos.
+        function textoPartidos(club) {
+            const usados = club.partidos_count || 0;
+            const tope = TL.planes.limite(club.plan, 'partidos');
+            if (tope === 0) return 'no incluidos en su plan';
+            if (tope === Infinity) return `<b>${usados}</b> cargados`;
+            return `<b>${usados}</b> de ${tope}`;
+        }
+
+        function pintar(clubes, datos) {
+            lista.innerHTML = '';
+            clubes.forEach(id => {
+                const club = datos[id];
+                const esAdmin = !!club && club.admin_uid === uid;
+                const esActivo = id === clubActivo;
+                const nombre = TL.esc((club && club.nombre) || id);
+
+                const card = document.createElement('div');
+                card.className = `club-card${esActivo ? ' abierto' : ''}`;
+
+                if (!club) {
+                    // El doc no se pudo leer (sin red, o te sacaron del club).
+                    card.innerHTML = `
+                        <div>
+                            <h3>${TL.esc(id)}</h3>
+                            <p class="club-error">No pudimos leer los datos de este club.</p>
+                        </div>`;
+                    lista.appendChild(card);
+                    return;
+                }
+
+                card.innerHTML = `
+                    <div>
+                        <h3>${nombre}</h3>
+                        <div class="club-card-chips">
+                            ${esActivo ? '<span class="club-chip destacado">Abierto ahora</span>' : ''}
+                            ${esAdmin ? '<span class="club-chip">Lo administrás vos</span>' : ''}
+                        </div>
+                    </div>
+                    <div class="club-datos">
+                        <div class="club-dato"><span>Plan</span><span><b>${TL.esc(TL.planes.info(club.plan).nombre)}</b></span></div>
+                        <div class="club-dato"><span>Partidos</span><span>${textoPartidos(club)}</span></div>
+                        <div class="club-dato"><span>Gente</span><span><b>${club.usuarios_activos || 1}</b></span></div>
+                    </div>
+                    <div class="club-acciones">
+                        <button type="button" class="btn-primary" data-ir="inicio">${esActivo ? 'Ir al inicio' : 'Abrir club'}</button>
+                        ${esAdmin ? '<button type="button" class="btn-ghost" data-ir="usuarios">Usuarios</button>' : ''}
+                    </div>`;
+
+                // Abrir un club rehace la sesión (plan, nombre, si mandás ahí) y
+                // suelta el partido abierto, que era del club anterior.
+                card.querySelectorAll('[data-ir]').forEach(btn => {
+                    btn.addEventListener('click', async () => {
+                        card.querySelectorAll('[data-ir]').forEach(b => b.disabled = true);
+                        try {
+                            await abrirClub(id, club);
+                            window.location.href = btn.getAttribute('data-ir') === 'usuarios'
+                                ? 'gestion-usuarios.html'
+                                : paginaInicioDeClub(club);
+                        } catch (e) {
+                            console.error('No se pudo abrir el club:', e);
+                            card.querySelectorAll('[data-ir]').forEach(b => b.disabled = false);
+                        }
+                    });
+                });
+
+                lista.appendChild(card);
+            });
+        }
+
+        if (haySesion) cargar();
+    </script>
+</body>
+
+</html>
